@@ -26,8 +26,13 @@ jobs:
     - name: Compile Rust Core
       working-directory: app/src/main/rust
       run: |
-        # Use the pre-installed NDK in GitHub Actions
-        export PATH=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+        # Configure the linker for the Android target
+        NDK_BIN=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+        export AR=$NDK_BIN/llvm-ar
+        export CC=$NDK_BIN/aarch64-linux-android24-clang
+        export CXX=$NDK_BIN/aarch64-linux-android24-clang++
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CC
+        
         cargo build --target aarch64-linux-android --release
         mkdir -p ../jniLibs/arm64-v8a
         cp target/aarch64-linux-android/release/libegi_core.so ../jniLibs/arm64-v8a/

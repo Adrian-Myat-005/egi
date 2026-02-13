@@ -66,18 +66,31 @@ fun TerminalDashboard() {
         }
     }
 
+    val egiNetwork = remember { EgiNetwork() }
+
     // Fake network log loop
     LaunchedEffect(isSecure) {
         while (!isSecure) {
             delay(800)
-            val pings = listOf(124, 142, 98, 210, 156)
-            val jitter = listOf(12, 45, 8, 32)
-            val newLog = if (Random().nextBoolean()) {
-                "EGI >> PING: ${pings.random()}ms"
-            } else {
-                "EGI >> JITTER DETECTED: ${jitter.random()}ms"
+            try {
+                val statsJson = egiNetwork.measureNetworkStats()
+                // Simple regex to extract values from JSON without a full parser library
+                val ping = "ping\":\\s*(-?\\d+)".toRegex().find(statsJson)?.groupValues?.get(1)?.toInt() ?: -1
+                val jitter = "jitter\":\\s*(\\d+)".toRegex().find(statsJson)?.groupValues?.get(1)?.toInt() ?: 0
+                val status = "status\":\\s*\"(\\w+)\"".toRegex().find(statsJson)?.groupValues?.get(1) ?: "unstable"
+
+                val newLog = if (ping == -1) {
+                    "EGI >> CONNECTION TIMEOUT"
+                } else {
+                    "EGI >> PING: ${ping}ms | JITTER: ${jitter}ms"
+                }
+                logs = (logs + newLog).takeLast(100)
+                if (status == "secure" && !isSecure) {
+                    // We don't force secure here, only on button click as per requirements
+                }
+            } catch (e: Exception) {
+                logs = (logs + "EGI >> ERROR: ${e.message}").takeLast(100)
             }
-            logs = logs + newLog
         }
     }
 
