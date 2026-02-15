@@ -26,6 +26,7 @@ fun AppSelectorScreen(onBack: () -> Unit) {
     var currentMode by remember { mutableStateOf(EgiPreferences.getMode(context)) }
     var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context)) }
     var casualWhitelist by remember { mutableStateOf(EgiPreferences.getCasualWhitelist(context)) }
+    var searchQuery by remember { mutableStateOf("") }
 
     val installedApps = remember {
         val pm = context.packageManager
@@ -41,6 +42,11 @@ fun AppSelectorScreen(onBack: () -> Unit) {
             .sortedBy { it.name }
     }
 
+    val filteredApps = remember(installedApps, searchQuery) {
+        if (searchQuery.isEmpty()) installedApps
+        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -52,6 +58,22 @@ fun AppSelectorScreen(onBack: () -> Unit) {
             color = Color.Yellow,
             fontFamily = FontFamily.Monospace,
             fontSize = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace),
+            label = { Text("SEARCH_TARGET_APP", color = Color.Green.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace) },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Cyan,
+                unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
+                cursorColor = Color.Cyan
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -91,7 +113,7 @@ fun AppSelectorScreen(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(installedApps) { app ->
+            items(filteredApps) { app ->
                 SelectorRow(
                     app = app,
                     mode = currentMode,
