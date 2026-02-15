@@ -54,6 +54,48 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+
+@Composable
+fun PingGraph(history: List<Int>, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val maxPing = 200f
+        
+        // Draw Grid lines
+        drawLine(Color.DarkGray, start = androidx.compose.ui.geometry.Offset(0f, height * 0.5f), end = androidx.compose.ui.geometry.Offset(width, height * 0.5f), strokeWidth = 1f)
+        
+        if (history.size < 2) return@Canvas
+
+        val path = Path()
+        val step = width / (history.size - 1)
+        
+        history.forEachIndexed { index, ping ->
+            val x = index * step
+            val normalizedPing = (ping.coerceIn(0, maxPing.toInt()) / maxPing)
+            val y = height - (normalizedPing * height)
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        
+        drawPath(path, color = Color.Green, style = Stroke(width = 4f))
+
+        // Draw Simulated "Unoptimized" Red Path (Lag Spikes)
+        val redPath = Path()
+        history.forEachIndexed { index, ping ->
+            val x = index * step
+            // Simulate a lag spike on the red line
+            val simulatedLag = if (index % 5 == 0) (ping + 80).coerceIn(0, maxPing.toInt()) else (ping + 20).coerceIn(0, maxPing.toInt())
+            val normalizedPing = (simulatedLag / maxPing)
+            val y = height - (normalizedPing * height)
+            if (index == 0) redPath.moveTo(x, y) else redPath.lineTo(x, y)
+        }
+        drawPath(redPath, color = Color.Red.copy(alpha = 0.3f), style = Stroke(width = 2f))
+    }
+}
+
 @Composable
 fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
@@ -110,8 +152,10 @@ fun TerminalDashboard(
     // HUD States
     var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
     var currentPing by remember { mutableStateOf(0) }
+    var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
     var currentJitter by remember { mutableStateOf(0) }
     var serverStatus by remember { mutableStateOf("CONNECTING") }
+    val blockedCount by TrafficEvent.blockedCount.collectAsState()
     
     // Dropdown State
     var expanded by remember { mutableStateOf(false) }
@@ -129,7 +173,9 @@ fun TerminalDashboard(
 
     // Helper to type a message into logs
     fun addLog(msg: String) {
-        logs = (logs + msg).takeLast(50)
+        if (!msg.contains("INTERNAL")) {
+            logs = (logs + msg).takeLast(50)
+        }
     }
 
     suspend fun typeLog(msg: String) {
@@ -207,6 +253,10 @@ fun TerminalDashboard(
                     currentPing = json.optInt("ping", -1)
                     currentJitter = json.optInt("jitter", 0)
                     serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
+                    
+                    if (currentPing != -1) {
+                        pingHistory = (pingHistory + currentPing).takeLast(20)
+                    }
                 } catch (e: Throwable) {
                     serverStatus = "ERROR"
                 }
@@ -232,10 +282,10 @@ fun TerminalDashboard(
             .background(Color.Black)
             .padding(16.dp)
     ) {
-        // --- TOP SECTION: THE HUD (Weight 0.4) ---
+        // --- TOP SECTION: THE HUD (Weight 0.45) ---
         Column(
             modifier = Modifier
-                .weight(0.4f)
+                .weight(0.45f)
                 .fillMaxWidth()
         ) {
             // Server Selector
@@ -269,33 +319,50 @@ fun TerminalDashboard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Big Ping
-            Text(
-                text = if (currentPing == -1) "-- ms" else "$currentPing ms",
-                color = when {
-                    currentPing == -1 -> Color.Red
-                    currentPing < 60 -> Color.Green
-                    currentPing < 120 -> Color.Yellow
-                    else -> Color.Red
-                },
-                fontSize = 48.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+            // Graph & Ping
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                PingGraph(
+                    history = pingHistory,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp)
+                        .padding(end = 16.dp)
+                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (currentPing == -1) "-- ms" else "$currentPing ms",
+                        color = when {
+                            currentPing == -1 -> Color.Red
+                            currentPing < 60 -> Color.Green
+                            currentPing < 120 -> Color.Yellow
+                            else -> Color.Red
+                        },
+                        fontSize = 32.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
 
-            // Secondary Stats
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Secondary Stats & Blocked Counter
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column {
                     Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("DISTRACTIONS BLOCKED", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text("$blockedCount", color = Color.Cyan, fontSize = 20.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+                Column(horizontalAlignment = Alignment.End) {
                     Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
                 }
@@ -314,10 +381,10 @@ fun TerminalDashboard(
 
         Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-        // --- BOTTOM SECTION: THE MATRIX (Weight 0.6) ---
+        // --- BOTTOM SECTION: THE MATRIX (Weight 0.55) ---
         Column(
             modifier = Modifier
-                .weight(0.6f)
+                .weight(0.55f)
                 .fillMaxWidth()
         ) {
             LazyColumn(
@@ -351,14 +418,14 @@ fun TerminalDashboard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MenuButton("[ MODES ]") { onOpenAppSelector() }
+                    MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
                     MenuButton("[ DNS ]") { onOpenDnsPicker() }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MenuButton("[ RADAR ]") {
+                    MenuButton("[ NETWORK RADAR ]") {
                         val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
                         if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                             onOpenWifiRadar()
@@ -369,7 +436,7 @@ fun TerminalDashboard(
                             ))
                         }
                     }
-                    MenuButton("[ APPS ]") { onOpenAppPicker() }
+                    MenuButton("[ VIP LANE ]") { onOpenAppPicker() }
                 }
             }
 

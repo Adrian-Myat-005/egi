@@ -48,10 +48,20 @@ fun AppSelectorScreen(onBack: () -> Unit) {
             .padding(16.dp)
     ) {
         Text(
-            text = "EGI >> MODE_SELECTOR",
-            color = Color.Green,
+            text = "EGI >> NUCLEAR_TARGET_SELECTOR",
+            color = Color.Yellow,
             fontFamily = FontFamily.Monospace,
             fontSize = 20.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "SELECT PRIMARY APPLICATION FOR MAXIMUM PRIORITY. ALL OTHER TRAFFIC WILL BE TERMINATED.",
+            color = Color.Red.copy(alpha = 0.7f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            lineHeight = 14.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))

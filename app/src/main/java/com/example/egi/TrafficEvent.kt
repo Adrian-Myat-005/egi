@@ -1,13 +1,25 @@
 package com.example.egi
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 object TrafficEvent {
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 100)
     val events = _events.asSharedFlow()
 
+    private val _blockedCount = MutableStateFlow(0)
+    val blockedCount = _blockedCount.asStateFlow()
+
     fun log(message: String) {
+        if (message.contains("BLOCKED")) {
+            _blockedCount.value += 1
+        }
         _events.tryEmit(message)
+    }
+
+    fun resetCount() {
+        _blockedCount.value = 0
     }
 }

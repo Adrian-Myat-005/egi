@@ -59,10 +59,18 @@ fun AppPickerScreen(onBack: () -> Unit) {
             .padding(16.dp)
     ) {
         Text(
-            text = "EGI >> TARGET_SELECTOR",
-            color = Color.Green,
+            text = "EGI >> VIP_LANE_CONFIGURATOR",
+            color = Color.Cyan,
             fontFamily = FontFamily.Monospace,
             fontSize = 20.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = "AUTHORIZED APPS BYPASS THE BLACK HOLE (0ms OVERHEAD).",
+            color = Color.Green.copy(alpha = 0.6f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 

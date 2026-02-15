@@ -105,12 +105,15 @@ class EgiVpnService : VpnService(), Runnable {
                 val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
                 if (length > 0) {
                     packetCounter++
-                    // Sample packets (1 out of every 50) to avoid flooding the UI
+                    // Log to the matrix (sample 1/50)
                     if (packetCounter % 50 == 0) {
                         packet.limit(length)
                         val destIp = PacketUtils.getDestinationIp(packet)
                         val proto = PacketUtils.getProtocol(packet)
                         TrafficEvent.log("[BLOCKED] >> $proto -> $destIp")
+                    } else {
+                        // Still count as blocked but don't flood the UI logs
+                        TrafficEvent.log("INTERNAL_BLOCKED")
                     }
                     packet.clear()
                 } else if (length == -1) {
