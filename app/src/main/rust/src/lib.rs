@@ -1,14 +1,21 @@
 use jni::objects::{JClass, JString};
 use jni::JNIEnv;
 use jni::sys::jstring;
-use serde::Serialize;
+use serde::{Serialize};
 use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
 
 #[derive(Serialize)]
 struct NetworkStats {
     ping: i64,
     jitter: i64,
+    status: String,
+}
+
+#[derive(Serialize)]
+struct DeviceInfo {
+    ip: String,
     status: String,
 }
 
@@ -18,7 +25,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
     _class: JClass,
 ) -> jstring {
     let addr: SocketAddr = "1.1.1.1:443".parse().unwrap();
-    let timeout = Duration::from_millis(2000);
+    let timeout = Duration::from_millis(1500);
     let mut pings = Vec::new();
 
     for _ in 0..3 {
@@ -60,4 +67,51 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
     env.new_string(json)
         .expect("Failed to create Java String")
         .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
+    mut env: JNIEnv,
+    _class: JClass,
+    base_ip: JString,
+) -> jstring {
+    let base_ip_str: String = env.get_string(&base_ip).expect("Invalid base IP").into();
+    
+    let rt = Runtime::new().unwrap();
+    let devices = rt.block_on(async move {
+        let mut tasks = Vec::new();
+
+        for i in 1..255 {
+            let ip = format!("{}{}", base_ip_str, i);
+            tasks.push(tokio::spawn(async move {
+                let ports = [80, 443];
+                for port in ports {
+                    let addr = format!("{}:{}", ip, port);
+                    if let Ok(addr) = addr.parse::<SocketAddr>() {
+                        if tokio::time::timeout(
+                            Duration::from_millis(200),
+                            tokio::net::TcpStream::connect(&addr)
+                        ).await.is_ok() {
+                            return Some(DeviceInfo {
+                                ip,
+                                status: if i == 1 { "Gateway".to_string() } else { "Device".to_string() },
+                            });
+                        }
+                    }
+                }
+                None
+            }));
+        }
+
+        let mut results = Vec::new();
+        for task in tasks {
+            if let Ok(Some(device)) = task.await {
+                results.push(device);
+            }
+        }
+        results
+    });
+
+    let json = serde_json::to_string(&devices).unwrap_or_else(|_| "[]".to_string());
+    env.new_string(json).unwrap().into_raw()
 }

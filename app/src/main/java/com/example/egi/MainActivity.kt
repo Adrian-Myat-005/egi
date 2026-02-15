@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR
 }
 
 class MainActivity : ComponentActivity() {
@@ -66,10 +66,12 @@ fun MainContent() {
                 currentScreen = Screen.TERMINAL
             })
             Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
+            Screen.WIFI_RADAR -> WifiScanScreen(onBack = { currentScreen = Screen.TERMINAL })
             Screen.TERMINAL -> TerminalDashboard(
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
+                onOpenWifiRadar = { currentScreen = Screen.WIFI_RADAR },
                 dnsMsg = dnsLogMessage,
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
@@ -93,6 +95,7 @@ fun TerminalDashboard(
     onOpenAppPicker: () -> Unit,
     onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
+    onOpenWifiRadar: () -> Unit,
     dnsMsg: String?,
     onDnsLogConsumed: () -> Unit
 ) {
@@ -259,6 +262,15 @@ fun TerminalDashboard(
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier
                     .clickable { onOpenAppSelector() }
+                    .padding(8.dp)
+            )
+
+            Text(
+                text = "> [ INITIATE RADAR SCAN ] <",
+                color = Color.Yellow,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .clickable { onOpenWifiRadar() }
                     .padding(8.dp)
             )
         }

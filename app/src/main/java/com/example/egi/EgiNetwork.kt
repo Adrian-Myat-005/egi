@@ -6,4 +6,5 @@ object EgiNetwork {
     }
 
     external fun measureNetworkStats(): String
+    external fun scanSubnet(baseIp: String): String
 }
