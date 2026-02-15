@@ -1,0 +1,11 @@
+/home/adrian/egi/app/src/main/rust/target/debug/deps/dynosaur_derive-4b335d04790f7403.d: /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lib.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/expand.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lifetime.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/receiver.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/sig.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/traits.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/where_clauses.rs
+
+/home/adrian/egi/app/src/main/rust/target/debug/deps/libdynosaur_derive-4b335d04790f7403.so: /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lib.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/expand.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lifetime.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/receiver.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/sig.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/traits.rs /home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/where_clauses.rs
+
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lib.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/expand.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/lifetime.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/receiver.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/sig.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/traits.rs:
+/home/adrian/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dynosaur_derive-0.3.0/src/where_clauses.rs:

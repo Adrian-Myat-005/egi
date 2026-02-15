@@ -32,10 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
@@ -149,14 +153,7 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
     }
 }
 
-import androidx.compose.animation.core.*
-
-import androidx.compose.animation.animateColorAsState
-
-
-
 @Composable
-
 fun TerminalDashboard(
 
     onOpenAppPicker: () -> Unit,
@@ -321,29 +318,103 @@ fun TerminalDashboard(
 
     
 
-        val permissionLauncher = rememberLauncherForActivityResult(
-
-            contract = ActivityResultContracts.RequestMultiplePermissions()
-
-        ) { permissions ->
-
-            val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
-
-            if (granted) {
-
-                onOpenWifiRadar()
-
-            } else {
-
-                Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
-
-            }
-
-        }
+            val permissionLauncher = rememberLauncherForActivityResult(
 
     
 
-        // WiFi Info Polling
+                contract = ActivityResultContracts.RequestMultiplePermissions()
+
+    
+
+            ) { permissions ->
+
+    
+
+                val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+
+    
+
+                if (granted) {
+
+    
+
+                    onOpenWifiRadar()
+
+    
+
+                } else {
+
+    
+
+                    Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
+
+    
+
+                }
+
+    
+
+            }
+
+    
+
+        
+
+    
+
+            val vpnLauncher = rememberLauncherForActivityResult(
+
+    
+
+                contract = ActivityResultContracts.StartActivityForResult()
+
+    
+
+            ) { result ->
+
+    
+
+                if (result.resultCode == android.app.Activity.RESULT_OK) {
+
+    
+
+                    context.startService(Intent(context, EgiVpnService::class.java))
+
+    
+
+                    isSecure = true
+
+    
+
+                    isBooting = false
+
+    
+
+                } else {
+
+    
+
+                    isBooting = false
+
+    
+
+                    Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
+
+    
+
+                }
+
+    
+
+            }
+
+    
+
+        
+
+    
+
+            // WiFi Info Polling
 
         LaunchedEffect(Unit) {
 

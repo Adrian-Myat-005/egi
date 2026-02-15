@@ -1,0 +1,1 @@
+{"rustc":4758242423518056681,"features":"[]","declared_features":"[\"sn_fake_clock\"]","target":12785521033447549826,"profile":2241668132362809309,"path":12868797544477284182,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/lru_time_cache-386ff4eef79b356a/dep-lib-lru_time_cache","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}

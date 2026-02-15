@@ -10,11 +10,13 @@ import android.util.Log
 class WifiReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == WifiManager.NETWORK_STATE_CHANGED_ACTION) {
+            @Suppress("DEPRECATION")
             val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiManager.EXTRA_NETWORK_INFO)
             if (networkInfo != null && networkInfo.isConnected) {
                 if (EgiPreferences.isGeofencingEnabled(context)) {
                     val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                    val ssid = wifiManager.connectionInfo.ssid.replace(""", "")
+                    val info = wifiManager.connectionInfo
+                    val ssid = info?.ssid?.replace("\"", "") ?: ""
                     
                     if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
                         val trustedSsids = EgiPreferences.getTrustedSSIDs(context)
