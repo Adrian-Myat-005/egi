@@ -1,6 +1,5 @@
 package com.example.egi
 
-import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -182,83 +181,47 @@ fun TerminalDashboard(
 
         var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
 
-        var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
+            var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
 
-        var showKeyDialog by remember { mutableStateOf(false) }
+            var showKeyDialog by remember { mutableStateOf(false) }
 
-        var showManual by remember { mutableStateOf(false) }
+            var showManual by remember { mutableStateOf(false) }
 
-        var currentSsid by remember { mutableStateOf<String?>(null) }
+            var currentSsid by remember { mutableStateOf<String?>(null) }
 
-        var isCurrentSsidTrusted by remember { mutableStateOf(false) }
-
-    
-
-        // --- ANIMATION STATES ---
-
-        val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
-
-        val pulseAlpha by infiniteTransition.animateFloat(
-
-            initialValue = 0.3f,
-
-            targetValue = 1f,
-
-            animationSpec = infiniteRepeatable(
-
-                animation = tween(1000, easing = LinearEasing),
-
-                repeatMode = RepeatMode.Reverse
-
-            ),
-
-            label = "AlphaPulse"
-
-        )
+            var isCurrentSsidTrusted by remember { mutableStateOf(false) }
 
         
 
-        val hudColor by animateColorAsState(
+            // HUD States
 
-            targetValue = if (isSecure) Color.Cyan else Color.Green,
+            var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
 
-            animationSpec = tween(500),
+            var currentPing by remember { mutableStateOf(0) }
 
-            label = "HudColor"
+            val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
 
-        )
+            var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
 
-    
+            var currentJitter by remember { mutableStateOf(0) }
 
-        // HUD States
+            var serverStatus by remember { mutableStateOf("CONNECTING") }
 
-        var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
+            var maSaved by remember { mutableStateOf(0.0) }
 
-        var currentPing by remember { mutableStateOf(0) }
+            var efficiency by remember { mutableStateOf("99.2%") }
 
-        val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
+            val blockedCount by TrafficEvent.blockedCount.collectAsState()
 
-        var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
+            
 
-        var currentJitter by remember { mutableStateOf(0) }
+            // Dropdown State
 
-        var serverStatus by remember { mutableStateOf("CONNECTING") }
-
-        var maSaved by remember { mutableStateOf(0.0) }
-
-        var efficiency by remember { mutableStateOf("99.2%") }
-
-        val blockedCount by TrafficEvent.blockedCount.collectAsState()
+            var expanded by remember { mutableStateOf(false) }
 
         
 
-        // Dropdown State
-
-        var expanded by remember { mutableStateOf(false) }
-
-    
-
-        fun syncConfig() {
+            fun syncConfig() {
 
             scope.launch {
 
@@ -554,93 +517,179 @@ fun TerminalDashboard(
 
                     
 
-                    // Stealth Mode Toggle
+                                    // Stealth Mode Toggle
 
-                    Text(
+                    
 
-                        text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
+                                    Text(
 
-                        color = if (isStealthMode) Color.Magenta.copy(alpha = pulseAlpha) else Color.Gray,
+                    
 
-                        fontFamily = FontFamily.Monospace,
+                                        text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
 
-                        fontSize = 10.sp,
+                    
 
-                        modifier = Modifier
+                                        color = if (isStealthMode) Color.Magenta else Color.Gray,
 
-                            .clickable {
+                    
 
-                                isStealthMode = !isStealthMode
+                                        fontFamily = FontFamily.Monospace,
 
-                                EgiPreferences.setStealthMode(context, isStealthMode)
+                    
 
-                            }
+                                        fontSize = 10.sp,
 
-                            .padding(4.dp)
+                    
 
-                    )
+                                        modifier = Modifier
 
-                }
+                    
 
-    
+                                            .clickable {
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    
 
-    
+                                                isStealthMode = !isStealthMode
 
-                // Battery Impact Dashboard (Animated)
+                    
 
-                Row(
+                                                EgiPreferences.setStealthMode(context, isStealthMode)
 
-                    modifier = Modifier
+                    
 
-                        .fillMaxWidth()
+                                            }
 
-                        .background(hudColor.copy(alpha = 0.05f))
+                    
 
-                        .padding(4.dp),
+                                            .padding(4.dp)
 
-                    horizontalArrangement = Arrangement.SpaceAround,
+                    
 
-                    verticalAlignment = Alignment.CenterVertically
+                                    )
 
-                ) {
+                    
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                }
 
-                        Text("ENERGY SAVED", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                    
 
-                        Text("${String.format("%.2f", maSaved)} mA", color = hudColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    
 
-                    }
+                    
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                        Text("CORE EFFICIENCY", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                    
 
-                        Text(efficiency, color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    
 
-                    }
+                    
 
-                    // HELP BUTTON
+                                // Battery Impact Dashboard (Static Clean)
 
-                    Text(
+                    
 
-                        text = "[ ? ]",
+                                Row(
 
-                        color = Color.Cyan,
+                    
 
-                        fontSize = 14.sp,
+                                    modifier = Modifier
 
-                        fontFamily = FontFamily.Monospace,
+                    
 
-                        fontWeight = FontWeight.Bold,
+                                        .fillMaxWidth()
 
-                        modifier = Modifier.clickable { showManual = true }.padding(4.dp)
+                    
 
-                    )
+                                        .background(Color.DarkGray.copy(alpha = 0.2f))
 
-                }
+                    
+
+                                        .padding(4.dp),
+
+                    
+
+                                    horizontalArrangement = Arrangement.SpaceAround,
+
+                    
+
+                                    verticalAlignment = Alignment.CenterVertically
+
+                    
+
+                                ) {
+
+                    
+
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                    
+
+                                        Text("ENERGY SAVED", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+
+                    
+
+                                        Text("${String.format("%.2f", maSaved)} mA", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+                    
+
+                                    }
+
+                    
+
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                    
+
+                                        Text("CORE EFFICIENCY", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+
+                    
+
+                                        Text(efficiency, color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+                    
+
+                                    }
+
+                    
+
+                                    // HELP BUTTON
+
+                    
+
+                                    Text(
+
+                    
+
+                                        text = "[ ? ]",
+
+                    
+
+                                        color = Color.White,
+
+                    
+
+                                        fontSize = 14.sp,
+
+                    
+
+                                        fontFamily = FontFamily.Monospace,
+
+                    
+
+                                        fontWeight = FontWeight.Bold,
+
+                    
+
+                                        modifier = Modifier.clickable { showManual = true }.padding(4.dp)
+
+                    
+
+                                    )
+
+                    
+
+                                }
 
     
 
@@ -1128,26 +1177,11 @@ fun ManualSection(title: String, desc: String) {
 @Composable
 fun ShieldStatusCard(count: Int, isActive: Boolean) {
     val animatedCount by animateIntAsState(targetValue = count, animationSpec = tween(500), label = "CountAnim")
-    val infiniteTransition = rememberInfiniteTransition(label = "ShieldPulse")
-    val shieldScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ShieldScale"
-    )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .padding(24.dp)
-            .graphicsLayer(
-                scaleX = if (isActive) shieldScale else 1f,
-                scaleY = if (isActive) shieldScale else 1f
-            )
+        modifier = Modifier.padding(24.dp)
     ) {
         Text(
             text = if (isActive) "SHIELD ACTIVE" else "SHIELD STANDBY",

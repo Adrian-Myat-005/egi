@@ -346,17 +346,6 @@ fun ColumnScope.TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInf
     val gateway = devices.find { it.status == "Gateway" }
     val others = devices.filter { it.status != "Gateway" }
     
-    val infiniteTransition = rememberInfiniteTransition(label = "RadarSweep")
-    val sweepAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "SweepAngle"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -364,25 +353,14 @@ fun ColumnScope.TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInf
             .background(Color.DarkGray.copy(alpha = 0.1f)),
         contentAlignment = Alignment.Center
     ) {
-        // Radar Rings & Sweep
+        // Radar Rings (Static)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val maxRadius = minOf(size.width, size.height) / 2 * 0.8f
             
             drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.33f, style = Stroke(1f))
             drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.66f, style = Stroke(1f))
             drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius, style = Stroke(1f))
-
-            // The Sweep Line
-            drawArc(
-                color = Color.Green.copy(alpha = 0.2f),
-                startAngle = sweepAngle,
-                sweepAngle = 30f,
-                useCenter = true,
-                size = androidx.compose.ui.geometry.Size(maxRadius * 2, maxRadius * 2),
-                topLeft = center.copy(x = center.x - maxRadius, y = center.y - maxRadius)
-            )
         }
-
         // Gateway Node
         gateway?.let {
             Node(it, isGateway = true, onClick = {})
