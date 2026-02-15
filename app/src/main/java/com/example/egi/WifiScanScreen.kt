@@ -42,6 +42,7 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
     var isScanning by remember { mutableStateOf(true) }
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
     var kickedDevices by remember { mutableStateOf(setOf<String>()) }
+    var isMapView by remember { mutableStateOf(false) }
 
     // Channel Analysis State
     var channelUsage by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
@@ -102,41 +103,49 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
             .background(Color.Black)
             .padding(16.dp)
     ) {
-        Header(isScanning, gatewayIp, onBack)
+        Header(isScanning, gatewayIp, isMapView, onToggleView = { isMapView = !isMapView }, onBack = onBack)
 
         Spacer(modifier = Modifier.height(16.dp))
         
-        ChannelHealthCard(
-            usage = channelUsage,
-            bestChannel = bestChannel,
-            currentChannel = currentChannel,
-            onFix = { 
-                val gatewayDevice = resolvedDevices.find { it.status == "Gateway" }
-                onNavigateToRouter(gatewayDevice?.mac ?: "00:00:00:00:00:00", gatewayIp, true) 
-            }
-        )
+        if (isMapView) {
+            TopologyMap(
+                devices = resolvedDevices,
+                onDeviceClick = { if (it.status != "Gateway") selectedDevice = it }
+            )
+        } else {
+            ChannelHealthCard(
+                usage = channelUsage,
+                bestChannel = bestChannel,
+                currentChannel = currentChannel,
+                onFix = { 
+                    val gatewayDevice = resolvedDevices.find { it.status == "Gateway" }
+                    onNavigateToRouter(gatewayDevice?.mac ?: "00:00:00:00:00:00", gatewayIp, true) 
+                }
+            )
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(resolvedDevices) { device ->
-                val isKicked = kickedDevices.contains(device.ip)
-                DeviceRow(
-                    device = device.copy(isKicked = isKicked),
-                    onKick = {
-                        if (EgiNetwork.isAvailable()) {
-                            EgiNetwork.kickDevice(device.ip, device.mac)
-                            kickedDevices = kickedDevices + device.ip
-                            Toast.makeText(context, "BLACK HOLE ACTIVE: ${device.ip}", Toast.LENGTH_SHORT).show()
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(resolvedDevices) { device ->
+                    val isKicked = kickedDevices.contains(device.ip)
+                    DeviceRow(
+                        device = device.copy(isKicked = isKicked),
+                        onKick = {
+                            if (EgiNetwork.isAvailable()) {
+                                EgiNetwork.kickDevice(device.ip, device.mac)
+                                kickedDevices = kickedDevices + device.ip
+                                Toast.makeText(context, "BLACK HOLE ACTIVE: ${device.ip}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onClick = {
+                            if (device.status != "Gateway") {
+                                selectedDevice = device
+                            }
                         }
-                    },
-                    onClick = {
-                        if (device.status != "Gateway") {
-                            selectedDevice = device
-                        }
-                    }
-                )
+                    )
+                }
             }
         }
     }
+
 
     selectedDevice?.let { device ->
         AlertDialog(
@@ -286,7 +295,7 @@ suspend fun resolveDeviceNames(devices: List<DeviceInfo>): List<DeviceInfo> = wi
 }
 
 @Composable
-fun Header(isScanning: Boolean, gateway: String, onBack: () -> Unit) {
+fun Header(isScanning: Boolean, gateway: String, isMapView: Boolean, onToggleView: () -> Unit, onBack: () -> Unit) {
     var blink by remember { mutableStateOf(true) }
     LaunchedEffect(isScanning) {
         while (isScanning) {
@@ -305,12 +314,20 @@ fun Header(isScanning: Boolean, gateway: String, onBack: () -> Unit) {
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                text = "[ BACK ]",
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.clickable { onBack() }
-            )
+            Row {
+                Text(
+                    text = if (isMapView) "[ LIST ]" else "[ MAP ]",
+                    color = Color.Cyan,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable { onToggleView() }.padding(end = 16.dp)
+                )
+                Text(
+                    text = "[ BACK ]",
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable { onBack() }
+                )
+            }
         }
         Text(
             text = "GATEWAY: $gateway",
@@ -320,6 +337,110 @@ fun Header(isScanning: Boolean, gateway: String, onBack: () -> Unit) {
         )
     }
 }
+
+@Composable
+fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) {
+    val gateway = devices.find { it.status == "Gateway" }
+    val others = devices.filter { it.status != "Gateway" }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .background(Color.DarkGray.copy(alpha = 0.1f)),
+        contentAlignment = Alignment.Center
+    ) {
+        // Radar Rings
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = center
+            val maxRadius = minOf(size.width, size.height) / 2 * 0.8f
+            
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.33f, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.66f, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+        }
+
+        // Gateway Node
+        gateway?.let {
+            Node(it, isGateway = true, onClick = {})
+        }
+
+        // Device Nodes (Orbiting)
+        others.forEachIndexed { index, device ->
+            val angle = (2 * Math.PI * index / others.size).toFloat()
+            val radiusMult = if (index % 2 == 0) 0.5f else 0.8f
+            
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // Connection Line
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val maxRadius = minOf(size.width, size.height) / 2 * 0.8f
+                    val r = maxRadius * radiusMult
+                    val x = (r * Math.cos(angle.toDouble())).toFloat()
+                    val y = (r * Math.sin(angle.toDouble())).toFloat()
+                    
+                    drawLine(
+                        color = if (device.isKicked) Color.Red.copy(alpha = 0.3f) else Color.Green.copy(alpha = 0.3f),
+                        start = center,
+                        end = center.copy(x = center.x + x, y = center.y + y),
+                        strokeWidth = 2f
+                    )
+                }
+                
+                // The Device Node itself
+                val maxRadius = 300.dp // Approximate container half-size
+                val offsetMult = 150.dp * radiusMult
+                val offsetX = (offsetMult.value * Math.cos(angle.toDouble())).dp
+                val offsetY = (offsetMult.value * Math.sin(angle.toDouble())).dp
+
+                Box(modifier = Modifier.offset(x = offsetX, y = offsetY)) {
+                    Node(device, isGateway = false, onClick = { onDeviceClick(device) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
+    val icon = when {
+        isGateway -> Icons.Default.Router
+        device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
+        device.name.contains("PC", true) -> Icons.Default.Monitor
+        else -> Icons.Default.Info
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (isGateway) 48.dp else 32.dp)
+                .background(if (device.isKicked) Color.Red else Color.Black, androidx.compose.foundation.shape.CircleShape)
+                .background(
+                    if (isGateway) Color.Green.copy(alpha = 0.2f) else Color.Cyan.copy(alpha = 0.1f),
+                    androidx.compose.foundation.shape.CircleShape
+                )
+                .padding(8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (device.isKicked) Color.White else if (isGateway) Color.Green else Color.Cyan,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Text(
+            text = if (isGateway) "GATEWAY" else device.ip.split(".").last(),
+            color = if (device.isKicked) Color.Red else Color.Green,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
 
 @Composable
 fun DeviceRow(device: DeviceInfo, onKick: () -> Unit, onClick: () -> Unit) {
