@@ -23,7 +23,6 @@ class EgiVpnService : VpnService(), Runnable {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vpnThread: Thread? = null
-    private val blockedCount = AtomicLong(0)
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -40,16 +39,17 @@ class EgiVpnService : VpnService(), Runnable {
         startForeground(1, createNotification())
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
-            blockedCount.set(0)
             TrafficEvent.resetCount()
             vpnThread = Thread(this, "EgiVpnThread")
             vpnThread?.start()
             
-            // Heartbeat Reporter: Update UI once per second
+            // Heartbeat Reporter: Poll native atomic counter
             serviceScope.launch {
                 while (isActive) {
                     delay(1000)
-                    TrafficEvent.updateCount(blockedCount.get())
+                    if (EgiNetwork.isAvailable()) {
+                        TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
+                    }
                 }
             }
         }
@@ -105,17 +105,18 @@ class EgiVpnService : VpnService(), Runnable {
 
             if (vpnInterface == null) return
 
-            val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
-            val packet = ByteBuffer.allocate(32767)
-
-            // SILENT SHIELD: Tight loop with zero logging and zero allocations
-            while (!Thread.interrupted()) {
-                val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
-                if (length > 0) {
-                    blockedCount.incrementAndGet()
+            // PASSIVE SHIELD: Delegate loop to Rust for Zero-Copy and Near-Zero Heat
+            if (EgiNetwork.isAvailable()) {
+                val fd = vpnInterface!!.fileDescriptor.fd
+                EgiNetwork.runVpnLoop(fd)
+            } else {
+                // Fallback to Kotlin loop if native fails (less efficient)
+                val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
+                val packet = ByteBuffer.allocate(32767)
+                while (!Thread.interrupted()) {
+                    val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
+                    if (length <= 0) break
                     packet.clear()
-                } else if (length == -1) {
-                    break // Interface closed
                 }
             }
         } catch (e: Exception) {

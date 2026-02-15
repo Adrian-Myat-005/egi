@@ -15,6 +15,8 @@ object EgiNetwork {
     external fun measureNetworkStats(targetIp: String): String
     external fun scanSubnet(baseIp: String): String
     external fun kickDevice(targetIp: String, targetMac: String): Boolean
+    external fun runVpnLoop(fd: Int)
+    external fun getNativeBlockedCount(): Long
 
     fun isAvailable() = isLibLoaded
 }
