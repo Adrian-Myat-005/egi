@@ -36,16 +36,22 @@ fun WifiScanScreen(onBack: () -> Unit) {
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
 
     LaunchedEffect(Unit) {
-        val jsonStr = withContext(Dispatchers.IO) {
-            EgiNetwork.scanSubnet(subnetPrefix)
+        if (EgiNetwork.isAvailable()) {
+            try {
+                val jsonStr = withContext(Dispatchers.IO) {
+                    EgiNetwork.scanSubnet(subnetPrefix)
+                }
+                val array = JSONArray(jsonStr)
+                val list = mutableListOf<DeviceInfo>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    list.add(DeviceInfo(obj.getString("ip"), obj.getString("status")))
+                }
+                devices = list
+            } catch (t: Throwable) {
+                // Native scan failed
+            }
         }
-        val array = JSONArray(jsonStr)
-        val list = mutableListOf<DeviceInfo>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            list.add(DeviceInfo(obj.getString("ip"), obj.getString("status")))
-        }
-        devices = list
         isScanning = false
     }
 

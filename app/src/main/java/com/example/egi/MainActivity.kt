@@ -184,17 +184,21 @@ fun TerminalDashboard(
     LaunchedEffect(selectedServer) {
         while (true) {
             delay(1500)
-            try {
-                val statsJson = withContext(Dispatchers.IO) {
-                    EgiNetwork.measureNetworkStats(selectedServer.ip)
+            if (EgiNetwork.isAvailable()) {
+                try {
+                    val statsJson = withContext(Dispatchers.IO) {
+                        EgiNetwork.measureNetworkStats(selectedServer.ip)
+                    }
+                    // Parse JSON for HUD
+                    val json = JSONObject(statsJson)
+                    currentPing = json.optInt("ping", -1)
+                    currentJitter = json.optInt("jitter", 0)
+                    serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
+                } catch (e: Throwable) {
+                    serverStatus = "ERROR"
                 }
-                // Parse JSON for HUD
-                val json = JSONObject(statsJson)
-                currentPing = json.optInt("ping", -1)
-                currentJitter = json.optInt("jitter", 0)
-                serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
-            } catch (e: Exception) {
-                serverStatus = "ERROR"
+            } else {
+                serverStatus = "LIB_ERR"
             }
         }
     }
