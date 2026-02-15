@@ -73,6 +73,7 @@ class EgiVpnService : VpnService(), Runnable {
             val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("10.0.0.2", 32)
+                .addAddress("fd00::2", 128)
                 .setMtu(1500)
 
             // Apply DNS Settings
@@ -98,8 +99,9 @@ class EgiVpnService : VpnService(), Runnable {
             // Always disallow self to prevent UI lag
             builder.addDisallowedApplication("com.example.egi")
 
-            // The Trap: Capture ALL other traffic
+            // The Trap: Capture ALL other traffic (IPv4 & IPv6)
             builder.addRoute("0.0.0.0", 0)
+            builder.addRoute("::", 0)
 
             vpnInterface = builder.establish()
 

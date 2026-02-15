@@ -10,7 +10,9 @@ use futures::future::select_all;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-static BLOCKED_COUNT: AtomicU64 = AtomicU64::new(0);
+static TCP_COUNT: AtomicU64 = AtomicU64::new(0);
+static UDP_COUNT: AtomicU64 = AtomicU64::new(0);
+static OTHER_COUNT: AtomicU64 = AtomicU64::new(0);
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
@@ -18,15 +20,29 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
     _class: JClass,
     fd: i32,
 ) {
-    let mut buf = [0u8; 4096];
+    let mut buf = [0u8; 65535]; // Max IP packet size
     loop {
-        // Direct syscall: No JNI overhead, No Buffer copying
         let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
         if n <= 0 {
-            break; // Interface closed or error
+            break; 
         }
-        // Atomic increment is extremely fast and low-power
-        BLOCKED_COUNT.fetch_add(1, Ordering::Relaxed);
+
+        if n >= 20 { // Minimum IPv4 header
+            let version = buf[0] >> 4;
+            let protocol = if version == 4 {
+                buf[9] // IPv4 Protocol field
+            } else if version == 6 && n >= 40 {
+                buf[6] // IPv6 Next Header field
+            } else {
+                0
+            };
+
+            match protocol {
+                6 => { TCP_COUNT.fetch_add(1, Ordering::Relaxed); }
+                17 => { UDP_COUNT.fetch_add(1, Ordering::Relaxed); }
+                _ => { OTHER_COUNT.fetch_add(1, Ordering::Relaxed); }
+            }
+        }
     }
 }
 
@@ -35,7 +51,9 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_getNativeBlockedCount(
     _env: JNIEnv,
     _class: JClass,
 ) -> i64 {
-    BLOCKED_COUNT.load(Ordering::Relaxed) as i64
+    (TCP_COUNT.load(Ordering::Relaxed) + 
+     UDP_COUNT.load(Ordering::Relaxed) + 
+     OTHER_COUNT.load(Ordering::Relaxed)) as i64
 }
 
 #[derive(Serialize)]
