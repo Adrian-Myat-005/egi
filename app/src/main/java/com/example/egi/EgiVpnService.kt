@@ -51,8 +51,8 @@ class EgiVpnService : VpnService(), Runnable {
 
     override fun run() {
         val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
-        val killList = sharedPrefs.getStringSet("kill_list", emptySet()) ?: emptySet()
         val dnsProvider = sharedPrefs.getString("dns_provider", null)
+        val vipList = EgiPreferences.getVipList(this)
 
         try {
             val builder = Builder()
@@ -73,21 +73,21 @@ class EgiVpnService : VpnService(), Runnable {
                 Log.d("EgiVpnService", "EGI >> DNS: System Default (Passthrough)")
             }
 
-            if (killList.isNotEmpty()) {
-                Log.d("EgiVpnService", "EGI >> Applying Kill List: ${killList.size} targets")
-                killList.forEach { packageName ->
-                    try {
-                        builder.addAllowedApplication(packageName)
-                    } catch (e: Exception) {
-                        Log.e("EgiVpnService", "Failed to add $packageName to VPN", e)
-                    }
+            // Split Tunneling Inversion: VIPs bypass the VPN (0ms lag)
+            Log.d("EgiVpnService", "EGI >> Routing VIPs: ${vipList.size} apps")
+            vipList.forEach { packageName ->
+                try {
+                    builder.addDisallowedApplication(packageName)
+                } catch (e: Exception) {
+                    Log.e("EgiVpnService", "Failed to disallow $packageName", e)
                 }
-                builder.addRoute("0.0.0.0", 0)
-            } else {
-                Log.d("EgiVpnService", "EGI >> Kill List Empty. Passive Mode.")
             }
 
+            // Always disallow self to prevent UI lag
             builder.addDisallowedApplication("com.example.egi")
+
+            // The Trap: Capture ALL other traffic
+            builder.addRoute("0.0.0.0", 0)
 
             vpnInterface = builder.establish()
 

@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR
 }
 
 class MainActivity : ComponentActivity() {
@@ -65,9 +65,11 @@ fun MainContent() {
                 dnsLogMessage = msg
                 currentScreen = Screen.TERMINAL
             })
+            Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
             Screen.TERMINAL -> TerminalDashboard(
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
+                onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
                 dnsMsg = dnsLogMessage,
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
@@ -90,6 +92,7 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 fun TerminalDashboard(
     onOpenAppPicker: () -> Unit,
     onOpenDnsPicker: () -> Unit,
+    onOpenAppSelector: () -> Unit,
     dnsMsg: String?,
     onDnsLogConsumed: () -> Unit
 ) {
@@ -143,6 +146,14 @@ fun TerminalDashboard(
             isSecure = true
             isBooting = false
             scope.launch {
+                val mode = EgiPreferences.getMode(context)
+                val vipCount = EgiPreferences.getVipList(context).size
+                if (mode == AppMode.FOCUS) {
+                    val target = EgiPreferences.getFocusTarget(context) ?: "UNKNOWN"
+                    typeLog("EGI >> MODE: NUCLEAR (TARGET: $target)")
+                } else {
+                    typeLog("EGI >> MODE: TACTICAL (VIPs: $vipCount APPS)")
+                }
                 typeLog("EGI >> INITIALIZING BLACK HOLE...")
                 typeLog("EGI >> PROTOCOL ACTIVE.")
             }
@@ -203,6 +214,7 @@ fun TerminalDashboard(
                         log.contains("BLOCKED") -> Color.Red
                         log.contains("ACTIVE") -> Color.Cyan
                         log.contains("ERROR") -> Color.Red
+                        log.contains("NUCLEAR") || log.contains("TACTICAL") -> Color.Yellow
                         else -> Color.Green
                     },
                     fontFamily = FontFamily.Monospace,
@@ -214,25 +226,39 @@ fun TerminalDashboard(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "[ EDIT KILL LIST ]",
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .clickable { onOpenAppPicker() }
-                    .padding(8.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Text(
+                    text = "[ EDIT KILL LIST ]",
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .clickable { onOpenAppPicker() }
+                        .padding(8.dp)
+                )
 
+                Text(
+                    text = "[ CONFIGURE DNS ]",
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .clickable { onOpenDnsPicker() }
+                        .padding(8.dp)
+                )
+            }
+            
             Text(
-                text = "[ CONFIGURE DNS ]",
-                color = Color.Green,
+                text = "[ CONFIGURE MODES ]",
+                color = Color.Cyan,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier
-                    .clickable { onOpenDnsPicker() }
+                    .clickable { onOpenAppSelector() }
                     .padding(8.dp)
             )
         }
