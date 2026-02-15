@@ -58,6 +58,7 @@ class EgiVpnService : VpnService(), Runnable {
             val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("10.0.0.2", 32)
+                .setMtu(1500)
 
             // Apply DNS Settings
             if (dnsProvider != null) {

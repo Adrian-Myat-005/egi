@@ -116,19 +116,19 @@ fun TerminalDashboard(
 
     // Helper to type a message into logs
     fun addLog(msg: String) {
-        logs = (logs + msg).takeLast(100)
+        logs = (logs + msg).takeLast(50)
     }
 
     suspend fun typeLog(msg: String) {
         var currentText = ""
-        logs = logs + "" // Add empty slot
+        logs = (logs + "").takeLast(50) // Ensure we stay within limit even when typing
         val lastIndex = logs.size - 1
         for (char in msg) {
             currentText += char
             val newLogs = logs.toMutableList()
             newLogs[lastIndex] = currentText
             logs = newLogs
-            delay(30)
+            delay(15) // Faster typing
         }
     }
 
@@ -199,6 +199,9 @@ fun TerminalDashboard(
                 }
             } else {
                 serverStatus = "LIB_ERR"
+                if (logs.lastOrNull() != "EGI >> CRITICAL: NATIVE CORE MISSING") {
+                    addLog("EGI >> CRITICAL: NATIVE CORE MISSING")
+                }
             }
         }
     }
