@@ -11,6 +11,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Monitor
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Router
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,16 +30,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import java.net.InetAddress
 
 @Composable
 fun WifiScanScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }
     val subnetPrefix = remember { WifiUtils.getSubnetPrefix(context) }
-    var devices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
+    var rawDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
+    var resolvedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var isScanning by remember { mutableStateOf(true) }
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
 
+    // Initial Subnet Scan
     LaunchedEffect(Unit) {
         if (EgiNetwork.isAvailable()) {
             try {
@@ -45,14 +53,25 @@ fun WifiScanScreen(onBack: () -> Unit) {
                 val list = mutableListOf<DeviceInfo>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    list.add(DeviceInfo(obj.getString("ip"), obj.getString("status")))
+                    list.add(DeviceInfo(
+                        ip = obj.getString("ip"), 
+                        status = obj.getString("status")
+                    ))
                 }
-                devices = list
+                rawDevices = list
+                resolvedDevices = list // Show IPs immediately
             } catch (t: Throwable) {
                 // Native scan failed
             }
         }
         isScanning = false
+    }
+
+    // Secondary Name Resolution
+    LaunchedEffect(rawDevices) {
+        if (rawDevices.isNotEmpty()) {
+            resolvedDevices = resolveDeviceNames(rawDevices)
+        }
     }
 
     Column(
@@ -66,7 +85,7 @@ fun WifiScanScreen(onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(devices) { device ->
+            items(resolvedDevices) { device ->
                 DeviceRow(device) {
                     if (device.status != "Gateway") {
                         selectedDevice = device
@@ -85,7 +104,8 @@ fun WifiScanScreen(onBack: () -> Unit) {
             },
             text = {
                 Text(
-                    """Target: ${device.ip}
+                    """Name: ${device.name}
+Target: ${device.ip}
 Action: Intercept and Redirect to Gateway for manual blacklisting.""",
                     color = Color.Green,
                     fontFamily = FontFamily.Monospace
@@ -93,7 +113,7 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val mac = "XX:XX:XX:${(10..99).random()}:${(10..99).random()}:${(10..99).random()}"
+                    val mac = device.mac
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("MAC", mac))
                     
@@ -112,6 +132,22 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
                 }
             }
         )
+    }
+}
+
+suspend fun resolveDeviceNames(devices: List<DeviceInfo>): List<DeviceInfo> = withContext(Dispatchers.IO) {
+    devices.map { device ->
+        try {
+            val address = InetAddress.getByName(device.ip)
+            val hostname = address.canonicalHostName
+            if (hostname != device.ip) {
+                device.copy(name = hostname)
+            } else {
+                device
+            }
+        } catch (e: Exception) {
+            device
+        }
     }
 }
 
@@ -153,6 +189,13 @@ fun Header(isScanning: Boolean, gateway: String, onBack: () -> Unit) {
 
 @Composable
 fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
+    val icon = when {
+        device.status == "Gateway" -> Icons.Default.Router
+        device.name.contains("Android", true) || device.name.contains("Galaxy", true) || device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
+        device.name.contains("PC", true) || device.name.contains("Desktop", true) || device.name.contains("Windows", true) -> Icons.Default.Monitor
+        else -> Icons.Default.Info
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,22 +203,23 @@ fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "[?]",
-            color = if (device.status == "Gateway") Color.Green else Color.Yellow,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(end = 12.dp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (device.status == "Gateway") Color.Green else Color.Yellow,
+            modifier = Modifier.size(32.dp).padding(end = 12.dp)
         )
         Column {
             Text(
-                text = device.ip,
-                color = if (device.status == "Gateway") Color.Green else Color.Yellow,
+                text = if (device.status == "Gateway" && device.name == "Unknown Device") "Gateway (${device.ip})" else device.name,
+                color = if (device.status == "Gateway") Color.Green else Color.Green,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
             )
             Text(
-                text = if (device.status == "Gateway") "NETWORK GATEWAY" else "UNKNOWN DEVICE",
-                color = Color.Green.copy(alpha = 0.6f),
+                text = "IP: ${device.ip} | MAC: ${device.mac}",
+                color = Color.Gray,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp
             )
@@ -183,4 +227,9 @@ fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
     }
 }
 
-data class DeviceInfo(val ip: String, val status: String)
+data class DeviceInfo(
+    val ip: String,
+    val name: String = "Unknown Device",
+    val status: String,
+    val mac: String = "00:00:00:00:00:00"
+)
