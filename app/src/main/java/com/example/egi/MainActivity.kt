@@ -149,373 +149,815 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
     }
 }
 
+import androidx.compose.animation.core.*
+
+import androidx.compose.animation.animateColorAsState
+
+
+
 @Composable
+
 fun TerminalDashboard(
+
     onOpenAppPicker: () -> Unit,
+
     onOpenDnsPicker: () -> Unit,
+
     onOpenAppSelector: () -> Unit,
+
     onOpenWifiRadar: () -> Unit,
+
     dnsMsg: String?,
+
     onDnsLogConsumed: () -> Unit
+
 ) {
+
     val context = LocalContext.current
+
     val scope = rememberCoroutineScope()
+
     var isSecure by remember { mutableStateOf(false) }
+
     var isBooting by remember { mutableStateOf(false) }
-        var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
-        var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
+
+    var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
+
+    var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
+
         var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
+
         var showKeyDialog by remember { mutableStateOf(false) }
+
+        var showManual by remember { mutableStateOf(false) }
+
         var currentSsid by remember { mutableStateOf<String?>(null) }
+
         var isCurrentSsidTrusted by remember { mutableStateOf(false) }
+
     
-        // HUD States
-        var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
-        var currentPing by remember { mutableStateOf(0) }
-        var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
-        var currentJitter by remember { mutableStateOf(0) }
-        var serverStatus by remember { mutableStateOf("CONNECTING") }
-        var maSaved by remember { mutableStateOf(0.0) }
-        var efficiency by remember { mutableStateOf("99.2%") }
-        val blockedCount by TrafficEvent.blockedCount.collectAsState()
+
+        // --- ANIMATION STATES ---
+
+        val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
+
+        val pulseAlpha by infiniteTransition.animateFloat(
+
+            initialValue = 0.3f,
+
+            targetValue = 1f,
+
+            animationSpec = infiniteRepeatable(
+
+                animation = tween(1000, easing = LinearEasing),
+
+                repeatMode = RepeatMode.Reverse
+
+            ),
+
+            label = "AlphaPulse"
+
+        )
+
         
+
+        val hudColor by animateColorAsState(
+
+            targetValue = if (isSecure) Color.Cyan else Color.Green,
+
+            animationSpec = tween(500),
+
+            label = "HudColor"
+
+        )
+
+    
+
+        // HUD States
+
+        var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
+
+        var currentPing by remember { mutableStateOf(0) }
+
+        val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
+
+        var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
+
+        var currentJitter by remember { mutableStateOf(0) }
+
+        var serverStatus by remember { mutableStateOf("CONNECTING") }
+
+        var maSaved by remember { mutableStateOf(0.0) }
+
+        var efficiency by remember { mutableStateOf("99.2%") }
+
+        val blockedCount by TrafficEvent.blockedCount.collectAsState()
+
+        
+
         // Dropdown State
+
         var expanded by remember { mutableStateOf(false) }
+
     
+
         fun syncConfig() {
+
             scope.launch {
+
                 val endpoint = EgiPreferences.getSyncEndpoint(context) ?: return@launch
+
                 try {
+
                     withContext(Dispatchers.IO) {
+
                         // Minimalist JSON Sync: Post current blocklist to cloud
+
                         val json = JSONObject()
+
                         json.put("trusted_ssids", JSONArray(EgiPreferences.getTrustedSSIDs(context).toList()))
+
                         json.put("blocked_count", blockedCount)
+
                         json.put("outline_key", outlineKey)
+
                         // Simulated POST
+
                         delay(500)
+
                     }
+
                     Toast.makeText(context, "CONFIG SYNCED SECURELY", Toast.LENGTH_SHORT).show()
+
                 } catch (e: Exception) {
+
                     Toast.makeText(context, "SYNC FAILED", Toast.LENGTH_SHORT).show()
+
                 }
+
             }
+
         }
+
     
+
         // Sync Stealth state to native
+
         LaunchedEffect(isStealthMode, outlineKey) {
+
             if (EgiNetwork.isAvailable()) {
+
                 EgiNetwork.toggleStealthMode(isStealthMode)
+
                 if (outlineKey.isNotEmpty()) {
+
                     EgiNetwork.setOutlineKey(outlineKey)
+
                 }
+
             }
+
         }
+
     
+
         val permissionLauncher = rememberLauncherForActivityResult(
+
             contract = ActivityResultContracts.RequestMultiplePermissions()
+
         ) { permissions ->
+
             val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+
             if (granted) {
+
                 onOpenWifiRadar()
+
             } else {
+
                 Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
+
             }
+
         }
+
     
+
         // WiFi Info Polling
+
         LaunchedEffect(Unit) {
+
             val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+
             while (true) {
+
                 val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
+
                 if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
+
                     currentSsid = ssid
+
                     isCurrentSsidTrusted = EgiPreferences.getTrustedSSIDs(context).contains(ssid)
+
                 } else {
+
                     currentSsid = null
+
                     isCurrentSsidTrusted = false
+
                 }
+
                 delay(5000)
+
             }
+
         }
+
     
+
         // Real-Time Stats Loop (The HUD)
+
         LaunchedEffect(selectedServer) {
+
             while (true) {
+
                 delay(1500)
+
                 if (EgiNetwork.isAvailable()) {
+
                     try {
+
                         val statsJson = withContext(Dispatchers.IO) {
+
                             EgiNetwork.measureNetworkStats(selectedServer.ip)
+
                         }
+
                         val energyJson = EgiNetwork.getEnergySavings()
+
                         
+
                         // Parse JSON for HUD
+
                         val json = JSONObject(statsJson)
+
                         val enJson = JSONObject(energyJson)
+
                         
+
                         currentPing = json.optInt("ping", -1)
+
                         currentJitter = json.optInt("jitter", 0)
+
                         maSaved = enJson.optDouble("ma_saved", 0.0)
+
                         efficiency = enJson.optString("efficiency", "99.2%")
+
                         
+
                         serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
+
                         
+
                         if (currentPing != -1) {
+
                             pingHistory = (pingHistory + currentPing).takeLast(20)
+
                         }
+
                     } catch (e: Throwable) {
+
                         serverStatus = "ERROR"
+
                     }
+
                 } else {
+
                     serverStatus = "LIB_ERR"
+
                 }
+
             }
+
         }
+
     
+
         Column(
+
             modifier = Modifier
+
                 .fillMaxSize()
+
                 .background(Color.Black)
+
                 .padding(16.dp)
+
         ) {
+
             // --- TOP SECTION: THE HUD (Weight 0.45) ---
+
             Column(
+
                 modifier = Modifier
+
                     .weight(0.48f)
+
                     .fillMaxWidth()
+
             ) {
+
                 // Server Selector & Stealth Toggle
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+
                     Box(
+
                         modifier = Modifier
+
                             .weight(1f)
+
                             .clickable { expanded = true }
+
                             .background(Color.DarkGray.copy(alpha = 0.3f))
+
                             .padding(8.dp)
+
                     ) {
+
                         Text(
+
                             text = "SERVER: ${selectedServer.name}",
+
                             color = Color.Green,
+
                             fontFamily = FontFamily.Monospace,
+
                             fontWeight = FontWeight.Bold
+
                         )
+
                         DropdownMenu(
+
                             expanded = expanded,
+
                             onDismissRequest = { expanded = false },
+
                             modifier = Modifier.background(Color.Black)
+
                         ) {
+
                             GameServers.list.forEach { server ->
+
                                 DropdownMenuItem(
+
                                     text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
+
                                     onClick = {
+
                                         selectedServer = server
+
                                         expanded = false
+
                                     }
+
                                 )
+
                             }
+
                         }
+
                     }
+
                     
+
                     Spacer(modifier = Modifier.width(8.dp))
+
                     
+
                     // Stealth Mode Toggle
+
                     Text(
-                        text = if (isStealthMode) "[ STEALTH: ON ]" else "[ STEALTH: OFF ]",
-                        color = if (isStealthMode) Color.Magenta else Color.Gray,
+
+                        text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
+
+                        color = if (isStealthMode) Color.Magenta.copy(alpha = pulseAlpha) else Color.Gray,
+
                         fontFamily = FontFamily.Monospace,
+
                         fontSize = 10.sp,
+
                         modifier = Modifier
+
                             .clickable {
+
                                 isStealthMode = !isStealthMode
+
                                 EgiPreferences.setStealthMode(context, isStealthMode)
+
                             }
+
                             .padding(4.dp)
+
                     )
+
                 }
+
     
+
                 Spacer(modifier = Modifier.height(8.dp))
+
     
-                // Battery Impact Dashboard (Subtle Overlay)
+
+                // Battery Impact Dashboard (Animated)
+
                 Row(
+
                     modifier = Modifier
+
                         .fillMaxWidth()
-                        .background(Color.Green.copy(alpha = 0.05f))
+
+                        .background(hudColor.copy(alpha = 0.05f))
+
                         .padding(4.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("ENERGY SAVED", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-                        Text("${String.format("%.2f", maSaved)} mA", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("CORE EFFICIENCY", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-                        Text(efficiency, color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    }
-                }
-    
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // WiFi Info / Trust Action / Geofence
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+
+                    horizontalArrangement = Arrangement.SpaceAround,
+
                     verticalAlignment = Alignment.CenterVertically
+
                 ) {
-                    if (currentSsid != null) {
-                        Text(
-                            text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
-                            color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp
-                        )
-                    } else {
-                        Text("NO WIFI DETECTED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                        Text("ENERGY SAVED", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+
+                        Text("${String.format("%.2f", maSaved)} mA", color = hudColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
                     }
-                    
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                        Text("CORE EFFICIENCY", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+
+                        Text(efficiency, color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+                    }
+
+                    // HELP BUTTON
+
                     Text(
-                        text = if (isGeofenceEnabled) "[ GEOFENCE: ON ]" else "[ GEOFENCE: OFF ]",
-                        color = if (isGeofenceEnabled) Color.Cyan else Color.Gray,
+
+                        text = "[ ? ]",
+
+                        color = Color.Cyan,
+
+                        fontSize = 14.sp,
+
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        modifier = Modifier
-                            .clickable {
-                                isGeofenceEnabled = !isGeofenceEnabled
-                                EgiPreferences.setGeofencingEnabled(context, isGeofenceEnabled)
-                            }
-                            .padding(4.dp)
+
+                        fontWeight = FontWeight.Bold,
+
+                        modifier = Modifier.clickable { showManual = true }.padding(4.dp)
+
                     )
+
                 }
+
     
-                Spacer(modifier = Modifier.height(12.dp))
-    
-                // Graph & Ping
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    PingGraph(
-                        history = pingHistory,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(80.dp)
-                            .padding(end = 16.dp)
-                    )
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = if (currentPing == -1) "-- ms" else "$currentPing ms",
-                            color = when {
-                                currentPing == -1 -> Color.Red
-                                currentPing < 60 -> Color.Green
-                                currentPing < 120 -> Color.Yellow
-                                else -> Color.Red
-                            },
-                            fontSize = 32.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-                    }
-                }
-    
-                Spacer(modifier = Modifier.height(12.dp))
-    
-                // Secondary Stats
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                        Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                        Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                    }
-                }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 
-                Text(
-                    text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
-                    color = if (isSecure) Color.Cyan else Color.Gray,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-    
-            Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-    
-            // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.52) ---
-            Column(
-                modifier = Modifier
-                    .weight(0.52f)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                ShieldStatusCard(blockedCount, isSecure)
-    
-                Spacer(modifier = Modifier.weight(1f))
-    
-                // Control Grid
-                Column(modifier = Modifier.fillMaxWidth()) {
-                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
-                        MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
+
+                // WiFi Info / Trust Action / Geofence
+
+                Row(
+
+                    modifier = Modifier.fillMaxWidth(),
+
+                    horizontalArrangement = Arrangement.SpaceBetween,
+
+                    verticalAlignment = Alignment.CenterVertically
+
+                ) {
+
+                    if (currentSsid != null) {
+
+                        Text(
+
+                            text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
+
+                            color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
+
+                            fontFamily = FontFamily.Monospace,
+
+                            fontSize = 10.sp
+
+                        )
+
+                    } else {
+
+                        Text("NO WIFI DETECTED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        MenuButton("[ SYNC CONFIG ]") { syncConfig() }
-                        MenuButton("[ NETWORK RADAR ]") {
-                            val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                            if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                onOpenWifiRadar()
-                            } else {
-                                permissionLauncher.launch(arrayOf(
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
-                                ))
+
+                    
+
+                    Text(
+
+                        text = if (isGeofenceEnabled) "[ GEOFENCE: ON ]" else "[ GEOFENCE: OFF ]",
+
+                        color = if (isGeofenceEnabled) Color.Cyan else Color.Gray,
+
+                        fontFamily = FontFamily.Monospace,
+
+                        fontSize = 10.sp,
+
+                        modifier = Modifier
+
+                            .clickable {
+
+                                isGeofenceEnabled = !isGeofenceEnabled
+
+                                EgiPreferences.setGeofencingEnabled(context, isGeofenceEnabled)
+
                             }
-                        }
-                    }
-                }
-                
-                if (showKeyDialog) {
-                    var tempKey by remember { mutableStateOf(outlineKey) }
-                    AlertDialog(
-                        onDismissRequest = { showKeyDialog = false },
-                        containerColor = Color.Black,
-                        title = { Text("STEALTH TUNNEL CONFIG", color = Color.Green, fontFamily = FontFamily.Monospace) },
-                        text = {
-                            OutlinedTextField(
-                                value = tempKey,
-                                onValueChange = { tempKey = it },
-                                label = { Text("OUTLINE / SS KEY", color = Color.Gray) },
-                                modifier = Modifier.fillMaxWidth(),
-                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace)
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                outlineKey = tempKey
-                                EgiPreferences.saveOutlineKey(context, outlineKey)
-                                showKeyDialog = false
-                            }) {
-                                Text("SAVE", color = Color.Green, fontFamily = FontFamily.Monospace)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showKeyDialog = false }) {
-                                Text("CANCEL", color = Color.Red, fontFamily = FontFamily.Monospace)
-                            }
-                        }
+
+                            .padding(4.dp)
+
                     )
+
                 }
+
+    
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+    
+
+                // Graph & Ping
+
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    PingGraph(
+
+                        history = pingHistory,
+
+                        modifier = Modifier
+
+                            .weight(1f)
+
+                            .height(80.dp)
+
+                            .padding(end = 16.dp)
+
+                    )
+
+                    Column(horizontalAlignment = Alignment.End) {
+
+                        Text(
+
+                            text = if (currentPing == -1) "-- ms" else "$animatedPing ms",
+
+                            color = when {
+
+                                currentPing == -1 -> Color.Red
+
+                                currentPing < 60 -> Color.Green
+
+                                currentPing < 120 -> Color.Yellow
+
+                                else -> Color.Red
+
+                            },
+
+                            fontSize = 32.sp,
+
+                            fontFamily = FontFamily.Monospace,
+
+                            fontWeight = FontWeight.Bold
+
+                        )
+
+                        Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+
+                    }
+
+                }
+
+    
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+    
+
+                // Secondary Stats
+
+                Row(
+
+                    modifier = Modifier.fillMaxWidth(),
+
+                    horizontalArrangement = Arrangement.SpaceBetween
+
+                ) {
+
+                    Column {
+
+                        Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+
+                        Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+
+                        Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+
+                        Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+
+                    }
+
+                }
+
+                
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                
+
+                Text(
+
+                    text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
+
+                    color = if (isSecure) Color.Cyan else Color.Gray,
+
+                    fontSize = 12.sp,
+
+                    fontFamily = FontFamily.Monospace,
+
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+
+                )
+
+            }
+
+    
+
+            Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+    
+
+            // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.52) ---
+
+            Column(
+
+                modifier = Modifier
+
+                    .weight(0.52f)
+
+                    .fillMaxWidth(),
+
+                horizontalAlignment = Alignment.CenterHorizontally,
+
+                verticalArrangement = Arrangement.Center
+
+            ) {
+
+                ShieldStatusCard(blockedCount, isSecure)
+
+    
+
+                Spacer(modifier = Modifier.weight(1f))
+
+    
+
+                // Control Grid
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+
+                     Row(
+
+                        modifier = Modifier.fillMaxWidth(),
+
+                        horizontalArrangement = Arrangement.SpaceEvenly
+
+                    ) {
+
+                        MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
+
+                        MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
+
+                    }
+
+                    Row(
+
+                        modifier = Modifier.fillMaxWidth(),
+
+                        horizontalArrangement = Arrangement.SpaceEvenly
+
+                    ) {
+
+                        MenuButton("[ SYNC CONFIG ]") { syncConfig() }
+
+                        MenuButton("[ NETWORK RADAR ]") {
+
+                            val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+
+                            if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+                                onOpenWifiRadar()
+
+                            } else {
+
+                                permissionLauncher.launch(arrayOf(
+
+                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+
+                                ))
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+                
+
+                if (showKeyDialog) {
+
+                    var tempKey by remember { mutableStateOf(outlineKey) }
+
+                    AlertDialog(
+
+                        onDismissRequest = { showKeyDialog = false },
+
+                        containerColor = Color.Black,
+
+                        title = { Text("STEALTH TUNNEL CONFIG", color = Color.Green, fontFamily = FontFamily.Monospace) },
+
+                        text = {
+
+                            OutlinedTextField(
+
+                                value = tempKey,
+
+                                onValueChange = { tempKey = it },
+
+                                label = { Text("OUTLINE / SS KEY", color = Color.Gray) },
+
+                                modifier = Modifier.fillMaxWidth(),
+
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace)
+
+                            )
+
+                        },
+
+                        confirmButton = {
+
+                            TextButton(onClick = {
+
+                                outlineKey = tempKey
+
+                                EgiPreferences.saveOutlineKey(context, outlineKey)
+
+                                showKeyDialog = false
+
+                            }) {
+
+                                Text("SAVE", color = Color.Green, fontFamily = FontFamily.Monospace)
+
+                            }
+
+                        },
+
+                        dismissButton = {
+
+                            TextButton(onClick = { showKeyDialog = false }) {
+
+                                Text("CANCEL", color = Color.Red, fontFamily = FontFamily.Monospace)
+
+                            }
+
+                        }
+
+                    )
+
+                }
+
+    
+
+                if (showManual) {
+
+                    TacticalManual(onDismiss = { showManual = false })
+
+                }
+
+    
     
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -558,11 +1000,65 @@ fun TerminalDashboard(
 }
 
 @Composable
+fun TacticalManual(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.Black,
+        title = {
+            Text("TACTICAL MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                item {
+                    ManualSection("SILENT SHIELD", "Native O(1) packet-dropping engine. Captures all traffic via virtual TUN interface and silences background threats with zero CPU overhead.")
+                    ManualSection("TACTICAL STEALTH", "Outline/Shadowsocks integration. Encrypts traffic to bypass ISP firewalls. Game traffic can bypass this via VIP Lane.")
+                    ManualSection("NETWORK RADAR", "Active ARP/Subnet scanner. Map your WiFi topology and 'Kick' hostile devices using ARP Black Hole protocol.")
+                    ManualSection("SMART GEOFENCE", "Auto-activates shield when connected to untrusted WiFi. Uses persistent storage for whitelist management.")
+                    ManualSection("VIP LANE", "App-specific routing. Whitelisted apps (Games) bypass the VPN logic for 0ms latency and 100% throughput.")
+                    ManualSection("BATTERY DASHBOARD", "Real-time mA savings calculation based on native blocked packet volume and radio wake-lock prevention.")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("[ CLOSE ]", color = Color.Green, fontFamily = FontFamily.Monospace)
+            }
+        }
+    )
+}
+
+@Composable
+fun ManualSection(title: String, desc: String) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text("> $title", color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Text(desc, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Divider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
 fun ShieldStatusCard(count: Int, isActive: Boolean) {
+    val animatedCount by animateIntAsState(targetValue = count, animationSpec = tween(500), label = "CountAnim")
+    val infiniteTransition = rememberInfiniteTransition(label = "ShieldPulse")
+    val shieldScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ShieldScale"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier.padding(24.dp)
+        modifier = Modifier
+            .padding(24.dp)
+            .graphicsLayer(
+                scaleX = if (isActive) shieldScale else 1f,
+                scaleY = if (isActive) shieldScale else 1f
+            )
     ) {
         Text(
             text = if (isActive) "SHIELD ACTIVE" else "SHIELD STANDBY",
@@ -573,7 +1069,7 @@ fun ShieldStatusCard(count: Int, isActive: Boolean) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "$count",
+            text = "$animatedCount",
             color = if (isActive) Color.Green else Color.DarkGray,
             fontFamily = FontFamily.Monospace,
             fontSize = 64.sp,
