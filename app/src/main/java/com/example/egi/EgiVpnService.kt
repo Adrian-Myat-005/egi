@@ -16,6 +16,7 @@ import java.nio.ByteBuffer
 class EgiVpnService : VpnService(), Runnable {
     companion object {
         const val ACTION_STOP = "com.example.egi.STOP"
+        const val ACTION_RESTART = "com.example.egi.RESTART"
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -27,10 +28,14 @@ class EgiVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
+        if (intent?.action == ACTION_RESTART) {
+            closeInterface() // Builder only applies on establish()
+        }
+
         createNotificationChannel()
         startForeground(1, createNotification())
 
-        if (vpnThread == null) {
+        if (vpnThread == null || !vpnThread!!.isAlive) {
             vpnThread = Thread(this, "EgiVpnThread")
             vpnThread?.start()
         }
@@ -47,18 +52,31 @@ class EgiVpnService : VpnService(), Runnable {
     override fun run() {
         val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
         val killList = sharedPrefs.getStringSet("kill_list", emptySet()) ?: emptySet()
+        val dnsProvider = sharedPrefs.getString("dns_provider", null)
 
         try {
             val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("10.0.0.2", 32)
-                .addDnsServer("1.1.1.1")
+
+            // Apply DNS Settings
+            if (dnsProvider != null) {
+                Log.d("EgiVpnService", "EGI >> Applying DNS: $dnsProvider")
+                builder.addDnsServer(dnsProvider)
+                // Secondary lookup
+                when (dnsProvider) {
+                    "1.1.1.1" -> builder.addDnsServer("1.0.0.1")
+                    "8.8.8.8" -> builder.addDnsServer("8.8.4.4")
+                    "94.140.14.14" -> builder.addDnsServer("94.140.15.15")
+                }
+            } else {
+                Log.d("EgiVpnService", "EGI >> DNS: System Default (Passthrough)")
+            }
 
             if (killList.isNotEmpty()) {
                 Log.d("EgiVpnService", "EGI >> Applying Kill List: ${killList.size} targets")
                 killList.forEach { packageName ->
                     try {
-                        // We use addAllowedApplication to route ONLY these apps into our "Black Hole"
                         builder.addAllowedApplication(packageName)
                     } catch (e: Exception) {
                         Log.e("EgiVpnService", "Failed to add $packageName to VPN", e)
@@ -67,10 +85,8 @@ class EgiVpnService : VpnService(), Runnable {
                 builder.addRoute("0.0.0.0", 0)
             } else {
                 Log.d("EgiVpnService", "EGI >> Kill List Empty. Passive Mode.")
-                // In passive mode with an empty kill list, we don't add routes to avoid intercepting all traffic
             }
 
-            // Always ensure we don't block ourselves
             builder.addDisallowedApplication("com.example.egi")
 
             vpnInterface = builder.establish()
@@ -82,12 +98,22 @@ class EgiVpnService : VpnService(), Runnable {
 
             val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
             val packet = ByteBuffer.allocate(32767)
+            var packetCounter = 0
 
             while (!Thread.interrupted()) {
-                val length = inputStream.read(packet.array())
+                val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
                 if (length > 0) {
-                    // Packet is read but NOT written back. This is the "Black Hole".
+                    packetCounter++
+                    // Sample packets (1 out of every 50) to avoid flooding the UI
+                    if (packetCounter % 50 == 0) {
+                        packet.limit(length)
+                        val destIp = PacketUtils.getDestinationIp(packet)
+                        val proto = PacketUtils.getProtocol(packet)
+                        TrafficEvent.log("[BLOCKED] >> $proto -> $destIp")
+                    }
                     packet.clear()
+                } else if (length == -1) {
+                    break // Interface closed
                 }
             }
         } catch (e: Exception) {

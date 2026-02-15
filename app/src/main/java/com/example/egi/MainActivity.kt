@@ -34,6 +34,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class Screen {
+    TERMINAL, APP_PICKER, DNS_PICKER
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,13 +55,22 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainContent() {
-    var showPicker by remember { mutableStateOf(false) }
+    var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
+    var dnsLogMessage by remember { mutableStateOf<String?>(null) }
 
-    Crossfade(targetState = showPicker, label = "ScreenTransition") { isPicker ->
-        if (isPicker) {
-            AppPickerScreen(onBack = { showPicker = false })
-        } else {
-            TerminalDashboard(onOpenPicker = { showPicker = true })
+    Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
+        when (screen) {
+            Screen.APP_PICKER -> AppPickerScreen(onBack = { currentScreen = Screen.TERMINAL })
+            Screen.DNS_PICKER -> DnsPickerScreen(onBack = { msg ->
+                dnsLogMessage = msg
+                currentScreen = Screen.TERMINAL
+            })
+            Screen.TERMINAL -> TerminalDashboard(
+                onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
+                onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
+                dnsMsg = dnsLogMessage,
+                onDnsLogConsumed = { dnsLogMessage = null }
+            )
         }
     }
 }
@@ -74,7 +87,12 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun TerminalDashboard(onOpenPicker: () -> Unit) {
+fun TerminalDashboard(
+    onOpenAppPicker: () -> Unit,
+    onOpenDnsPicker: () -> Unit,
+    dnsMsg: String?,
+    onDnsLogConsumed: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var logs by remember { mutableStateOf(listOf("EGI >> System init...", "EGI >> Waiting for uplink...")) }
@@ -97,6 +115,23 @@ fun TerminalDashboard(onOpenPicker: () -> Unit) {
             newLogs[lastIndex] = currentText
             logs = newLogs
             delay(30)
+        }
+    }
+
+    // Handle DNS change log and restart
+    LaunchedEffect(dnsMsg) {
+        if (dnsMsg != null) {
+            scope.launch {
+                typeLog("EGI >> $dnsMsg")
+                if (isSecure) {
+                    typeLog("EGI >> RESTARTING TUNNEL TO APPLY CONFIG...")
+                    val restartIntent = Intent(context, EgiVpnService::class.java).apply {
+                        action = EgiVpnService.ACTION_RESTART
+                    }
+                    context.startService(restartIntent)
+                }
+                onDnsLogConsumed()
+            }
         }
     }
 
@@ -138,6 +173,13 @@ fun TerminalDashboard(onOpenPicker: () -> Unit) {
         }
     }
 
+    // Collect Live Traffic Logs
+    LaunchedEffect(Unit) {
+        TrafficEvent.events.collect { event ->
+            addLog(event)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -172,15 +214,28 @@ fun TerminalDashboard(onOpenPicker: () -> Unit) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = "[ EDIT KILL LIST ]",
-            color = Color.Green,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier
-                .clickable { onOpenPicker() }
-                .padding(8.dp)
-                .align(Alignment.CenterHorizontally)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Text(
+                text = "[ EDIT KILL LIST ]",
+                color = Color.Green,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .clickable { onOpenAppPicker() }
+                    .padding(8.dp)
+            )
+
+            Text(
+                text = "[ CONFIGURE DNS ]",
+                color = Color.Green,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .clickable { onOpenDnsPicker() }
+                    .padding(8.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
