@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,8 +43,21 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             EgiTerminalTheme {
-                TerminalDashboard()
+                MainContent()
             }
+        }
+    }
+}
+
+@Composable
+fun MainContent() {
+    var showPicker by remember { mutableStateOf(false) }
+
+    Crossfade(targetState = showPicker, label = "ScreenTransition") { isPicker ->
+        if (isPicker) {
+            AppPickerScreen(onBack = { showPicker = false })
+        } else {
+            TerminalDashboard(onOpenPicker = { showPicker = true })
         }
     }
 }
@@ -60,7 +74,7 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun TerminalDashboard() {
+fun TerminalDashboard(onOpenPicker: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var logs by remember { mutableStateOf(listOf("EGI >> System init...", "EGI >> Waiting for uplink...")) }
@@ -95,7 +109,6 @@ fun TerminalDashboard() {
             isBooting = false
             scope.launch {
                 typeLog("EGI >> INITIALIZING BLACK HOLE...")
-                typeLog("EGI >> TARGET: INSTAGRAM [BLOCKED]")
                 typeLog("EGI >> PROTOCOL ACTIVE.")
             }
         } else {
@@ -120,7 +133,7 @@ fun TerminalDashboard() {
                 }
                 addLog("EGI >> STATS: $statsJson")
             } catch (e: Exception) {
-                // Ignore stats errors during boot
+                // Ignore stats errors
             }
         }
     }
@@ -157,7 +170,19 @@ fun TerminalDashboard() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "[ EDIT KILL LIST ]",
+            color = Color.Green,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier
+                .clickable { onOpenPicker() }
+                .padding(8.dp)
+                .align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Toggle Button
         Box(
@@ -176,12 +201,10 @@ fun TerminalDashboard() {
                                 context.startService(Intent(context, EgiVpnService::class.java))
                                 isSecure = true
                                 isBooting = false
-                                typeLog("EGI >> RE-INITIALIZING BLACK HOLE...")
                                 typeLog("EGI >> PROTOCOL RE-ENGAGED.")
                             }
                         }
                     } else if (isSecure) {
-                        // ABORT PROTOCOL
                         val stopIntent = Intent(context, EgiVpnService::class.java).apply {
                             action = EgiVpnService.ACTION_STOP
                         }
@@ -189,7 +212,6 @@ fun TerminalDashboard() {
                         isSecure = false
                         scope.launch {
                             typeLog("EGI >> ABORTING PROTOCOL...")
-                            typeLog("EGI >> DISMANTLING BLACK HOLE...")
                             typeLog("EGI >> PROTOCOL DISENGAGED.")
                         }
                     }

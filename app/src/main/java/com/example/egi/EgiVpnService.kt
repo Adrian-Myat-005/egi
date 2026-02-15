@@ -3,6 +3,7 @@ package com.example.egi
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
@@ -44,30 +45,48 @@ class EgiVpnService : VpnService(), Runnable {
     }
 
     override fun run() {
+        val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
+        val killList = sharedPrefs.getStringSet("kill_list", emptySet()) ?: emptySet()
+
         try {
             val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("10.0.0.2", 32)
                 .addDnsServer("1.1.1.1")
-                // Only route Instagram through the VPN to block it
-                .addAllowedApplication("com.instagram.android")
-                .addRoute("0.0.0.0", 0)
-                // Ensure we don't block ourselves
-                .addDisallowedApplication("com.example.egi")
+
+            if (killList.isNotEmpty()) {
+                Log.d("EgiVpnService", "EGI >> Applying Kill List: ${killList.size} targets")
+                killList.forEach { packageName ->
+                    try {
+                        // We use addAllowedApplication to route ONLY these apps into our "Black Hole"
+                        builder.addAllowedApplication(packageName)
+                    } catch (e: Exception) {
+                        Log.e("EgiVpnService", "Failed to add $packageName to VPN", e)
+                    }
+                }
+                builder.addRoute("0.0.0.0", 0)
+            } else {
+                Log.d("EgiVpnService", "EGI >> Kill List Empty. Passive Mode.")
+                // In passive mode with an empty kill list, we don't add routes to avoid intercepting all traffic
+            }
+
+            // Always ensure we don't block ourselves
+            builder.addDisallowedApplication("com.example.egi")
 
             vpnInterface = builder.establish()
+
+            if (vpnInterface == null) {
+                Log.e("EgiVpnService", "Failed to establish VPN interface")
+                return
+            }
 
             val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
             val packet = ByteBuffer.allocate(32767)
 
-            Log.d("EgiVpnService", "EGI >> Focus Mode Active: Intercepting Blacklisted Traffic")
-
             while (!Thread.interrupted()) {
                 val length = inputStream.read(packet.array())
                 if (length > 0) {
-                    // Packet is read but NOT written back to any network interface.
-                    // This creates a "Black Hole" for intercepted traffic.
-                    Log.d("EgiVpnService", "EGI >> Intercepted and Discarded: $length bytes")
+                    // Packet is read but NOT written back. This is the "Black Hole".
                     packet.clear()
                 }
             }
