@@ -118,27 +118,27 @@ class EgiVpnService : VpnService(), Runnable {
             try {
                 vpnInterface = builder.establish()
             } catch (e: Exception) {
-                Log.e("EgiVpnService", "CRITICAL: Failed to establish VPN", e)
-                TrafficEvent.log("ERROR >> KERNEL_ESTABLISH_FAILED")
+                Log.e("EgiVpnService", "CRITICAL: Kernel denied VPN slot", e)
+                TrafficEvent.log("ERROR >> SLOT_DENIED")
+                delay(1000) // Don't spam retries
                 return
             }
 
             if (vpnInterface == null) {
-                TrafficEvent.log("ERROR >> INTERFACE_NULL")
+                TrafficEvent.log("ERROR >> PERMISSION_MISSING")
                 return
             }
 
             TrafficEvent.setVpnActive(true)
-            TrafficEvent.log("PROTOCOL_ACTIVE >> SHIELD_ENGAGED")
+            TrafficEvent.log("SHIELD_ENGAGED >> SYSTEM_SILENCED")
 
             // PASSIVE SHIELD: Delegate loop to Rust for Zero-Copy and Near-Zero Heat
             if (EgiNetwork.isAvailable()) {
                 val fd = vpnInterface!!.fd
                 EgiNetwork.runVpnLoop(fd)
             } else {
-                // Fallback to Kotlin loop if native fails (less efficient)
                 val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
-                val packet = ByteBuffer.allocate(32767)
+                val packet = ByteBuffer.allocate(4096)
                 while (!Thread.interrupted()) {
                     val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
                     if (length <= 0) break
@@ -147,10 +147,9 @@ class EgiVpnService : VpnService(), Runnable {
             }
         } catch (e: Exception) {
             Log.e("EgiVpnService", "Error in VPN loop", e)
-            TrafficEvent.log("ERROR >> VPN_LOOP_CRASH")
         } finally {
             TrafficEvent.setVpnActive(false)
-            TrafficEvent.log("PROTOCOL_DISENGAGED")
+            TrafficEvent.log("SHIELD_DISENGAGED")
             closeInterface()
         }
     }

@@ -53,54 +53,39 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
     _class: JClass,
     fd: i32,
 ) {
-    let mut buf = [0u8; 65535];
-    let rt = Runtime::new().unwrap();
+    // Heap allocate buffer to prevent stack overflow on Android threads
+    let mut buf = vec![0u8; 4096]; 
     
-    rt.block_on(async {
-        loop {
-            // Non-blocking read simulation or direct syscall
-            let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
-            if n <= 0 {
-                break; 
-            }
-
+    loop {
+        let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+        
+        if n > 0 {
             let is_stealth = STEALTH_MODE.load(Ordering::Relaxed);
             
-            if is_stealth {
-                // TACTICAL STEALTH: Tunnel through Shadowsocks (Outline)
-                // In a production scenario, we would parse the IP packet and use shadowsocks-rust's
-                // outbound manager to proxy the TCP/UDP payload.
-                // For this minimalist implementation, we simulate the encryption and accounting.
-                BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
-                
-                // Simulate protocol detection for analytics
-                let version = buf[0] >> 4;
-                let protocol = if version == 4 { buf[9] } else if version == 6 && n >= 40 { buf[6] } else { 0 };
-                match protocol {
-                    6 => { TCP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                    17 => { UDP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                    _ => { OTHER_COUNT.fetch_add(1, Ordering::Relaxed); }
-                }
-                
-                // Real implementation would involve:
-                // 1. Packet parsing (IPv4/IPv6)
-                // 2. Shadowsocks outbound request
-                // 3. Bidirectional proxying
-            } else {
-                // SILENT SHIELD: Drop packets immediately (The Black Hole)
-                let version = buf[0] >> 4;
-                let protocol = if version == 4 { buf[9] } else if version == 6 && n >= 40 { buf[6] } else { 0 };
+            // Core Logic: Atomic Counting & Decisions
+            let version = buf[0] >> 4;
+            let protocol = if version == 4 { buf[9] } else if version == 6 && n >= 40 { buf[6] } else { 0 };
 
-                match protocol {
-                    6 => { TCP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                    17 => { UDP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                    _ => { OTHER_COUNT.fetch_add(1, Ordering::Relaxed); }
-                }
-                
-                BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
+            match protocol {
+                6 => { TCP_COUNT.fetch_add(1, Ordering::Relaxed); }
+                17 => { UDP_COUNT.fetch_add(1, Ordering::Relaxed); }
+                _ => { OTHER_COUNT.fetch_add(1, Ordering::Relaxed); }
             }
+            BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
+
+            // In Stealth Mode, packets would be encrypted and forwarded here.
+            // In Shield Mode, we simply do nothing with the buffer, effectively dropping it.
+            
+        } else if n < 0 {
+            let err = unsafe { *libc::__errno_location() };
+            if err == libc::EINTR || err == libc::EAGAIN {
+                continue; // System interrupt, try again
+            }
+            break; // Fatal error
+        } else {
+            break; // End of file (Interface closed)
         }
-    });
+    }
 }
 
 #[no_mangle]

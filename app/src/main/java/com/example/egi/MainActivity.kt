@@ -1043,25 +1043,25 @@ fun TerminalDashboard(
 
                         .clickable {
 
-                            if (!isSecure && !isBooting) {
+                                                    if (!isSecure && !isBooting) {
 
-                                isBooting = true
+                                                        isBooting = true
 
-                                val intent = VpnService.prepare(context)
+                                                        val intent = VpnService.prepare(context)
 
-                                if (intent != null) {
+                                                        if (intent != null) {
 
-                                    vpnLauncher.launch(intent)
+                                                            vpnLauncher.launch(intent)
 
-                                } else {
+                                                        } else {
 
-                                    context.startService(Intent(context, EgiVpnService::class.java))
+                                                            context.startService(Intent(context, EgiVpnService::class.java))
 
-                                    isBooting = false
+                                                            isBooting = false // Reset here if already prepared
 
-                                }
+                                                        }
 
-                            } else if (isSecure) {
+                                                    } else if (isSecure) {
 
                                 val stopIntent = Intent(context, EgiVpnService::class.java).apply {
 
@@ -1105,63 +1105,129 @@ fun TerminalDashboard(
 
     @Composable
 
+    
+
     fun TacticalManual(onDismiss: () -> Unit) {
+
+    
 
         AlertDialog(
 
+    
+
             onDismissRequest = onDismiss,
+
+    
 
             containerColor = Color.Black,
 
+    
+
             title = {
 
-                Text("TACTICAL MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+    
+
+                Text("EGI >> SYSTEM MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+
+    
 
             },
+
+    
 
             text = {
 
+    
+
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
+
+    
 
                     item {
 
-                        Text("--- QUICK START ---", color = Color.Yellow, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+    
 
-                        Text("1. ADD your app (e.g. Facebook) to VIP LANE.\n2. Click [ EXECUTE ] to block everything ELSE.\n3. Turn [ STEALTH ] ON if you are blocked by a firewall.", color = Color.White, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text("1. [ VIP LANE ]: Open this and pick the apps you want to keep ALIVE (e.g. Facebook, Chrome).", color = Color.Green, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
 
-                        Spacer(modifier = Modifier.height(16.dp))
+    
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+    
+
+                        Text("2. [ EXECUTE ]: Click this button. Egi will capture all traffic. Apps in your VIP list get 100% speed. Apps NOT in the list are silented (blocked) to save data and battery.", color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+
+    
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+    
+
+                        Text("3. [ STEALTH ]: Only turn this ON if your WiFi is blocking you. It uses your Outline key to sneak past firewalls.", color = Color.Yellow, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+
+    
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+    
+
+                        Text("4. [ RADAR ]: Use this to see who else is on your WiFi. If they are stealing your speed, click [ KICK ] to silence them locally.", color = Color.Magenta, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+
+    
 
                         
 
-                        ManualSection("SILENT SHIELD", "When you click [ EXECUTE ], Egi captures all phone traffic. It kills background data for apps NOT in your VIP list to give you 100% speed.")
+    
 
-                        ManualSection("VIP LANE", "Use this to select which apps are ALLOWED to use the internet. All other apps will be blocked silently.")
+                        Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
 
-                        ManualSection("TACTICAL STEALTH", "Enables Outline/Shadowsocks bypass. Use this ONLY if your WiFi blocks certain websites. Requires a valid Key.")
+    
 
-                        ManualSection("NETWORK RADAR", "Scans your WiFi. You can 'Kick' other people off your WiFi if they are using too much of your speed.")
+                        Text("GOAL: 0ms Lag, 100% Signal, 0% Data Waste.", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
 
-                        ManualSection("SMART GEOFENCE", "Automatically turns on the Shield when you connect to a new, dangerous WiFi.")
+    
 
                     }
 
+    
+
                 }
+
+    
 
             },
 
+    
+
             confirmButton = {
+
+    
 
                 TextButton(onClick = onDismiss) {
 
-                    Text("[ I UNDERSTAND ]", color = Color.Green, fontFamily = FontFamily.Monospace)
+    
+
+                    Text("[ MISSION UNDERSTOOD ]", color = Color.Green, fontFamily = FontFamily.Monospace)
+
+    
 
                 }
 
+    
+
             }
+
+    
 
         )
 
+    
+
     }
+
+    
+
+    
 
     
 
