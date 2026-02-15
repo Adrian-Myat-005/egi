@@ -13,10 +13,19 @@ import java.io.IOException
 import java.nio.ByteBuffer
 
 class EgiVpnService : VpnService(), Runnable {
+    companion object {
+        const val ACTION_STOP = "com.example.egi.STOP"
+    }
+
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vpnThread: Thread? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopVpn()
+            return START_NOT_STICKY
+        }
+
         createNotificationChannel()
         startForeground(1, createNotification())
 
@@ -27,22 +36,38 @@ class EgiVpnService : VpnService(), Runnable {
         return START_STICKY
     }
 
+    private fun stopVpn() {
+        vpnThread?.interrupt()
+        closeInterface()
+        stopForeground(true)
+        stopSelf()
+    }
+
     override fun run() {
         try {
-            vpnInterface = Builder()
+            val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("10.0.0.2", 32)
-                .addRoute("0.0.0.0", 0)
                 .addDnsServer("1.1.1.1")
-                .establish()
+                // Only route Instagram through the VPN to block it
+                .addAllowedApplication("com.instagram.android")
+                .addRoute("0.0.0.0", 0)
+                // Ensure we don't block ourselves
+                .addDisallowedApplication("com.example.egi")
+
+            vpnInterface = builder.establish()
 
             val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
             val packet = ByteBuffer.allocate(32767)
 
+            Log.d("EgiVpnService", "EGI >> Focus Mode Active: Intercepting Blacklisted Traffic")
+
             while (!Thread.interrupted()) {
                 val length = inputStream.read(packet.array())
                 if (length > 0) {
-                    Log.d("EgiVpnService", "Packet: $length bytes")
+                    // Packet is read but NOT written back to any network interface.
+                    // This creates a "Black Hole" for intercepted traffic.
+                    Log.d("EgiVpnService", "EGI >> Intercepted and Discarded: $length bytes")
                     packet.clear()
                 }
             }
@@ -68,15 +93,15 @@ class EgiVpnService : VpnService(), Runnable {
     private fun createNotification(): Notification {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, "egi_vpn")
-                .setContentTitle("Egi Shield Active")
-                .setContentText("Monitoring network traffic...")
+                .setContentTitle("Egi Focus Mode Active")
+                .setContentText("Black-holing distractions...")
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("Egi Shield Active")
-                .setContentText("Monitoring network traffic...")
+                .setContentTitle("Egi Focus Mode Active")
+                .setContentText("Black-holing distractions...")
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .build()
         }
@@ -92,8 +117,7 @@ class EgiVpnService : VpnService(), Runnable {
     }
 
     override fun onDestroy() {
-        vpnThread?.interrupt()
-        closeInterface()
+        stopVpn()
         super.onDestroy()
     }
 }

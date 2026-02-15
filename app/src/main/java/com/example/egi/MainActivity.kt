@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -61,10 +62,29 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 @Composable
 fun TerminalDashboard() {
     val context = LocalContext.current
-    var logs by remember { mutableStateOf(listOf("EGI >> System init...", "EGI >> Loading network modules...")) }
+    val scope = rememberCoroutineScope()
+    var logs by remember { mutableStateOf(listOf("EGI >> System init...", "EGI >> Waiting for uplink...")) }
     var isSecure by remember { mutableStateOf(false) }
     var isBooting by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    // Helper to type a message into logs
+    fun addLog(msg: String) {
+        logs = (logs + msg).takeLast(100)
+    }
+
+    suspend fun typeLog(msg: String) {
+        var currentText = ""
+        logs = logs + "" // Add empty slot
+        val lastIndex = logs.size - 1
+        for (char in msg) {
+            currentText += char
+            val newLogs = logs.toMutableList()
+            newLogs[lastIndex] = currentText
+            logs = newLogs
+            delay(30)
+        }
+    }
 
     val vpnLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -73,10 +93,14 @@ fun TerminalDashboard() {
             context.startService(Intent(context, EgiVpnService::class.java))
             isSecure = true
             isBooting = false
-            logs = logs + "EGI >> VPN TUNNEL ESTABLISHED [1.1.1.1]"
+            scope.launch {
+                typeLog("EGI >> INITIALIZING BLACK HOLE...")
+                typeLog("EGI >> TARGET: INSTAGRAM [BLOCKED]")
+                typeLog("EGI >> PROTOCOL ACTIVE.")
+            }
         } else {
             isBooting = false
-            logs = logs + "EGI >> VPN PERMISSION DENIED"
+            addLog("EGI >> KERNEL ACCESS DENIED.")
         }
     }
 
@@ -89,16 +113,14 @@ fun TerminalDashboard() {
     // Background Network Stats Loop
     LaunchedEffect(Unit) {
         while (true) {
-            delay(1500)
+            delay(2000)
             try {
                 val statsJson = withContext(Dispatchers.IO) {
                     EgiNetwork.measureNetworkStats()
                 }
-                
-                val newLog = "EGI >> STATS: $statsJson"
-                logs = (logs + newLog).takeLast(100)
+                addLog("EGI >> STATS: $statsJson")
             } catch (e: Exception) {
-                logs = (logs + "EGI >> ERROR: ${e.message}").takeLast(100)
+                // Ignore stats errors during boot
             }
         }
     }
@@ -122,7 +144,12 @@ fun TerminalDashboard() {
             items(logs) { log ->
                 Text(
                     text = log,
-                    color = if (log.contains("ERROR") || log.contains("DENIED")) Color.Red else Color.Green,
+                    color = when {
+                        log.contains("BLOCKED") -> Color.Red
+                        log.contains("ACTIVE") -> Color.Cyan
+                        log.contains("ERROR") -> Color.Red
+                        else -> Color.Green
+                    },
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(vertical = 2.dp)
@@ -132,6 +159,7 @@ fun TerminalDashboard() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Toggle Button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -139,23 +167,38 @@ fun TerminalDashboard() {
                 .clickable {
                     if (!isSecure && !isBooting) {
                         isBooting = true
-                        logs = logs + "EGI >> REQUESTING KERNEL PERMISSIONS..."
-                        val intent = VpnService.prepare(context)
-                        if (intent != null) {
-                            vpnLauncher.launch(intent)
-                        } else {
-                            context.startService(Intent(context, EgiVpnService::class.java))
-                            isSecure = true
-                            isBooting = false
-                            logs = logs + "EGI >> VPN TUNNEL RE-ESTABLISHED"
+                        scope.launch {
+                            typeLog("EGI >> REQUESTING KERNEL PERMISSIONS...")
+                            val intent = VpnService.prepare(context)
+                            if (intent != null) {
+                                vpnLauncher.launch(intent)
+                            } else {
+                                context.startService(Intent(context, EgiVpnService::class.java))
+                                isSecure = true
+                                isBooting = false
+                                typeLog("EGI >> RE-INITIALIZING BLACK HOLE...")
+                                typeLog("EGI >> PROTOCOL RE-ENGAGED.")
+                            }
+                        }
+                    } else if (isSecure) {
+                        // ABORT PROTOCOL
+                        val stopIntent = Intent(context, EgiVpnService::class.java).apply {
+                            action = EgiVpnService.ACTION_STOP
+                        }
+                        context.startService(stopIntent)
+                        isSecure = false
+                        scope.launch {
+                            typeLog("EGI >> ABORTING PROTOCOL...")
+                            typeLog("EGI >> DISMANTLING BLACK HOLE...")
+                            typeLog("EGI >> PROTOCOL DISENGAGED.")
                         }
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (isSecure) "> [ SYSTEM_SECURED ] <" else "> [ EXECUTE_BOOST_PROTOCOL ] <",
-                color = if (isSecure) Color.Cyan else Color.Green,
+                text = if (isSecure) "> [ ABORT PROTOCOL ] <" else "> [ EXECUTE BOOST ] <",
+                color = if (isSecure) Color.Red else Color.Green,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
@@ -193,15 +236,15 @@ fun BlinkingStatus(isSecure: Boolean, isBooting: Boolean) {
     }
 
     val statusText = when {
-        isBooting -> "[ BOOTING KERNEL... ]"
-        isSecure -> "[ SECURE | 1.1.1.1 ]"
-        else -> "[ UNSTABLE ]"
+        isBooting -> "[ BOOTING... ]"
+        isSecure -> "[ FOCUS MODE ]"
+        else -> "[ IDLE ]"
     }
     
     val statusColor = when {
         isBooting -> Color.Yellow
         isSecure -> Color.Cyan
-        else -> Color.Red
+        else -> Color.LightGray
     }
 
     if (visible) {
