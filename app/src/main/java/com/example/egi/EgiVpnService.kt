@@ -120,7 +120,7 @@ class EgiVpnService : VpnService(), Runnable {
             } catch (e: Exception) {
                 Log.e("EgiVpnService", "CRITICAL: Kernel denied VPN slot", e)
                 TrafficEvent.log("ERROR >> SLOT_DENIED")
-                delay(1000) // Don't spam retries
+                Thread.sleep(1000) // Don't spam retries
                 return
             }
 
