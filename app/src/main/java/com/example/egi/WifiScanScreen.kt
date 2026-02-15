@@ -79,8 +79,8 @@ fun WifiScanScreen(onBack: () -> Unit) {
             },
             text = {
                 Text(
-                    "Target: ${device.ip}
-Action: Intercept and Redirect to Gateway for manual blacklisting.",
+                    """Target: ${device.ip}
+Action: Intercept and Redirect to Gateway for manual blacklisting.""",
                     color = Color.Green,
                     fontFamily = FontFamily.Monospace
                 )
