@@ -8,6 +8,7 @@ import android.net.Uri
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -339,7 +341,7 @@ fun Header(isScanning: Boolean, gateway: String, isMapView: Boolean, onToggleVie
 }
 
 @Composable
-fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) {
+fun ColumnScope.TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) {
     val gateway = devices.find { it.status == "Gateway" }
     val others = devices.filter { it.status != "Gateway" }
     
@@ -352,12 +354,11 @@ fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) 
     ) {
         // Radar Rings
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = center
             val maxRadius = minOf(size.width, size.height) / 2 * 0.8f
             
-            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.33f, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
-            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.66f, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
-            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.33f, style = Stroke(1f))
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius * 0.66f, style = Stroke(1f))
+            drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius, style = Stroke(1f))
         }
 
         // Gateway Node
