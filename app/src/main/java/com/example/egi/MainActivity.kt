@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 enum class Screen {
     TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR
@@ -106,6 +105,15 @@ fun TerminalDashboard(
     var isBooting by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
+    // HUD States
+    var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
+    var currentPing by remember { mutableStateOf(0) }
+    var currentJitter by remember { mutableStateOf(0) }
+    var serverStatus by remember { mutableStateOf("CONNECTING") }
+    
+    // Dropdown State
+    var expanded by remember { mutableStateOf(false) }
+
     // Helper to type a message into logs
     fun addLog(msg: String) {
         logs = (logs + msg).takeLast(100)
@@ -172,22 +180,26 @@ fun TerminalDashboard(
         }
     }
 
-    // Background Network Stats Loop
-    LaunchedEffect(Unit) {
+    // Real-Time Stats Loop (The HUD)
+    LaunchedEffect(selectedServer) {
         while (true) {
-            delay(2000)
+            delay(1500)
             try {
                 val statsJson = withContext(Dispatchers.IO) {
-                    EgiNetwork.measureNetworkStats()
+                    EgiNetwork.measureNetworkStats(selectedServer.ip)
                 }
-                addLog("EGI >> STATS: $statsJson")
+                // Parse JSON for HUD
+                val json = JSONObject(statsJson)
+                currentPing = json.optInt("ping", -1)
+                currentJitter = json.optInt("jitter", 0)
+                serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
             } catch (e: Exception) {
-                // Ignore stats errors
+                serverStatus = "ERROR"
             }
         }
     }
 
-    // Collect Live Traffic Logs
+    // Collect Live Traffic Logs (The Matrix)
     LaunchedEffect(Unit) {
         TrafficEvent.events.collect { event ->
             addLog(event)
@@ -197,184 +209,197 @@ fun TerminalDashboard(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
             .background(Color.Black)
+            .padding(16.dp)
     ) {
-        Header(isSecure, isBooting)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(
-            state = listState,
+        // --- TOP SECTION: THE HUD (Weight 0.4) ---
+        Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(0.4f)
                 .fillMaxWidth()
         ) {
-            items(logs) { log ->
+            // Server Selector
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = true }
+                    .background(Color.DarkGray.copy(alpha = 0.3f))
+                    .padding(8.dp)
+            ) {
                 Text(
-                    text = log,
-                    color = when {
-                        log.contains("BLOCKED") -> Color.Red
-                        log.contains("ACTIVE") -> Color.Cyan
-                        log.contains("ERROR") -> Color.Red
-                        log.contains("NUCLEAR") || log.contains("TACTICAL") -> Color.Yellow
-                        else -> Color.Green
-                    },
+                    text = "SERVER: ${selectedServer.name}",
+                    color = Color.Green,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 2.dp)
+                    fontWeight = FontWeight.Bold
                 )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.background(Color.Black)
+                ) {
+                    GameServers.list.forEach { server ->
+                        DropdownMenuItem(
+                            text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
+                            onClick = {
+                                selectedServer = server
+                                expanded = false
+                            }
+                        )
+                    }
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+            // Big Ping
+            Text(
+                text = if (currentPing == -1) "-- ms" else "$currentPing ms",
+                color = when {
+                    currentPing == -1 -> Color.Red
+                    currentPing < 60 -> Color.Green
+                    currentPing < 120 -> Color.Yellow
+                    else -> Color.Red
+                },
+                fontSize = 48.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+
+            // Secondary Stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text(
-                    text = "[ EDIT KILL LIST ]",
-                    color = Color.Green,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .clickable { onOpenAppPicker() }
-                        .padding(8.dp)
-                )
-
-                Text(
-                    text = "[ CONFIGURE DNS ]",
-                    color = Color.Green,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .clickable { onOpenDnsPicker() }
-                        .padding(8.dp)
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                }
             }
             
+            Spacer(modifier = Modifier.height(8.dp))
+            
             Text(
-                text = "[ CONFIGURE MODES ]",
-                color = Color.Cyan,
+                text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
+                color = if (isSecure) Color.Cyan else Color.Gray,
+                fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .clickable { onOpenAppSelector() }
-                    .padding(8.dp)
-            )
-
-            Text(
-                text = "> [ INITIATE RADAR SCAN ] <",
-                color = Color.Yellow,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .clickable { onOpenWifiRadar() }
-                    .padding(8.dp)
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-        // Toggle Button
-        Box(
+        // --- BOTTOM SECTION: THE MATRIX (Weight 0.6) ---
+        Column(
             modifier = Modifier
+                .weight(0.6f)
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .clickable {
-                    if (!isSecure && !isBooting) {
-                        isBooting = true
-                        scope.launch {
-                            typeLog("EGI >> REQUESTING KERNEL PERMISSIONS...")
-                            val intent = VpnService.prepare(context)
-                            if (intent != null) {
-                                vpnLauncher.launch(intent)
-                            } else {
-                                context.startService(Intent(context, EgiVpnService::class.java))
-                                isSecure = true
-                                isBooting = false
-                                typeLog("EGI >> PROTOCOL RE-ENGAGED.")
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                items(logs) { log ->
+                    Text(
+                        text = log,
+                        color = when {
+                            log.contains("BLOCKED") -> Color.Red
+                            log.contains("ACTIVE") -> Color.Cyan
+                            log.contains("ERROR") -> Color.Red
+                            log.contains("NUCLEAR") || log.contains("TACTICAL") -> Color.Yellow
+                            else -> Color.Green
+                        },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp, // Slightly smaller for log
+                        modifier = Modifier.padding(vertical = 1.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Control Grid
+            Column(modifier = Modifier.fillMaxWidth()) {
+                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MenuButton("[ MODES ]") { onOpenAppSelector() }
+                    MenuButton("[ DNS ]") { onOpenDnsPicker() }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MenuButton("[ RADAR ]") { onOpenWifiRadar() }
+                    MenuButton("[ APPS ]") { onOpenAppPicker() }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Main Toggle Button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clickable {
+                        if (!isSecure && !isBooting) {
+                            isBooting = true
+                            scope.launch {
+                                typeLog("EGI >> REQUESTING KERNEL PERMISSIONS...")
+                                val intent = VpnService.prepare(context)
+                                if (intent != null) {
+                                    vpnLauncher.launch(intent)
+                                } else {
+                                    context.startService(Intent(context, EgiVpnService::class.java))
+                                    isSecure = true
+                                    isBooting = false
+                                    typeLog("EGI >> PROTOCOL RE-ENGAGED.")
+                                }
+                            }
+                        } else if (isSecure) {
+                            val stopIntent = Intent(context, EgiVpnService::class.java).apply {
+                                action = EgiVpnService.ACTION_STOP
+                            }
+                            context.startService(stopIntent)
+                            isSecure = false
+                            scope.launch {
+                                typeLog("EGI >> ABORTING PROTOCOL...")
+                                typeLog("EGI >> PROTOCOL DISENGAGED.")
                             }
                         }
-                    } else if (isSecure) {
-                        val stopIntent = Intent(context, EgiVpnService::class.java).apply {
-                            action = EgiVpnService.ACTION_STOP
-                        }
-                        context.startService(stopIntent)
-                        isSecure = false
-                        scope.launch {
-                            typeLog("EGI >> ABORTING PROTOCOL...")
-                            typeLog("EGI >> PROTOCOL DISENGAGED.")
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (isSecure) "> [ ABORT PROTOCOL ] <" else "> [ EXECUTE BOOST ] <",
-                color = if (isSecure) Color.Red else Color.Green,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isSecure) "> [ ABORT ] <" else "> [ EXECUTE ] <",
+                    color = if (isSecure) Color.Red else Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
         }
     }
 }
 
 @Composable
-fun Header(isSecure: Boolean, isBooting: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "root@egi:~#",
-            color = Color.Green,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
-        )
-
-        BlinkingStatus(isSecure, isBooting)
-    }
-}
-
-@Composable
-fun BlinkingStatus(isSecure: Boolean, isBooting: Boolean) {
-    var visible by remember { mutableStateOf(true) }
-    
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(500)
-            visible = !visible
-        }
-    }
-
-    val statusText = when {
-        isBooting -> "[ BOOTING... ]"
-        isSecure -> "[ FOCUS MODE ]"
-        else -> "[ IDLE ]"
-    }
-    
-    val statusColor = when {
-        isBooting -> Color.Yellow
-        isSecure -> Color.Cyan
-        else -> Color.LightGray
-    }
-
-    if (visible) {
-        Text(
-            text = statusText,
-            color = statusColor,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
-        )
-    } else {
-        Text(
-            text = statusText,
-            color = Color.Transparent,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
-        )
-    }
+fun MenuButton(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        color = Color.Green,
+        fontFamily = FontFamily.Monospace,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(8.dp)
+    )
 }

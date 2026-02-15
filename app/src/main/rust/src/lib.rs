@@ -10,7 +10,7 @@ use tokio::runtime::Runtime;
 struct NetworkStats {
     ping: i64,
     jitter: i64,
-    status: String,
+    server: String,
 }
 
 #[derive(Serialize)]
@@ -23,8 +23,19 @@ struct DeviceInfo {
 pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
     mut env: JNIEnv,
     _class: JClass,
+    target_ip: JString,
 ) -> jstring {
-    let addr: SocketAddr = "1.1.1.1:443".parse().unwrap();
+    let target_ip_str: String = env.get_string(&target_ip).expect("Invalid target IP").into();
+    // Default to port 80 if not specified, but for pinging servers, 443 is common.
+    // If the string already has a port, use it. Otherwise append :443 or :80.
+    // Simplicity: Append :80 if no colon.
+    let addr_str = if target_ip_str.contains(':') {
+        target_ip_str.clone()
+    } else {
+        format!("{}:80", target_ip_str)
+    };
+
+    let addr: SocketAddr = addr_str.parse().unwrap_or_else(|_| "1.1.1.1:443".parse().unwrap());
     let timeout = Duration::from_millis(1500);
     let mut pings = Vec::new();
 
@@ -45,7 +56,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
         NetworkStats {
             ping: -1,
             jitter: 0,
-            status: "unstable".to_string(),
+            server: "UNREACHABLE".to_string(),
         }
     } else {
         let avg_ping: i64 = pings.iter().sum::<i64>() / pings.len() as i64;
@@ -56,12 +67,12 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
         NetworkStats {
             ping: avg_ping,
             jitter,
-            status: "secure".to_string(),
+            server: target_ip_str,
         }
     };
 
     let json = serde_json::to_string(&stats).unwrap_or_else(|_| {
-        r#"{"ping": -1, "jitter": 0, "status": "error"}"#.to_string()
+        r#"{"ping": -1, "jitter": 0, "server": "ERROR"}"#.to_string()
     });
 
     env.new_string(json)
