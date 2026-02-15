@@ -3,7 +3,6 @@ package com.example.egi
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,14 +22,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import java.util.*
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Force status bar to black
         window.statusBarColor = Color.Black.toArgb()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
 
@@ -59,34 +58,28 @@ fun TerminalDashboard() {
     var isSecure by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when logs change
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) {
             listState.animateScrollToItem(logs.size - 1)
         }
     }
 
-    val egiNetwork = remember { EgiNetwork() }
-
-    // Fake network log loop
-    LaunchedEffect(isSecure) {
-        while (!isSecure) {
-            delay(800)
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1500)
             try {
-                val statsJson = egiNetwork.measureNetworkStats()
-                // Simple regex to extract values from JSON without a full parser library
-                val ping = "ping\":\\s*(-?\\d+)".toRegex().find(statsJson)?.groupValues?.get(1)?.toInt() ?: -1
-                val jitter = "jitter\":\\s*(\\d+)".toRegex().find(statsJson)?.groupValues?.get(1)?.toInt() ?: 0
-                val status = "status\":\\s*\"(\\w+)\"".toRegex().find(statsJson)?.groupValues?.get(1) ?: "unstable"
-
-                val newLog = if (ping == -1) {
-                    "EGI >> CONNECTION TIMEOUT"
-                } else {
-                    "EGI >> PING: ${ping}ms | JITTER: ${jitter}ms"
+                val statsJson = withContext(Dispatchers.IO) {
+                    EgiNetwork.measureNetworkStats()
                 }
+                
+                val newLog = "EGI >> STATS: $statsJson"
                 logs = (logs + newLog).takeLast(100)
-                if (status == "secure" && !isSecure) {
-                    // We don't force secure here, only on button click as per requirements
+                
+                // Simple check for status in JSON
+                if (statsJson.contains("\"status\": \"secure\"")) {
+                    isSecure = true
+                } else if (statsJson.contains("\"status\": \"unstable\"")) {
+                    isSecure = false
                 }
             } catch (e: Exception) {
                 logs = (logs + "EGI >> ERROR: ${e.message}").takeLast(100)
@@ -100,12 +93,10 @@ fun TerminalDashboard() {
             .padding(16.dp)
             .background(Color.Black)
     ) {
-        // Header
         Header(isSecure)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Log Window
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -115,7 +106,7 @@ fun TerminalDashboard() {
             items(logs) { log ->
                 Text(
                     text = log,
-                    color = if (log.contains("JITTER") || log.contains("ALERT")) Color.Red else Color.Green,
+                    color = if (log.contains("unstable") || log.contains("ERROR")) Color.Red else Color.Green,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(vertical = 2.dp)
@@ -125,14 +116,12 @@ fun TerminalDashboard() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Action Button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
                 .clickable {
-                    logs = listOf("EGI >> Killing background processes...", "EGI >> Optimizing network... Success.")
-                    isSecure = true
+                    logs = logs + "EGI >> RE-INITIALIZING PROXY..."
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -186,7 +175,6 @@ fun BlinkingStatus(isSecure: Boolean) {
             fontWeight = FontWeight.Bold
         )
     } else {
-        // Maintain layout space even when blinking
         Text(
             text = statusText,
             color = Color.Transparent,
