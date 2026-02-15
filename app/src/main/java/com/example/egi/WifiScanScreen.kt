@@ -227,7 +227,7 @@ fun ChannelHealthCard(usage: Map<Int, Int>, bestChannel: Int, currentChannel: In
                 onClick = onFix,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
-                shape = androidx.compose.foundation.shape.RectangleShape,
+                shape = androidx.compose.ui.graphics.RectangleShape,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red),
                 contentPadding = PaddingValues(4.dp)
             ) {
