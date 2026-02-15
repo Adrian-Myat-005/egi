@@ -107,7 +107,7 @@ class EgiVpnService : VpnService(), Runnable {
 
             // PASSIVE SHIELD: Delegate loop to Rust for Zero-Copy and Near-Zero Heat
             if (EgiNetwork.isAvailable()) {
-                val fd = vpnInterface!!.fileDescriptor.fd
+                val fd = vpnInterface!!.fd
                 EgiNetwork.runVpnLoop(fd)
             } else {
                 // Fallback to Kotlin loop if native fails (less efficient)
