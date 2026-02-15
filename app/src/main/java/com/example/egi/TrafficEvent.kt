@@ -12,11 +12,18 @@ object TrafficEvent {
     private val _blockedCount = MutableStateFlow(0)
     val blockedCount = _blockedCount.asStateFlow()
 
+    private val _vpnActive = MutableStateFlow(false)
+    val vpnActive = _vpnActive.asStateFlow()
+
     fun log(message: String) {
         if (message.contains("BLOCKED")) {
             _blockedCount.value += 1
         }
         _events.tryEmit(message)
+    }
+
+    fun setVpnActive(active: Boolean) {
+        _vpnActive.value = active
     }
 
     fun updateCount(count: Long) {

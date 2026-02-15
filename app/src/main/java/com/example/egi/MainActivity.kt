@@ -170,17 +170,17 @@ fun TerminalDashboard(
 
 ) {
 
-    val context = LocalContext.current
+        val context = LocalContext.current
 
-    val scope = rememberCoroutineScope()
+        val scope = rememberCoroutineScope()
 
-    var isSecure by remember { mutableStateOf(false) }
+        val isSecure by TrafficEvent.vpnActive.collectAsState()
 
-    var isBooting by remember { mutableStateOf(false) }
+        var isBooting by remember { mutableStateOf(false) }
 
-    var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
+        var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
 
-    var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
+        var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
 
         var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
 
@@ -262,8 +262,6 @@ fun TerminalDashboard(
 
             scope.launch {
 
-                val endpoint = EgiPreferences.getSyncEndpoint(context) ?: return@launch
-
                 try {
 
                     withContext(Dispatchers.IO) {
@@ -318,103 +316,53 @@ fun TerminalDashboard(
 
     
 
-            val permissionLauncher = rememberLauncherForActivityResult(
+        val permissionLauncher = rememberLauncherForActivityResult(
 
-    
+            contract = ActivityResultContracts.RequestMultiplePermissions()
 
-                contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
 
-    
+            val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
 
-            ) { permissions ->
+            if (granted) {
 
-    
+                onOpenWifiRadar()
 
-                val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+            } else {
 
-    
-
-                if (granted) {
-
-    
-
-                    onOpenWifiRadar()
-
-    
-
-                } else {
-
-    
-
-                    Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
-
-    
-
-                }
-
-    
+                Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
 
             }
 
-    
-
-        
+        }
 
     
 
-            val vpnLauncher = rememberLauncherForActivityResult(
+        val vpnLauncher = rememberLauncherForActivityResult(
 
-    
+            contract = ActivityResultContracts.StartActivityForResult()
 
-                contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
 
-    
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
 
-            ) { result ->
+                context.startService(Intent(context, EgiVpnService::class.java))
 
-    
+                isBooting = false
 
-                if (result.resultCode == android.app.Activity.RESULT_OK) {
+            } else {
 
-    
+                isBooting = false
 
-                    context.startService(Intent(context, EgiVpnService::class.java))
-
-    
-
-                    isSecure = true
-
-    
-
-                    isBooting = false
-
-    
-
-                } else {
-
-    
-
-                    isBooting = false
-
-    
-
-                    Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
-
-    
-
-                }
-
-    
+                Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
 
             }
 
-    
-
-        
+        }
 
     
 
-            // WiFi Info Polling
+        // WiFi Info Polling
 
         LaunchedEffect(Unit) {
 
@@ -1029,74 +977,144 @@ fun TerminalDashboard(
                 }
 
     
+
+                Spacer(modifier = Modifier.height(8.dp))
+
     
-            Spacer(modifier = Modifier.height(8.dp))
 
-            // Main Toggle Button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        if (!isSecure && !isBooting) {
-                            isBooting = true
-                            val intent = VpnService.prepare(context)
-                            if (intent != null) {
-                                vpnLauncher.launch(intent)
-                            } else {
-                                context.startService(Intent(context, EgiVpnService::class.java))
-                                isSecure = true
-                                isBooting = false
-                            }
-                        } else if (isSecure) {
-                            val stopIntent = Intent(context, EgiVpnService::class.java).apply {
-                                action = EgiVpnService.ACTION_STOP
-                            }
-                            context.startService(stopIntent)
-                            isSecure = false
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (isSecure) "> [ ABORT ] <" else "> [ EXECUTE ] <",
-                    color = if (isSecure) Color.Red else Color.Green,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            }
-        }
-    }
-}
+                // Main Toggle Button
 
-@Composable
-fun TacticalManual(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Black,
-        title = {
-            Text("TACTICAL MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                item {
-                    ManualSection("SILENT SHIELD", "Native O(1) packet-dropping engine. Captures all traffic via virtual TUN interface and silences background threats with zero CPU overhead.")
-                    ManualSection("TACTICAL STEALTH", "Outline/Shadowsocks integration. Encrypts traffic to bypass ISP firewalls. Game traffic can bypass this via VIP Lane.")
-                    ManualSection("NETWORK RADAR", "Active ARP/Subnet scanner. Map your WiFi topology and 'Kick' hostile devices using ARP Black Hole protocol.")
-                    ManualSection("SMART GEOFENCE", "Auto-activates shield when connected to untrusted WiFi. Uses persistent storage for whitelist management.")
-                    ManualSection("VIP LANE", "App-specific routing. Whitelisted apps (Games) bypass the VPN logic for 0ms latency and 100% throughput.")
-                    ManualSection("BATTERY DASHBOARD", "Real-time mA savings calculation based on native blocked packet volume and radio wake-lock prevention.")
+                Box(
+
+                    modifier = Modifier
+
+                        .fillMaxWidth()
+
+                        .padding(vertical = 4.dp)
+
+                        .clickable {
+
+                            if (!isSecure && !isBooting) {
+
+                                isBooting = true
+
+                                val intent = VpnService.prepare(context)
+
+                                if (intent != null) {
+
+                                    vpnLauncher.launch(intent)
+
+                                } else {
+
+                                    context.startService(Intent(context, EgiVpnService::class.java))
+
+                                    isBooting = false
+
+                                }
+
+                            } else if (isSecure) {
+
+                                val stopIntent = Intent(context, EgiVpnService::class.java).apply {
+
+                                    action = EgiVpnService.ACTION_STOP
+
+                                }
+
+                                context.startService(stopIntent)
+
+                            }
+
+                        },
+
+                    contentAlignment = Alignment.Center
+
+                ) {
+
+                    Text(
+
+                        text = if (isSecure) "> [ ABORT ] <" else "> [ EXECUTE ] <",
+
+                        color = if (isSecure) Color.Red else Color.Green,
+
+                        fontFamily = FontFamily.Monospace,
+
+                        fontWeight = FontWeight.Bold,
+
+                        fontSize = 16.sp
+
+                    )
+
                 }
+
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("[ CLOSE ]", color = Color.Green, fontFamily = FontFamily.Monospace)
-            }
+
         }
-    )
-}
+
+    }
+
+    
+
+    @Composable
+
+    fun TacticalManual(onDismiss: () -> Unit) {
+
+        AlertDialog(
+
+            onDismissRequest = onDismiss,
+
+            containerColor = Color.Black,
+
+            title = {
+
+                Text("TACTICAL MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+
+            },
+
+            text = {
+
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+
+                    item {
+
+                        Text("--- QUICK START ---", color = Color.Yellow, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+                        Text("1. ADD your app (e.g. Facebook) to VIP LANE.\n2. Click [ EXECUTE ] to block everything ELSE.\n3. Turn [ STEALTH ] ON if you are blocked by a firewall.", color = Color.White, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        
+
+                        ManualSection("SILENT SHIELD", "When you click [ EXECUTE ], Egi captures all phone traffic. It kills background data for apps NOT in your VIP list to give you 100% speed.")
+
+                        ManualSection("VIP LANE", "Use this to select which apps are ALLOWED to use the internet. All other apps will be blocked silently.")
+
+                        ManualSection("TACTICAL STEALTH", "Enables Outline/Shadowsocks bypass. Use this ONLY if your WiFi blocks certain websites. Requires a valid Key.")
+
+                        ManualSection("NETWORK RADAR", "Scans your WiFi. You can 'Kick' other people off your WiFi if they are using too much of your speed.")
+
+                        ManualSection("SMART GEOFENCE", "Automatically turns on the Shield when you connect to a new, dangerous WiFi.")
+
+                    }
+
+                }
+
+            },
+
+            confirmButton = {
+
+                TextButton(onClick = onDismiss) {
+
+                    Text("[ I UNDERSTAND ]", color = Color.Green, fontFamily = FontFamily.Monospace)
+
+                }
+
+            }
+
+        )
+
+    }
+
+    
 
 @Composable
 fun ManualSection(title: String, desc: String) {

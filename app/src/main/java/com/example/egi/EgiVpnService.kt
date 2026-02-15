@@ -115,9 +115,21 @@ class EgiVpnService : VpnService(), Runnable {
             builder.addRoute("0.0.0.0", 0)
             builder.addRoute("::", 0)
 
-            vpnInterface = builder.establish()
+            try {
+                vpnInterface = builder.establish()
+            } catch (e: Exception) {
+                Log.e("EgiVpnService", "CRITICAL: Failed to establish VPN", e)
+                TrafficEvent.log("ERROR >> KERNEL_ESTABLISH_FAILED")
+                return
+            }
 
-            if (vpnInterface == null) return
+            if (vpnInterface == null) {
+                TrafficEvent.log("ERROR >> INTERFACE_NULL")
+                return
+            }
+
+            TrafficEvent.setVpnActive(true)
+            TrafficEvent.log("PROTOCOL_ACTIVE >> SHIELD_ENGAGED")
 
             // PASSIVE SHIELD: Delegate loop to Rust for Zero-Copy and Near-Zero Heat
             if (EgiNetwork.isAvailable()) {
@@ -135,7 +147,10 @@ class EgiVpnService : VpnService(), Runnable {
             }
         } catch (e: Exception) {
             Log.e("EgiVpnService", "Error in VPN loop", e)
+            TrafficEvent.log("ERROR >> VPN_LOOP_CRASH")
         } finally {
+            TrafficEvent.setVpnActive(false)
+            TrafficEvent.log("PROTOCOL_DISENGAGED")
             closeInterface()
         }
     }
