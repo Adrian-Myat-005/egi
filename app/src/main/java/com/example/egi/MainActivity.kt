@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -113,6 +115,17 @@ fun TerminalDashboard(
     
     // Dropdown State
     var expanded by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (granted) {
+            onOpenWifiRadar()
+        } else {
+            Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Helper to type a message into logs
     fun addLog(msg: String) {
@@ -345,7 +358,17 @@ fun TerminalDashboard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MenuButton("[ RADAR ]") { onOpenWifiRadar() }
+                    MenuButton("[ RADAR ]") {
+                        val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            onOpenWifiRadar()
+                        } else {
+                            permissionLauncher.launch(arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            ))
+                        }
+                    }
                     MenuButton("[ APPS ]") { onOpenAppPicker() }
                 }
             }

@@ -1,0 +1,66 @@
+# Egi Project: System Architecture & Development History
+
+## 1. System Architecture
+
+Egi is a sophisticated Android utility designed for network monitoring, focus management, and latency optimization. It employs a multi-layered architecture combining high-level Kotlin/Compose UI with low-level Rust-powered network analysis.
+
+### A. High-Level Overview
+The system is divided into three primary layers:
+1.  **The UI Layer (Jetpack Compose):** A modern, "Matrix-themed" interface providing real-time feedback and control.
+2.  **The Service Layer (Kotlin):** An Android `VpnService` that manages traffic routing and packet interception.
+3.  **The Native Layer (Rust):** A high-performance core for subnet scanning and network diagnostics, interfaced via JNI.
+
+### B. Core Components
+
+#### 1. The Muscle: EgiVpnService (`EgiVpnService.kt`)
+*   **Mechanism:** Utilizes Android's `VpnService` API to create a local TUN interface.
+*   **Split Tunneling Inversion:** This is a key architectural feature. Instead of routing specific apps *into* the VPN, it uses `addDisallowedApplication()` for "VIP apps" (like games), allowing them to bypass the VPN for 0ms overhead.
+*   **Black-Hole Logic:** All other system traffic is routed into the VPN interface (`0.0.0.0/0`). The service reads these packets and effectively drops them (or logs them), functioning as a focus-mode firewall.
+*   **Packet Parsing:** Uses `PacketUtils` to extract destination IPs and protocols from raw IP packets for the real-time traffic log.
+
+#### 2. The Brain: Rust Core (`app/src/main/rust`)
+*   **Subnet Scanning:** Uses `tokio` for asynchronous, parallel TCP-based discovery of devices on the local network (WiFi Intruder Radar).
+*   **Network Diagnostics:** Implements low-level TCP connection timing to measure ping and jitter more accurately than high-level APIs.
+*   **JNI Bridge:** `EgiNetwork.kt` acts as the interface, loading `libegi_core.so` and exposing native methods to the Kotlin environment.
+
+#### 3. The UI Layer (Compose)
+*   **Matrix Dashboard:** A terminal-style UI that displays real-time `TrafficEvent` logs.
+*   **App Picker:** A dynamic selector that filters system and user apps, allowing users to define their "VIP" low-latency list.
+*   **WiFi Radar:** A visual representation of the subnet scan results provided by the Rust backend.
+
+### C. Data Flow
+1.  **User Configuration:** User selects VIP apps -> `EgiPreferences` stores package names.
+2.  **VPN Lifecycle:** User starts service -> `EgiVpnService` builds the TUN interface -> VIP apps bypass, others are trapped.
+3.  **Monitoring:** Trap traffic -> Raw packets read -> Parsed -> Logged via `TrafficEvent` -> UI updates.
+4.  **Diagnostics:** UI requests scan -> JNI call to Rust -> Parallel scanning -> JSON result returned to UI.
+
+---
+
+## 2. History of Development
+
+The development of Egi followed an iterative path, starting from a visual concept and evolving into a functional network tool.
+
+### Phase 1: Foundation & Identity
+*   **Initialization:** The project started with the creation of the Terminal/Matrix UI aesthetic.
+*   **Infrastructure:** Established CI/CD workflows using GitHub Actions (`android.yml`) to ensure build stability from the outset.
+*   **Android Basics:** Configured the `AndroidManifest.xml` and core application structure.
+
+### Phase 2: Native Integration (The Brain)
+*   **Rust Implementation:** Introduced the Rust source for high-performance network tasks.
+*   **JNI Bridge:** Solved initial linker errors to successfully bridge Kotlin and Rust, enabling the "Brain" to communicate with the Android frontend.
+
+### Phase 3: Traffic Management (The Muscle)
+*   **VPN Core:** Implemented the `VpnService` logic.
+*   **Black-Hole Logic:** Developed the initial blocking mechanism to "trap" distraction traffic.
+*   **Split Tunneling:** Refined the logic to allow "VIP" apps to bypass the VPN tunnel, ensuring zero latency for critical applications.
+
+### Phase 4: Feature Expansion
+*   **App Selector:** Added a functional UI for users to manage their VIP list dynamically.
+*   **Matrix Logs:** Implemented the real-time packet log display.
+*   **WiFi Intruder Radar:** Leveraged the Rust backend to provide a network device discovery tool.
+*   **Game HUD:** Added specialized UI components for game server selection and split-screen monitoring.
+
+### Phase 5: Stabilization & Polish
+*   **Bug Squashing:** Resolved critical issues like resource linking errors and multiline string syntax bugs in the UI.
+*   **Crash Safety:** Added robust error handling and safety guards around native calls and the VPN loop.
+*   **Finalization:** Polished the "VIP Tunnel" system into its current state, focusing on efficiency and the "Matrix" user experience.

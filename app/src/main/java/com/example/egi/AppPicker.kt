@@ -1,6 +1,7 @@
 package com.example.egi
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
@@ -39,13 +40,13 @@ fun AppPickerScreen(onBack: () -> Unit) {
     
     val installedApps = remember {
         val pm = context.packageManager
-        pm.getInstalledPackages(0)
-            .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
+        val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+        pm.queryIntentActivities(intent, 0)
             .map { 
                 AppInfo(
-                    name = it.applicationInfo.loadLabel(pm).toString(),
-                    packageName = it.packageName,
-                    icon = it.applicationInfo.loadIcon(pm)
+                    name = it.loadLabel(pm).toString(),
+                    packageName = it.activityInfo.packageName,
+                    icon = it.loadIcon(pm)
                 )
             }
             .sortedBy { it.name }
