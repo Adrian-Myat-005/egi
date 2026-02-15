@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN
 }
 
 class MainActivity : ComponentActivity() {
@@ -99,6 +99,7 @@ fun PingGraph(history: List<Int>, modifier: Modifier = Modifier) {
 fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
+    var routerAdminData by remember { mutableStateOf<Pair<String, String>?>(null) } // mac, gateway
 
     Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
         when (screen) {
@@ -108,7 +109,22 @@ fun MainContent() {
                 currentScreen = Screen.TERMINAL
             })
             Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
-            Screen.WIFI_RADAR -> WifiScanScreen(onBack = { currentScreen = Screen.TERMINAL })
+            Screen.WIFI_RADAR -> WifiScanScreen(
+                onBack = { currentScreen = Screen.TERMINAL },
+                onNavigateToRouter = { mac, gateway ->
+                    routerAdminData = mac to gateway
+                    currentScreen = Screen.ROUTER_ADMIN
+                }
+            )
+            Screen.ROUTER_ADMIN -> {
+                routerAdminData?.let { (mac, gateway) ->
+                    RouterAdminScreen(
+                        targetMac = mac,
+                        gatewayIp = gateway,
+                        onBack = { currentScreen = Screen.WIFI_RADAR }
+                    )
+                }
+            }
             Screen.TERMINAL -> TerminalDashboard(
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },

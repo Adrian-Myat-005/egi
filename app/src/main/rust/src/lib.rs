@@ -5,6 +5,8 @@ use serde::{Serialize};
 use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
+use tokio::net::TcpStream as AsyncTcpStream;
+use futures::future::select_all;
 
 #[derive(Serialize)]
 struct NetworkStats {
@@ -26,9 +28,6 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
     target_ip: JString,
 ) -> jstring {
     let target_ip_str: String = env.get_string(&target_ip).expect("Invalid target IP").into();
-    // Default to port 80 if not specified, but for pinging servers, 443 is common.
-    // If the string already has a port, use it. Otherwise append :443 or :80.
-    // Simplicity: Append :80 if no colon.
     let addr_str = if target_ip_str.contains(':') {
         target_ip_str.clone()
     } else {
@@ -95,19 +94,31 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
         for i in 1..255 {
             let ip = format!("{}{}", base_ip_str, i);
             tasks.push(tokio::spawn(async move {
-                let ports = [80, 443];
+                // Sonar Upgrade: Check multiple ports in parallel
+                let ports = [80, 443, 5353, 62078];
+                let mut connection_attempts = Vec::new();
+
                 for port in ports {
-                    let addr = format!("{}:{}", ip, port);
-                    if let Ok(addr) = addr.parse::<SocketAddr>() {
-                        if tokio::time::timeout(
-                            Duration::from_millis(200),
-                            tokio::net::TcpStream::connect(&addr)
-                        ).await.is_ok() {
+                    let addr_str = format!("{}:{}", ip, port);
+                    if let Ok(addr) = addr_str.parse::<SocketAddr>() {
+                        connection_attempts.push(Box::pin(tokio::time::timeout(
+                            Duration::from_millis(300),
+                            AsyncTcpStream::connect(addr)
+                        )));
+                    }
+                }
+
+                if !connection_attempts.is_empty() {
+                    // Wait for the first port to respond
+                    while !connection_attempts.is_empty() {
+                        let (res, _index, remaining) = select_all(connection_attempts).await;
+                        if let Ok(Ok(_)) = res {
                             return Some(DeviceInfo {
                                 ip,
                                 status: if i == 1 { "Gateway".to_string() } else { "Device".to_string() },
                             });
                         }
+                        connection_attempts = remaining;
                     }
                 }
                 None

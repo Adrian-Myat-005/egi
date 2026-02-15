@@ -33,7 +33,7 @@ import org.json.JSONArray
 import java.net.InetAddress
 
 @Composable
-fun WifiScanScreen(onBack: () -> Unit) {
+fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> Unit) {
     val context = LocalContext.current
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }
     val subnetPrefix = remember { WifiUtils.getSubnetPrefix(context) }
@@ -113,17 +113,10 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val mac = device.mac
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("MAC", mac))
-                    
-                    Toast.makeText(context, "EGI >> PASTE MAC IN ROUTER BLOCKLIST", Toast.LENGTH_LONG).show()
-                    
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://$gatewayIp"))
-                    context.startActivity(intent)
+                    onNavigateToRouter(device.mac, gatewayIp)
                     selectedDevice = null
                 }) {
-                    Text("COPY MAC & BLOCK", color = Color.Red, fontFamily = FontFamily.Monospace)
+                    Text("OPEN ROUTER DASHBOARD", color = Color.Red, fontFamily = FontFamily.Monospace)
                 }
             },
             dismissButton = {
