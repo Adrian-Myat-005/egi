@@ -6,7 +6,6 @@ use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::net::TcpStream as AsyncTcpStream;
-use futures::future::select_all;
 
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::RwLock;
@@ -44,8 +43,6 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_setOutlineKey(
 
 // Minimalist Token Bucket for Throttling (Bytes per second)
 static BANDWIDTH_LIMIT: AtomicU64 = AtomicU64::new(0); // 0 = Unlimited
-static TOKEN_BUCKET: AtomicU64 = AtomicU64::new(0);
-static LAST_REFILL: AtomicU64 = AtomicU64::new(0);
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
@@ -60,7 +57,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
         let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
         
         if n > 0 {
-            let is_stealth = STEALTH_MODE.load(Ordering::Relaxed);
+            let _is_stealth = STEALTH_MODE.load(Ordering::Relaxed);
             
             // Core Logic: Atomic Counting & Decisions
             let version = buf[0] >> 4;
@@ -77,7 +74,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
             // In Shield Mode, we simply do nothing with the buffer, effectively dropping it.
             
         } else if n < 0 {
-            let err = unsafe { *libc::__errno_location() };
+            let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             if err == libc::EINTR || err == libc::EAGAIN {
                 continue; // System interrupt, try again
             }
@@ -260,7 +257,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
-    mut env: JNIEnv,
+    _env: JNIEnv,
     _class: JClass,
     _target_ip: JString,
     _target_mac: JString,
