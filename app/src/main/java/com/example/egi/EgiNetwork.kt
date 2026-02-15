@@ -17,6 +17,10 @@ object EgiNetwork {
     external fun kickDevice(targetIp: String, targetMac: String): Boolean
     external fun runVpnLoop(fd: Int)
     external fun getNativeBlockedCount(): Long
+    external fun getEnergySavings(): String
+    external fun setBandwidthLimit(limitMbps: Int)
+    external fun toggleStealthMode(enabled: Boolean)
+    external fun setOutlineKey(key: String)
 
     fun isAvailable() = isLibLoaded
 }

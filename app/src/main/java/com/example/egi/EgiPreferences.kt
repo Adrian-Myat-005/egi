@@ -13,10 +13,54 @@ object EgiPreferences {
     private const val KEY_CASUAL_WHITELIST = "casual_whitelist"
     private const val KEY_TRUSTED_SSIDS = "trusted_ssids"
     private const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
+    private const val KEY_BANDWIDTH_LIMIT = "bandwidth_limit"
+    private const val KEY_SYNC_ENDPOINT = "sync_endpoint"
+    private const val KEY_STEALTH_MODE = "stealth_mode"
+    private const val KEY_OUTLINE_KEY = "outline_key"
 
     fun saveMode(context: Context, mode: AppMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_MODE, mode.name).apply()
+    }
+
+    fun isStealthMode(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_STEALTH_MODE, false)
+    }
+
+    fun setStealthMode(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_STEALTH_MODE, enabled).apply()
+    }
+
+    fun saveOutlineKey(context: Context, key: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_OUTLINE_KEY, key).apply()
+    }
+
+    fun getOutlineKey(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_OUTLINE_KEY, "") ?: ""
+    }
+
+    fun setBandwidthLimit(context: Context, limit: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_BANDWIDTH_LIMIT, limit).apply()
+    }
+
+    fun getBandwidthLimit(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_BANDWIDTH_LIMIT, 0) // 0 = Unlimited
+    }
+
+    fun saveSyncEndpoint(context: Context, url: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_SYNC_ENDPOINT, url).apply()
+    }
+
+    fun getSyncEndpoint(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_SYNC_ENDPOINT, null)
     }
 
     fun isGeofencingEnabled(context: Context): Boolean {
