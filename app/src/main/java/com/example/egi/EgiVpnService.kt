@@ -79,11 +79,23 @@ class EgiVpnService : VpnService(), Runnable {
             // Apply DNS Settings
             if (dnsProvider != null) {
                 builder.addDnsServer(dnsProvider)
-                // Secondary lookup
+                // Secondary & IPv6 lookups for total leak protection
                 when (dnsProvider) {
-                    "1.1.1.1" -> builder.addDnsServer("1.0.0.1")
-                    "8.8.8.8" -> builder.addDnsServer("8.8.4.4")
-                    "94.140.14.14" -> builder.addDnsServer("94.140.15.15")
+                    "1.1.1.1" -> {
+                        builder.addDnsServer("1.0.0.1")
+                        builder.addDnsServer("2606:4700:4700::1111")
+                        builder.addDnsServer("2606:4700:4700::1001")
+                    }
+                    "8.8.8.8" -> {
+                        builder.addDnsServer("8.8.4.4")
+                        builder.addDnsServer("2001:4860:4860::8888")
+                        builder.addDnsServer("2001:4860:4860::8844")
+                    }
+                    "94.140.14.14" -> {
+                        builder.addDnsServer("94.140.15.15")
+                        builder.addDnsServer("2a10:50c0::ad1:ff")
+                        builder.addDnsServer("2a10:50c0::ad2:ff")
+                    }
                 }
             }
 
