@@ -11,10 +11,44 @@ object EgiPreferences {
     private const val KEY_MODE = "app_mode"
     private const val KEY_FOCUS_TARGET = "focus_target"
     private const val KEY_CASUAL_WHITELIST = "casual_whitelist"
+    private const val KEY_TRUSTED_SSIDS = "trusted_ssids"
+    private const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
 
     fun saveMode(context: Context, mode: AppMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_MODE, mode.name).apply()
+    }
+
+    fun isGeofencingEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_GEOFENCING_ENABLED, false)
+    }
+
+    fun setGeofencingEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_GEOFENCING_ENABLED, enabled).apply()
+    }
+
+    fun saveTrustedSSIDs(context: Context, ssids: Set<String>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(KEY_TRUSTED_SSIDS, ssids).apply()
+    }
+
+    fun getTrustedSSIDs(context: Context): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getStringSet(KEY_TRUSTED_SSIDS, emptySet()) ?: emptySet()
+    }
+
+    fun addTrustedSSID(context: Context, ssid: String) {
+        val ssids = getTrustedSSIDs(context).toMutableSet()
+        ssids.add(ssid)
+        saveTrustedSSIDs(context, ssids)
+    }
+
+    fun removeTrustedSSID(context: Context, ssid: String) {
+        val ssids = getTrustedSSIDs(context).toMutableSet()
+        ssids.remove(ssid)
+        saveTrustedSSIDs(context, ssids)
     }
 
     fun getMode(context: Context): AppMode {

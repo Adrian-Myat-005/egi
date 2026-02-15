@@ -36,6 +36,14 @@
             </intent-filter>
         </service>
 
+        <receiver
+            android:name=".WifiReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.net.wifi.STATE_CHANGE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

@@ -162,6 +162,9 @@ fun TerminalDashboard(
     val scope = rememberCoroutineScope()
     var isSecure by remember { mutableStateOf(false) }
     var isBooting by remember { mutableStateOf(false) }
+    var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
+    var currentSsid by remember { mutableStateOf<String?>(null) }
+    var isCurrentSsidTrusted by remember { mutableStateOf(false) }
 
     // HUD States
     var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
@@ -185,14 +188,32 @@ fun TerminalDashboard(
         }
     }
 
+    // WiFi Info Polling
+    LaunchedEffect(Unit) {
+        val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        while (true) {
+            val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
+            if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
+                currentSsid = ssid
+                isCurrentSsidTrusted = EgiPreferences.getTrustedSSIDs(context).contains(ssid)
+            } else {
+                currentSsid = null
+                isCurrentSsidTrusted = false
+            }
+            delay(5000)
+        }
+    }
+
     // Handle DNS change log and restart
     LaunchedEffect(dnsMsg) {
         if (dnsMsg != null) {
             if (isSecure) {
                 val restartIntent = Intent(context, EgiVpnService::class.java).apply {
-                    action = EgiVpnService.ACTION_RESTART
+                    action = EgiVpnService.ACTION_STOP
                 }
                 context.startService(restartIntent)
+                delay(1000)
+                context.startService(Intent(context, EgiVpnService::class.java))
             }
             onDnsLogConsumed()
         }
@@ -251,33 +272,83 @@ fun TerminalDashboard(
                 .fillMaxWidth()
         ) {
             // Server Selector
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = true }
-                    .background(Color.DarkGray.copy(alpha = 0.3f))
-                    .padding(8.dp)
-            ) {
-                Text(
-                    text = "SERVER: ${selectedServer.name}",
-                    color = Color.Green,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier.background(Color.Black)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { expanded = true }
+                        .background(Color.DarkGray.copy(alpha = 0.3f))
+                        .padding(8.dp)
                 ) {
-                    GameServers.list.forEach { server ->
-                        DropdownMenuItem(
-                            text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
-                            onClick = {
-                                selectedServer = server
-                                expanded = false
-                            }
-                        )
+                    Text(
+                        text = "SERVER: ${selectedServer.name}",
+                        color = Color.Green,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.background(Color.Black)
+                    ) {
+                        GameServers.list.forEach { server ->
+                            DropdownMenuItem(
+                                text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
+                                onClick = {
+                                    selectedServer = server
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // Geofencing Toggle
+                Text(
+                    text = if (isGeofenceEnabled) "[ GEOFENCE: ON ]" else "[ GEOFENCE: OFF ]",
+                    color = if (isGeofenceEnabled) Color.Cyan else Color.Gray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    modifier = Modifier
+                        .clickable {
+                            isGeofenceEnabled = !isGeofenceEnabled
+                            EgiPreferences.setGeofencingEnabled(context, isGeofenceEnabled)
+                        }
+                        .padding(4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // WiFi Info / Trust Action
+            if (currentSsid != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
+                        color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        text = if(isCurrentSsidTrusted) "[ UNTRUST ]" else "[ TRUST ]",
+                        color = Color.Cyan,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        modifier = Modifier.clickable {
+                            if (isCurrentSsidTrusted) {
+                                EgiPreferences.removeTrustedSSID(context, currentSsid!!)
+                            } else {
+                                EgiPreferences.addTrustedSSID(context, currentSsid!!)
+                            }
+                            isCurrentSsidTrusted = !isCurrentSsidTrusted
+                        }
+                    )
                 }
             }
 
