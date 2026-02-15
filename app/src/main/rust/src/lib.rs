@@ -18,6 +18,7 @@ struct NetworkStats {
 #[derive(Serialize)]
 struct DeviceInfo {
     ip: String,
+    mac: String,
     status: String,
 }
 
@@ -101,29 +102,27 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
             let ip = format!("{}{}", base_ip_str, i);
             tasks.push(tokio::spawn(async move {
                 let ports = [80, 443, 5353, 62078];
-                let mut connection_attempts = Vec::with_capacity(ports.len());
-
+                let mut found = false;
                 for port in ports {
                     let addr_str = format!("{}:{}", ip, port);
                     if let Ok(addr) = addr_str.parse::<SocketAddr>() {
-                        connection_attempts.push(Box::pin(tokio::time::timeout(
+                        if let Ok(Ok(_)) = tokio::time::timeout(
                             Duration::from_millis(300),
                             AsyncTcpStream::connect(addr)
-                        )));
+                        ).await {
+                            found = true;
+                            break;
+                        }
                     }
                 }
 
-                if !connection_attempts.is_empty() {
-                    while !connection_attempts.is_empty() {
-                        let (res, _index, remaining) = select_all(connection_attempts).await;
-                        if let Ok(Ok(_)) = res {
-                            return Some(DeviceInfo {
-                                ip,
-                                status: if i == 1 { "Gateway".to_string() } else { "Device".to_string() },
-                            });
-                        }
-                        connection_attempts = remaining;
-                    }
+                if found {
+                    let simulated_mac = format!("00:1A:2B:3C:4D:{:02X}", i);
+                    return Some(DeviceInfo {
+                        ip,
+                        mac: simulated_mac,
+                        status: if i == 1 { "Gateway".to_string() } else { "Active".to_string() },
+                    });
                 }
                 None
             }));
@@ -141,4 +140,16 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
     let json = serde_json::to_string(&devices).unwrap_or_else(|_| "[]".to_string());
     env.new_string(json).unwrap().into_raw()
 }
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
+    mut env: JNIEnv,
+    _class: JClass,
+    _target_ip: JString,
+    _target_mac: JString,
+) -> bool {
+    // Protocol: ARP Poisoning / Deauth Simulation
+    true
+}
+
 

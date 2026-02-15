@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Monitor
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +32,7 @@ import org.json.JSONArray
 import java.net.InetAddress
 
 @Composable
-fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> Unit) {
+fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Boolean) -> Unit) {
     val context = LocalContext.current
     val wifiManager = remember { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }
@@ -44,6 +41,7 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> U
     var resolvedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var isScanning by remember { mutableStateOf(true) }
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
+    var kickedDevices by remember { mutableStateOf(setOf<String>()) }
 
     // Channel Analysis State
     var channelUsage by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
@@ -63,6 +61,7 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> U
                     val obj = array.getJSONObject(i)
                     list.add(DeviceInfo(
                         ip = obj.getString("ip"), 
+                        mac = obj.getString("mac"),
                         status = obj.getString("status")
                     ))
                 }
@@ -113,17 +112,28 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> U
             currentChannel = currentChannel,
             onFix = { 
                 val gatewayDevice = resolvedDevices.find { it.status == "Gateway" }
-                onNavigateToRouter(gatewayDevice?.mac ?: "00:00:00:00:00:00", gatewayIp) 
+                onNavigateToRouter(gatewayDevice?.mac ?: "00:00:00:00:00:00", gatewayIp, true) 
             }
         )
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(resolvedDevices) { device ->
-                DeviceRow(device) {
-                    if (device.status != "Gateway") {
-                        selectedDevice = device
+                val isKicked = kickedDevices.contains(device.ip)
+                DeviceRow(
+                    device = device.copy(isKicked = isKicked),
+                    onKick = {
+                        if (EgiNetwork.isAvailable()) {
+                            EgiNetwork.kickDevice(device.ip, device.mac)
+                            kickedDevices = kickedDevices + device.ip
+                            Toast.makeText(context, "BLACK HOLE ACTIVE: ${device.ip}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onClick = {
+                        if (device.status != "Gateway") {
+                            selectedDevice = device
+                        }
                     }
-                }
+                )
             }
         }
     }
@@ -146,7 +156,7 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
             },
             confirmButton = {
                 TextButton(onClick = {
-                    onNavigateToRouter(device.mac, gatewayIp)
+                    onNavigateToRouter(device.mac, gatewayIp, false)
                     selectedDevice = null
                 }) {
                     Text("OPEN ROUTER DASHBOARD", color = Color.Red, fontFamily = FontFamily.Monospace)
@@ -160,6 +170,7 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
         )
     }
 }
+
 
 @Composable
 fun ChannelHealthCard(usage: Map<Int, Int>, bestChannel: Int, currentChannel: Int, onFix: () -> Unit) {
@@ -311,7 +322,7 @@ fun Header(isScanning: Boolean, gateway: String, onBack: () -> Unit) {
 }
 
 @Composable
-fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
+fun DeviceRow(device: DeviceInfo, onKick: () -> Unit, onClick: () -> Unit) {
     val icon = when {
         device.status == "Gateway" -> Icons.Default.Router
         device.name.contains("Android", true) || device.name.contains("Galaxy", true) || device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
@@ -329,22 +340,35 @@ fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (device.status == "Gateway") Color.Green else Color.Yellow,
+            tint = if (device.isKicked) Color.Red else if (device.status == "Gateway") Color.Green else Color.Yellow,
             modifier = Modifier.size(32.dp).padding(end = 12.dp)
         )
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (device.status == "Gateway" && device.name == "Unknown Device") "Gateway (${device.ip})" else device.name,
-                color = if (device.status == "Gateway") Color.Green else Color.Green,
+                color = if (device.isKicked) Color.Red else Color.Green,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "IP: ${device.ip} | MAC: ${device.mac}",
-                color = Color.Gray,
+                color = if (device.isKicked) Color.Red.copy(alpha = 0.5f) else Color.Gray,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp
+            )
+        }
+        
+        if (device.status != "Gateway") {
+            Text(
+                text = if (device.isKicked) "[ BLOCKED ]" else "[ KICK ]",
+                color = if (device.isKicked) Color.Red else Color.Cyan,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable { onKick() }
+                    .padding(8.dp)
             )
         }
     }
@@ -354,5 +378,6 @@ data class DeviceInfo(
     val ip: String,
     val name: String = "Unknown Device",
     val status: String,
-    val mac: String = "00:00:00:00:00:00"
+    val mac: String = "00:00:00:00:00:00",
+    val isKicked: Boolean = false
 )

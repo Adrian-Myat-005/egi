@@ -24,7 +24,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun RouterAdminScreen(targetMac: String, gatewayIp: String, onBack: () -> Unit) {
+fun RouterAdminScreen(targetMac: String, gatewayIp: String, autoOptimize: Boolean = false, onBack: () -> Unit) {
     val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -32,7 +32,40 @@ fun RouterAdminScreen(targetMac: String, gatewayIp: String, onBack: () -> Unit) 
         AndroidView(
             factory = {
                 WebView(it).apply {
-                    webViewClient = WebViewClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            if (autoOptimize) {
+                                // Smart Search & Destroy: Automated Channel Optimization Macro
+                                view?.evaluateJavascript("""
+                                    (function() {
+                                        // 1. Find WiFi settings link
+                                        const keywords = ['wireless', 'wifi', 'wlan', 'radio', 'channel'];
+                                        const links = Array.from(document.querySelectorAll('a, button, span'));
+                                        const wifiLink = links.find(l => keywords.some(k => l.innerText.toLowerCase().includes(k)));
+                                        if (wifiLink) wifiLink.click();
+                                        
+                                        // 2. Locate Channel Select
+                                        setTimeout(() => {
+                                            const selects = Array.from(document.querySelectorAll('select'));
+                                            const channelSelect = selects.find(s => s.id.includes('channel') || s.name.includes('channel'));
+                                            if (channelSelect) {
+                                                // Pick optimal channel (e.g., 6 or 11)
+                                                channelSelect.value = "6"; 
+                                                const event = new Event('change', { bubbles: true });
+                                                channelSelect.dispatchEvent(event);
+                                                
+                                                // 3. Find Apply/Save button
+                                                const buttons = Array.from(document.querySelectorAll('input[type="submit"], button'));
+                                                const applyBtn = buttons.find(b => ['apply', 'save', 'submit'].some(k => b.value?.toLowerCase().includes(k) || b.innerText?.toLowerCase().includes(k)));
+                                                if (applyBtn) applyBtn.click();
+                                            }
+                                        }, 1000);
+                                    })();
+                                """.trimIndent(), null)
+                            }
+                        }
+                    }
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.loadWithOverviewMode = true

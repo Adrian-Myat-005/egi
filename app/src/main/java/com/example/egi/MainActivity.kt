@@ -99,7 +99,7 @@ fun PingGraph(history: List<Int>, modifier: Modifier = Modifier) {
 fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
-    var routerAdminData by remember { mutableStateOf<Pair<String, String>?>(null) } // mac, gateway
+    var routerAdminData by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) } // mac, gateway, autoOpt
 
     Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
         when (screen) {
@@ -111,16 +111,17 @@ fun MainContent() {
             Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
             Screen.WIFI_RADAR -> WifiScanScreen(
                 onBack = { currentScreen = Screen.TERMINAL },
-                onNavigateToRouter = { mac, gateway ->
-                    routerAdminData = mac to gateway
+                onNavigateToRouter = { mac, gateway, autoOpt ->
+                    routerAdminData = Triple(mac, gateway, autoOpt)
                     currentScreen = Screen.ROUTER_ADMIN
                 }
             )
             Screen.ROUTER_ADMIN -> {
-                routerAdminData?.let { (mac, gateway) ->
+                routerAdminData?.let { (mac, gateway, autoOpt) ->
                     RouterAdminScreen(
                         targetMac = mac,
                         gatewayIp = gateway,
+                        autoOptimize = autoOpt,
                         onBack = { currentScreen = Screen.WIFI_RADAR }
                     )
                 }

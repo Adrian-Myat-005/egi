@@ -14,6 +14,7 @@ object EgiNetwork {
 
     external fun measureNetworkStats(targetIp: String): String
     external fun scanSubnet(baseIp: String): String
+    external fun kickDevice(targetIp: String, targetMac: String): Boolean
 
     fun isAvailable() = isLibLoaded
 }
