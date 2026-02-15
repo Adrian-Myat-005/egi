@@ -9,9 +9,11 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import kotlinx.coroutines.*
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicLong
 
 class EgiVpnService : VpnService(), Runnable {
     companion object {
@@ -21,6 +23,8 @@ class EgiVpnService : VpnService(), Runnable {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vpnThread: Thread? = null
+    private val blockedCount = AtomicLong(0)
+    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -36,13 +40,24 @@ class EgiVpnService : VpnService(), Runnable {
         startForeground(1, createNotification())
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
+            blockedCount.set(0)
+            TrafficEvent.resetCount()
             vpnThread = Thread(this, "EgiVpnThread")
             vpnThread?.start()
+            
+            // Heartbeat Reporter: Update UI once per second
+            serviceScope.launch {
+                while (isActive) {
+                    delay(1000)
+                    TrafficEvent.updateCount(blockedCount.get())
+                }
+            }
         }
         return START_STICKY
     }
 
     private fun stopVpn() {
+        serviceScope.cancel()
         vpnThread?.interrupt()
         closeInterface()
         stopForeground(true)
@@ -62,7 +77,6 @@ class EgiVpnService : VpnService(), Runnable {
 
             // Apply DNS Settings
             if (dnsProvider != null) {
-                Log.d("EgiVpnService", "EGI >> Applying DNS: $dnsProvider")
                 builder.addDnsServer(dnsProvider)
                 // Secondary lookup
                 when (dnsProvider) {
@@ -70,17 +84,14 @@ class EgiVpnService : VpnService(), Runnable {
                     "8.8.8.8" -> builder.addDnsServer("8.8.4.4")
                     "94.140.14.14" -> builder.addDnsServer("94.140.15.15")
                 }
-            } else {
-                Log.d("EgiVpnService", "EGI >> DNS: System Default (Passthrough)")
             }
 
             // Split Tunneling Inversion: VIPs bypass the VPN (0ms lag)
-            Log.d("EgiVpnService", "EGI >> Routing VIPs: ${vipList.size} apps")
             vipList.forEach { packageName ->
                 try {
                     builder.addDisallowedApplication(packageName)
                 } catch (e: Exception) {
-                    Log.e("EgiVpnService", "Failed to disallow $packageName", e)
+                    // Ignore missing apps
                 }
             }
 
@@ -92,29 +103,16 @@ class EgiVpnService : VpnService(), Runnable {
 
             vpnInterface = builder.establish()
 
-            if (vpnInterface == null) {
-                Log.e("EgiVpnService", "Failed to establish VPN interface")
-                return
-            }
+            if (vpnInterface == null) return
 
             val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
             val packet = ByteBuffer.allocate(32767)
-            var packetCounter = 0
 
+            // SILENT SHIELD: Tight loop with zero logging and zero allocations
             while (!Thread.interrupted()) {
                 val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
                 if (length > 0) {
-                    packetCounter++
-                    // Log to the matrix (sample 1/50)
-                    if (packetCounter % 50 == 0) {
-                        packet.limit(length)
-                        val destIp = PacketUtils.getDestinationIp(packet)
-                        val proto = PacketUtils.getProtocol(packet)
-                        TrafficEvent.log("[BLOCKED] >> $proto -> $destIp")
-                    } else {
-                        // Still count as blocked but don't flood the UI logs
-                        TrafficEvent.log("INTERNAL_BLOCKED")
-                    }
+                    blockedCount.incrementAndGet()
                     packet.clear()
                 } else if (length == -1) {
                     break // Interface closed

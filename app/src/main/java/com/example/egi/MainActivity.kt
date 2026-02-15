@@ -159,10 +159,8 @@ fun TerminalDashboard(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var logs by remember { mutableStateOf(listOf("EGI >> System init...", "EGI >> Waiting for uplink...")) }
     var isSecure by remember { mutableStateOf(false) }
     var isBooting by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
 
     // HUD States
     var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
@@ -186,40 +184,16 @@ fun TerminalDashboard(
         }
     }
 
-    // Helper to type a message into logs
-    fun addLog(msg: String) {
-        if (!msg.contains("INTERNAL")) {
-            logs = (logs + msg).takeLast(50)
-        }
-    }
-
-    suspend fun typeLog(msg: String) {
-        var currentText = ""
-        logs = (logs + "").takeLast(50) // Ensure we stay within limit even when typing
-        val lastIndex = logs.size - 1
-        for (char in msg) {
-            currentText += char
-            val newLogs = logs.toMutableList()
-            newLogs[lastIndex] = currentText
-            logs = newLogs
-            delay(15) // Faster typing
-        }
-    }
-
     // Handle DNS change log and restart
     LaunchedEffect(dnsMsg) {
         if (dnsMsg != null) {
-            scope.launch {
-                typeLog("EGI >> $dnsMsg")
-                if (isSecure) {
-                    typeLog("EGI >> RESTARTING TUNNEL TO APPLY CONFIG...")
-                    val restartIntent = Intent(context, EgiVpnService::class.java).apply {
-                        action = EgiVpnService.ACTION_RESTART
-                    }
-                    context.startService(restartIntent)
+            if (isSecure) {
+                val restartIntent = Intent(context, EgiVpnService::class.java).apply {
+                    action = EgiVpnService.ACTION_RESTART
                 }
-                onDnsLogConsumed()
+                context.startService(restartIntent)
             }
+            onDnsLogConsumed()
         }
     }
 
@@ -230,27 +204,9 @@ fun TerminalDashboard(
             context.startService(Intent(context, EgiVpnService::class.java))
             isSecure = true
             isBooting = false
-            scope.launch {
-                val mode = EgiPreferences.getMode(context)
-                val vipCount = EgiPreferences.getVipList(context).size
-                if (mode == AppMode.FOCUS) {
-                    val target = EgiPreferences.getFocusTarget(context) ?: "UNKNOWN"
-                    typeLog("EGI >> MODE: NUCLEAR (TARGET: $target)")
-                } else {
-                    typeLog("EGI >> MODE: TACTICAL (VIPs: $vipCount APPS)")
-                }
-                typeLog("EGI >> INITIALIZING BLACK HOLE...")
-                typeLog("EGI >> PROTOCOL ACTIVE.")
-            }
         } else {
             isBooting = false
-            addLog("EGI >> KERNEL ACCESS DENIED.")
-        }
-    }
-
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            listState.animateScrollToItem(logs.size - 1)
+            Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -277,17 +233,7 @@ fun TerminalDashboard(
                 }
             } else {
                 serverStatus = "LIB_ERR"
-                if (logs.lastOrNull() != "EGI >> CRITICAL: NATIVE CORE MISSING") {
-                    addLog("EGI >> CRITICAL: NATIVE CORE MISSING")
-                }
             }
-        }
-    }
-
-    // Collect Live Traffic Logs (The Matrix)
-    LaunchedEffect(Unit) {
-        TrafficEvent.events.collect { event ->
-            addLog(event)
         }
     }
 
@@ -364,7 +310,7 @@ fun TerminalDashboard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Secondary Stats & Blocked Counter
+            // Secondary Stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -372,10 +318,6 @@ fun TerminalDashboard(
                 Column {
                     Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("DISTRACTIONS BLOCKED", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text("$blockedCount", color = Color.Cyan, fontSize = 20.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
@@ -396,36 +338,17 @@ fun TerminalDashboard(
 
         Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-        // --- BOTTOM SECTION: THE MATRIX (Weight 0.55) ---
+        // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.55) ---
         Column(
             modifier = Modifier
                 .weight(0.55f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                items(logs) { log ->
-                    Text(
-                        text = log,
-                        color = when {
-                            log.contains("BLOCKED") -> Color.Red
-                            log.contains("ACTIVE") -> Color.Cyan
-                            log.contains("ERROR") -> Color.Red
-                            log.contains("NUCLEAR") || log.contains("TACTICAL") -> Color.Yellow
-                            else -> Color.Green
-                        },
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp, // Slightly smaller for log
-                        modifier = Modifier.padding(vertical = 1.dp)
-                    )
-                }
-            }
+            ShieldStatusCard(blockedCount, isSecure)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
             // Control Grid
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -465,17 +388,13 @@ fun TerminalDashboard(
                     .clickable {
                         if (!isSecure && !isBooting) {
                             isBooting = true
-                            scope.launch {
-                                typeLog("EGI >> REQUESTING KERNEL PERMISSIONS...")
-                                val intent = VpnService.prepare(context)
-                                if (intent != null) {
-                                    vpnLauncher.launch(intent)
-                                } else {
-                                    context.startService(Intent(context, EgiVpnService::class.java))
-                                    isSecure = true
-                                    isBooting = false
-                                    typeLog("EGI >> PROTOCOL RE-ENGAGED.")
-                                }
+                            val intent = VpnService.prepare(context)
+                            if (intent != null) {
+                                vpnLauncher.launch(intent)
+                            } else {
+                                context.startService(Intent(context, EgiVpnService::class.java))
+                                isSecure = true
+                                isBooting = false
                             }
                         } else if (isSecure) {
                             val stopIntent = Intent(context, EgiVpnService::class.java).apply {
@@ -483,10 +402,6 @@ fun TerminalDashboard(
                             }
                             context.startService(stopIntent)
                             isSecure = false
-                            scope.launch {
-                                typeLog("EGI >> ABORTING PROTOCOL...")
-                                typeLog("EGI >> PROTOCOL DISENGAGED.")
-                            }
                         }
                     },
                 contentAlignment = Alignment.Center
@@ -502,6 +417,38 @@ fun TerminalDashboard(
         }
     }
 }
+
+@Composable
+fun ShieldStatusCard(count: Int, isActive: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.padding(24.dp)
+    ) {
+        Text(
+            text = if (isActive) "SHIELD ACTIVE" else "SHIELD STANDBY",
+            color = if (isActive) Color.Cyan else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "$count",
+            color = if (isActive) Color.Green else Color.DarkGray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 64.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            text = "THREATS BLOCKED",
+            color = if (isActive) Color.Green.copy(alpha = 0.7f) else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        )
+    }
+}
+
 
 @Composable
 fun MenuButton(text: String, onClick: () -> Unit) {

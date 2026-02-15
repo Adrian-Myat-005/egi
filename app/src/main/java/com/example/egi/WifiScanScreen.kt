@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.wifi.ScanResult
+import android.net.wifi.WifiManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,12 +37,18 @@ import java.net.InetAddress
 @Composable
 fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> Unit) {
     val context = LocalContext.current
+    val wifiManager = remember { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }
     val subnetPrefix = remember { WifiUtils.getSubnetPrefix(context) }
     var rawDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var resolvedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var isScanning by remember { mutableStateOf(true) }
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
+
+    // Channel Analysis State
+    var channelUsage by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
+    var bestChannel by remember { mutableStateOf(1) }
+    var currentChannel by remember { mutableStateOf(0) }
 
     // Initial Subnet Scan
     LaunchedEffect(Unit) {
@@ -67,6 +75,21 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> U
         isScanning = false
     }
 
+    // WiFi Channel Scan Loop
+    LaunchedEffect(Unit) {
+        while (true) {
+            val results = wifiManager.scanResults
+            if (results.isNotEmpty()) {
+                channelUsage = WifiAnalyzer.getChannelUsage(results)
+                bestChannel = WifiAnalyzer.getBestChannel(channelUsage)
+                
+                val freq = wifiManager.connectionInfo.frequency
+                currentChannel = if (freq > 0) (freq - 2407) / 5 else 0
+            }
+            delay(5000)
+        }
+    }
+
     // Secondary Name Resolution
     LaunchedEffect(rawDevices) {
         if (rawDevices.isNotEmpty()) {
@@ -83,6 +106,16 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String) -> U
         Header(isScanning, gatewayIp, onBack)
 
         Spacer(modifier = Modifier.height(16.dp))
+        
+        ChannelHealthCard(
+            usage = channelUsage,
+            bestChannel = bestChannel,
+            currentChannel = currentChannel,
+            onFix = { 
+                val gatewayDevice = resolvedDevices.find { it.status == "Gateway" }
+                onNavigateToRouter(gatewayDevice?.mac ?: "00:00:00:00:00:00", gatewayIp) 
+            }
+        )
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(resolvedDevices) { device ->
@@ -127,6 +160,103 @@ Action: Intercept and Redirect to Gateway for manual blacklisting.""",
         )
     }
 }
+
+@Composable
+fun ChannelHealthCard(usage: Map<Int, Int>, bestChannel: Int, currentChannel: Int, onFix: () -> Unit) {
+    val ch1 = usage.getOrDefault(1, 0)
+    val ch6 = usage.getOrDefault(6, 0)
+    val ch11 = usage.getOrDefault(11, 0)
+    val maxUsage = maxOf(ch1, ch6, ch11, 1)
+
+    val isCrowded = usage.getOrDefault(currentChannel, 0) > 3 || (currentChannel != bestChannel && currentChannel in listOf(1, 6, 11))
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.DarkGray.copy(alpha = 0.2f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Green.copy(alpha = 0.3f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                "CHANNEL OPTIMIZER",
+                color = Color.Green,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                // Bars
+                Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+                    UsageBar("1", ch1, maxUsage)
+                    UsageBar("6", ch6, maxUsage)
+                    UsageBar("11", ch11, maxUsage)
+                }
+
+                // Info
+                Column(modifier = Modifier.weight(1.2f).padding(start = 16.dp)) {
+                    Text(
+                        text = "YOUR CH: ${if (currentChannel in 1..14) currentChannel else "???"}",
+                        color = if (isCrowded) Color.Red else Color.Green,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = if (isCrowded) "(CROWDED!)" else "(OPTIMIZED)",
+                        color = if (isCrowded) Color.Red else Color.Green,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "REC: CH $bestChannel (FAST)",
+                        color = Color.Cyan,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onFix,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
+                shape = androidx.compose.foundation.shape.RectangleShape,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red),
+                contentPadding = PaddingValues(4.dp)
+            ) {
+                Text(
+                    "[ FIX SLOW WIFI ]",
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun UsageBar(label: String, count: Int, max: Int) {
+    val height = (40 * (count.toFloat() / max)).coerceAtLeast(4f).dp
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .width(12.dp)
+                .height(height)
+                .background(if (count > 3) Color.Red else Color.Green)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+    }
+}
+
 
 suspend fun resolveDeviceNames(devices: List<DeviceInfo>): List<DeviceInfo> = withContext(Dispatchers.IO) {
     devices.map { device ->

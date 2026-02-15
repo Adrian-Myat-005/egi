@@ -19,6 +19,10 @@ object TrafficEvent {
         _events.tryEmit(message)
     }
 
+    fun updateCount(count: Long) {
+        _blockedCount.value = count.toInt()
+    }
+
     fun resetCount() {
         _blockedCount.value = 0
     }

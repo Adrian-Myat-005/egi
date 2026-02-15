@@ -27,7 +27,11 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
     _class: JClass,
     target_ip: JString,
 ) -> jstring {
-    let target_ip_str: String = env.get_string(&target_ip).expect("Invalid target IP").into();
+    let target_ip_str: String = match env.get_string(&target_ip) {
+        Ok(s) => s.into(),
+        Err(_) => return env.new_string(r#"{"ping": -1, "jitter": 0, "server": "ERROR"}"#).unwrap().into_raw(),
+    };
+
     let addr_str = if target_ip_str.contains(':') {
         target_ip_str.clone()
     } else {
@@ -36,14 +40,13 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
 
     let addr: SocketAddr = addr_str.parse().unwrap_or_else(|_| "1.1.1.1:443".parse().unwrap());
     let timeout = Duration::from_millis(1500);
-    let mut pings = Vec::new();
+    let mut pings = Vec::with_capacity(3);
 
     for _ in 0..3 {
         let start = Instant::now();
         match TcpStream::connect_timeout(&addr, timeout) {
             Ok(_) => {
-                let duration = start.elapsed().as_millis() as i64;
-                pings.push(duration);
+                pings.push(start.elapsed().as_millis() as i64);
             }
             Err(_) => {
                 pings.push(-1);
@@ -85,18 +88,20 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
     _class: JClass,
     base_ip: JString,
 ) -> jstring {
-    let base_ip_str: String = env.get_string(&base_ip).expect("Invalid base IP").into();
+    let base_ip_str: String = match env.get_string(&base_ip) {
+        Ok(s) => s.into(),
+        Err(_) => return env.new_string("[]").unwrap().into_raw(),
+    };
     
     let rt = Runtime::new().unwrap();
     let devices = rt.block_on(async move {
-        let mut tasks = Vec::new();
+        let mut tasks = Vec::with_capacity(254);
 
         for i in 1..255 {
             let ip = format!("{}{}", base_ip_str, i);
             tasks.push(tokio::spawn(async move {
-                // Sonar Upgrade: Check multiple ports in parallel
                 let ports = [80, 443, 5353, 62078];
-                let mut connection_attempts = Vec::new();
+                let mut connection_attempts = Vec::with_capacity(ports.len());
 
                 for port in ports {
                     let addr_str = format!("{}:{}", ip, port);
@@ -109,7 +114,6 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
                 }
 
                 if !connection_attempts.is_empty() {
-                    // Wait for the first port to respond
                     while !connection_attempts.is_empty() {
                         let (res, _index, remaining) = select_all(connection_attempts).await;
                         if let Ok(Ok(_)) = res {
@@ -137,3 +141,4 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
     let json = serde_json::to_string(&devices).unwrap_or_else(|_| "[]".to_string());
     env.new_string(json).unwrap().into_raw()
 }
+
