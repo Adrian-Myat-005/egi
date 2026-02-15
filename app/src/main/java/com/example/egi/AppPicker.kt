@@ -39,7 +39,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
     
     val installedApps = remember {
         val pm = context.packageManager
-        pm.getInstalledPackages(PackageManager.GET_META_DATA)
+        pm.getInstalledPackages(0)
             .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
             .map { 
                 AppInfo(
