@@ -1,5 +1,7 @@
 package com.example.egi
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
