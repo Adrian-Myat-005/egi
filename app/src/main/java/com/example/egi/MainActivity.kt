@@ -155,7 +155,7 @@ fun TerminalDashboard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
-    val events by TrafficEvent.events.collect(initial = "SYSTEM_READY").collectAsState(initial = "SYSTEM_READY")
+    val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
     var isBooting by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
     var isLocalBypass by remember { mutableStateOf(EgiPreferences.getLocalBypass(context)) }

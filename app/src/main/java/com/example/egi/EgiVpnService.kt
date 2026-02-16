@@ -195,7 +195,14 @@ class EgiVpnService : VpnService(), Runnable {
         val stopIntent = Intent(this, EgiVpnService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
 
-        return Notification.Builder(this, "egi_vpn")
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, "egi_vpn")
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+
+        return builder
             .setContentTitle("Egi Shield Active")
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
@@ -211,57 +218,6 @@ class EgiVpnService : VpnService(), Runnable {
 
     override fun onDestroy() {
         connectivityManager?.unregisterNetworkCallback(networkCallback)
-        stopVpn()
-        super.onDestroy()
-    }
-}
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "egi_vpn",
-                "Egi VPN Service",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-    }
-
-    private fun createNotification(): Notification {
-        val stopIntent = Intent(this, EgiVpnService::class.java).apply {
-            action = ACTION_STOP
-        }
-        val stopPendingIntent = android.app.PendingIntent.getService(
-            this, 0, stopIntent, 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0
-        )
-
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, "egi_vpn")
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-
-        return builder
-            .setContentTitle("Egi Focus Mode Active")
-            .setContentText("Black-holing distractions...")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
-            .build()
-    }
-
-    private fun closeInterface() {
-        try {
-            vpnInterface?.close()
-            vpnInterface = null
-        } catch (e: IOException) {
-            Log.e("EgiVpnService", "Error closing interface", e)
-        }
-    }
-
-    override fun onDestroy() {
         stopVpn()
         super.onDestroy()
     }
