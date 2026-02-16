@@ -227,9 +227,11 @@ fun TerminalDashboard(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
+            TrafficEvent.log("USER >> PERMISSION_GRANTED")
             ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
             isBooting = false
         } else {
+            TrafficEvent.log("USER >> PERMISSION_DENIED")
             isBooting = false
             Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
         }
@@ -630,6 +632,7 @@ fun TerminalDashboard(
                                     TrafficEvent.log("USER >> INITIATING_SHIELD")
                                     val intent = VpnService.prepare(context)
                                     if (intent != null) {
+                                        TrafficEvent.log("USER >> REQUESTING_PERMISSION")
                                         vpnLauncher.launch(intent)
                                     } else {
                                         TrafficEvent.log("USER >> STARTING_SERVICE")
@@ -656,7 +659,11 @@ fun TerminalDashboard(
 
                     Text(
 
-                        text = if (isSecure) "> [ ABORT ] <" else "> [ EXECUTE ] <",
+                        text = when {
+                            isBooting -> "> [ BOOTING... ] <"
+                            isSecure -> "> [ ABORT ] <"
+                            else -> "> [ EXECUTE ] <"
+                        },
 
                         color = if (isSecure) Color.Red else Color.Green,
 

@@ -123,12 +123,11 @@ class EgiVpnService : VpnService(), Runnable {
         val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
 
         try {
+            TrafficEvent.log("CORE >> CONFIGURING_BUILDER")
             val builder = Builder()
                 .setSession("EgiShield")
-                // Obscure IP to avoid 10.0.0.x conflicts
-                .addAddress("10.255.0.1", 32)
-                .addAddress("fdff:egi::1", 128)
-                .setMtu(1500)
+                .addAddress("10.0.0.1", 24)
+                .setMtu(1400)
                 .setBlocking(false)
 
             // KILL SWITCH: Point back to MainActivity for configuration
@@ -137,23 +136,23 @@ class EgiVpnService : VpnService(), Runnable {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             builder.setConfigureIntent(pendingIntent)
 
-            if (allowLocal) builder.allowBypass()
+            if (allowLocal) {
+                TrafficEvent.log("CORE >> ALLOWING_LOCAL_BYPASS")
+                builder.allowBypass()
+            }
 
             // DNS Selection
             val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
-            sharedPrefs.getString("dns_provider", "1.1.1.1")?.let { dns ->
-                builder.addDnsServer(dns)
-                // Also add IPv6 DNS to prevent leaks
-                if (dns == "1.1.1.1") builder.addDnsServer("2606:4700:4700::1111")
-            }
+            val dns = sharedPrefs.getString("dns_provider", "1.1.1.1") ?: "1.1.1.1"
+            TrafficEvent.log("CORE >> SETTING_DNS: $dns")
+            builder.addDnsServer(dns)
 
             // Split Tunneling logic
             if (!isGlobal || !isStealth) {
                 if (vipList.isEmpty() && !isStealth) {
-                    // EMERGENCY FALLBACK: If no apps selected for Nuclear Mode,
-                    // don't start the blackhole yet or it will block everything.
-                    TrafficEvent.log("SHIELD >> NO_APPS_SELECTED >> PASS-THROUGH")
+                    TrafficEvent.log("SHIELD >> PASS_THROUGH_MODE")
                 } else {
+                    TrafficEvent.log("SHIELD >> APPLYING_SPLIT_TUNNEL: ${vipList.size} APPS")
                     vipList.forEach { pkg ->
                         try {
                             if (isStealth && ssKey.isNotEmpty()) {
@@ -162,26 +161,25 @@ class EgiVpnService : VpnService(), Runnable {
                                 builder.addDisallowedApplication(pkg)
                             }
                         } catch (e: Exception) {
-                            TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
+                            TrafficEvent.log("SHIELD >> PKG_ERR: $pkg")
                         }
                     }
                 }
             }
             try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
+            TrafficEvent.log("CORE >> ADDING_DEFAULT_ROUTE")
             builder.addRoute("0.0.0.0", 0)
-            builder.addRoute("::", 0)
 
-            // Small delay to let system settle
-            try { Thread.sleep(100) } catch (e: Exception) {}
-
+            TrafficEvent.log("CORE >> ATTEMPTING_ESTABLISH")
             vpnInterface = builder.establish()
+            
             if (vpnInterface == null) {
-                TrafficEvent.log("CORE >> ESTABLISH_FAILED")
+                TrafficEvent.log("CORE >> ESTABLISH_FAILED: NULL_INTERFACE")
                 return
             }
             
-            TrafficEvent.log("CORE >> INTERFACE_ESTABLISHED (KEY_SIGN_ON)")
+            TrafficEvent.log("CORE >> INTERFACE_UP")
             TrafficEvent.setVpnActive(true)
 
             val fd = vpnInterface!!.fd
@@ -191,26 +189,25 @@ class EgiVpnService : VpnService(), Runnable {
                     EgiNetwork.setAllowedDomains(allowedDomains)
                     
                     if (isStealth && ssKey.isNotEmpty()) {
-                        TrafficEvent.log("SHIELD >> STEALTH_ON")
-                        TrafficEvent.log("WARN >> ENABLE_BLOCK_WITHOUT_VPN_IN_SETTINGS")
+                        TrafficEvent.log("SHIELD >> STARTING_STEALTH_CORE")
                         EgiNetwork.runVpnLoop(fd)
                     } else {
-                        TrafficEvent.log("SHIELD >> OFFLINE_MODE (Blocking Non-VIPs)")
+                        TrafficEvent.log("SHIELD >> STARTING_PASSIVE_CORE")
                         EgiNetwork.runPassiveShield(fd)
                     }
                 } catch (t: Throwable) {
-                    TrafficEvent.log("CORE_ERROR >> NATIVE_CRASH: ${t.message}")
+                    TrafficEvent.log("CORE >> NATIVE_CRASH: ${t.message}")
                 }
             } else {
-                TrafficEvent.log("CORE >> NATIVE_LIB_UNAVAILABLE")
-                // Keep the interface open to avoid immediate restart loop
+                TrafficEvent.log("CORE >> NATIVE_LIB_MISSING")
                 while (isServiceActive) {
                     try { Thread.sleep(1000) } catch (e: InterruptedException) { break }
                 }
             }
 
         } catch (e: Exception) {
-            TrafficEvent.log("CORE_ERROR >> ${e.message}")
+            TrafficEvent.log("CORE >> FATAL_ERROR: ${e.message}")
+            e.printStackTrace()
         } finally {
             TrafficEvent.setVpnActive(false)
             closeInterface()

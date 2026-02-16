@@ -139,7 +139,7 @@ pub fn start_vpn_loop(fd: i32) {
                     args.proxy = proxy;
                     args.dns = ArgDns::Virtual;
                     args.verbosity = ArgVerbosity::Off;
-                    let _ = run_tun2proxy(tun_device, 1500, args, token).await;
+                    let _ = run_tun2proxy(tun_device, 1400, args, token).await;
                 }
             }
             Err(_) => {
