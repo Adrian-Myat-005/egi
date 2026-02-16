@@ -321,40 +321,29 @@ fun TerminalDashboard(
                 .weight(0.48f)
                 .fillMaxWidth()
         ) {
-            // Server Selector & Stealth Toggle
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { expanded = true }
-                        .background(Color.DarkGray.copy(alpha = 0.3f))
-                        .padding(8.dp)
-                ) {
-                    Text(
-                        text = "SERVER: ${selectedServer.name}",
-                        color = Color.Green,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        modifier = Modifier.background(Color.Black)
-                    ) {
-                        GameServers.list.forEach { server ->
-                            DropdownMenuItem(
-                                text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
-                                onClick = {
-                                    selectedServer = server
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
+                        // Connection Status & Stealth Toggle
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(Color.DarkGray.copy(alpha = 0.3f))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = "LINK_QUALITY: ${if(currentPing > 0) "$currentPing ms" else "MEASURING..."}",
+                                    color = when {
+                                        currentPing in 1..80 -> Color.Green
+                                        currentPing in 81..150 -> Color.Yellow
+                                        currentPing > 150 -> Color.Red
+                                        else -> Color.Gray
+                                    },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+            
+                            Spacer(modifier = Modifier.width(8.dp))                
                 Text(
                     text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
                     color = if (isStealthMode) Color.Magenta else Color.Gray,
