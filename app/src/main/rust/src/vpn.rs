@@ -13,6 +13,7 @@ use crate::common::*;
 
 pub async fn run_passive_shield_internal(fd: RawFd) {
     CORE_STATUS.store(2, Ordering::SeqCst);
+    println!("VPN >> PASSIVE_SHIELD_STARTING");
     
     let async_fd = match AsyncFd::new(fd) {
         Ok(afd) => afd,
@@ -28,10 +29,9 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
             Ok(mut guard) => {
                 match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
                     n if n > 0 => {
-                        let is_allowed = check_focus_whitelist(&buf[..n as usize]);
-                        if is_allowed {
-                            // Passive Shield is a black-hole, but we could forward if needed.
-                        }
+                        let _is_allowed = check_focus_whitelist(&buf[..n as usize]);
+                        // In Passive Shield, we block everything to save energy and enforce focus.
+                        // We only count the dropped packets for the UI.
                         
                         BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);

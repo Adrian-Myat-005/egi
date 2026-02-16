@@ -406,8 +406,16 @@ fun TerminalDashboard(
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
-                text = if (isSecure) ">> VPN TUNNEL: ENCRYPTED <<" else ">> VPN TUNNEL: INACTIVE <<",
-                color = if (isSecure) Color.Cyan else Color.Gray,
+                text = when {
+                    !isSecure -> ">> VPN TUNNEL: INACTIVE <<"
+                    isStealthMode && outlineKey.isNotEmpty() -> ">> STEALTH TUNNEL: ENCRYPTED <<"
+                    else -> ">> OFFLINE SHIELD: ACTIVE <<"
+                },
+                color = when {
+                    !isSecure -> Color.Gray
+                    isStealthMode && outlineKey.isNotEmpty() -> Color.Cyan
+                    else -> Color.Yellow // Yellow for caution/offline blocking
+                },
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -591,6 +599,12 @@ fun TerminalDashboard(
                         .clickable {
                             try {
                                 if (!isSecure && !isBooting) {
+                                    if (isStealthMode && outlineKey.isEmpty()) {
+                                        Toast.makeText(context, "NO KEY >> SWITCHING TO OFFLINE SHIELD", Toast.LENGTH_SHORT).show()
+                                        isStealthMode = false
+                                        EgiPreferences.setStealthMode(context, false)
+                                        // Proceed to start in Passive Mode
+                                    }
                                     isBooting = true
                                     TrafficEvent.log("USER >> INITIATING_SHIELD")
                                     val intent = VpnService.prepare(context)
@@ -661,7 +675,8 @@ fun TerminalDashboard(
                         Text("[ ENGLISH - FULL GUIDE ]", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
                         
-                        ManualSection("NUCLEAR MODE", "This is your primary weapon. Pick 'Focus' to use ONLY 1 app, or 'Casual' to allow a few apps. Type specific website URLs (e.g. stackoverflow.com) in the box to whitelist them. Everything else is black-holed.")
+                        ManualSection("NUCLEAR MODE (OFFLINE)", "No VPN Key needed. Automatically blocks all apps except your 'Focus' target. The Shield runs locally.")
+                        ManualSection("NUCLEAR MODE + VPN", "To use a VPN for your Focus App while blocking others: Turn on 'Stealth Mode', enter Key, and enable 'Block connections without VPN' in Android Settings.")
                         ManualSection("STEALTH MODE", "If your WiFi blocks everything, turn this ON. Use 'IMPORT KEY' to paste a Shadowsocks (ss://) link. It wraps your traffic in a secret tunnel to sneak past firewalls.")
                         ManualSection("NETWORK RADAR", "Scan your current WiFi to see 'intruders'. If someone is hogging your speed, click their device to isolate them. Use 'LOCAL BYPASS' if you need to use your home printer.")
                         ManualSection("STABILITY", "Turn on 'UNRESTRICTED_BATTERY' and 'AUTO_BOOT' so the shield never sleeps, even if you restart your phone.")
