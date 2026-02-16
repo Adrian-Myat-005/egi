@@ -110,16 +110,27 @@ class EgiVpnService : VpnService(), Runnable {
             // NUCLEAR LOGIC:
             // Offline Mode: VIP apps bypass VPN (direct internet). Others go to VPN (blackhole).
             // Stealth Mode: All apps go to VPN (tunneled via SS).
-            if (!isStealth && vipList.isNotEmpty()) {
-                TrafficEvent.log("SHIELD >> NUCLEAR_ACTIVE: BYPASSING_${vipList.size}_APPS")
+            // Stealth Mode + Focus: Only VIP apps go to VPN. Others bypass (blocked by system if configured).
+            if (isStealth && vipList.isNotEmpty()) {
+                TrafficEvent.log("SHIELD >> STEALTH_FOCUS: TUNNELING_${vipList.size}_APPS")
                 vipList.forEach { pkg ->
-                    try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {
+                    try { builder.addAllowedApplication(pkg) } catch (e: Exception) {
                         TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
                     }
                 }
+                // Note: builder.addDisallowedApplication(packageName) is NOT needed here 
+                // because addAllowedApplication automatically excludes all others.
+            } else {
+                if (!isStealth && vipList.isNotEmpty()) {
+                    TrafficEvent.log("SHIELD >> NUCLEAR_ACTIVE: BYPASSING_${vipList.size}_APPS")
+                    vipList.forEach { pkg ->
+                        try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {
+                            TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
+                        }
+                    }
+                }
+                try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
             }
-            
-            try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
             TrafficEvent.log("CORE >> ESTABLISHING_INTERFACE")
             vpnInterface = builder.establish()
