@@ -345,7 +345,12 @@ fun TerminalDashboard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("EGI CORE STATUS: NOMINAL", color = Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    text = if (EgiNetwork.isAvailable()) "EGI CORE STATUS: NOMINAL" else "EGI CORE STATUS: LIB_MISSING",
+                    color = if (EgiNetwork.isAvailable()) Color.Green else Color.Red,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace
+                )
                 if (!isBatteryOptimized) {
                     Text("BATTERY_WARN", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
@@ -606,75 +611,55 @@ fun TerminalDashboard(
                 // Main Toggle Button
 
                 Box(
-
                     modifier = Modifier
-
                         .fillMaxWidth()
-
                         .padding(vertical = 4.dp)
-
                         .clickable {
                             try {
                                 if (!isSecure && !isBooting) {
                                     val vipList = EgiPreferences.getVipList(context)
                                     if (!isStealthMode && vipList.isEmpty()) {
-                                        Toast.makeText(context, "PICK A TARGET APP FIRST!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
                                         onOpenAppSelector()
                                         return@clickable
                                     }
-                                    if (isStealthMode && outlineKey.isEmpty()) {
-                                        Toast.makeText(context, "NO KEY >> SWITCHING TO OFFLINE SHIELD", Toast.LENGTH_SHORT).show()
-                                        isStealthMode = false
-                                        EgiPreferences.setStealthMode(context, false)
-                                        // Proceed to start in Passive Mode
-                                    }
+                                    
                                     isBooting = true
-                                    TrafficEvent.log("USER >> INITIATING_SHIELD")
+                                    TrafficEvent.log("USER >> BOOTING_SHIELD")
                                     val intent = VpnService.prepare(context)
                                     if (intent != null) {
-                                        TrafficEvent.log("USER >> REQUESTING_PERMISSION")
                                         vpnLauncher.launch(intent)
                                     } else {
-                                        TrafficEvent.log("USER >> STARTING_SERVICE")
                                         ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
-                                        isBooting = false
+                                        // isBooting will be reset by some other logic or after a timeout, 
+                                        // but for now let's just let the service take over.
+                                        isBooting = false 
                                     }
                                 } else if (isSecure) {
-                                    TrafficEvent.log("USER >> ABORTING_SHIELD")
+                                    TrafficEvent.log("USER >> SHUTTING_DOWN")
                                     val stopIntent = Intent(context, EgiVpnService::class.java).apply {
                                         action = EgiVpnService.ACTION_STOP
                                     }
                                     context.startService(stopIntent)
                                 }
                             } catch (e: Exception) {
-                                TrafficEvent.log("CRITICAL_ERROR >> ${e.message}")
+                                TrafficEvent.log("CRITICAL >> ${e.message}")
                                 isBooting = false
-                                Toast.makeText(context, "EXECUTION_FAILED: ${e.message}", Toast.LENGTH_LONG).show()
                             }
                         },
-
                     contentAlignment = Alignment.Center
-
                 ) {
-
                     Text(
-
                         text = when {
                             isBooting -> "> [ BOOTING... ] <"
                             isSecure -> "> [ ABORT ] <"
                             else -> "> [ EXECUTE ] <"
                         },
-
                         color = if (isSecure) Color.Red else Color.Green,
-
                         fontFamily = FontFamily.Monospace,
-
                         fontWeight = FontWeight.Bold,
-
-                        fontSize = 16.sp
-
+                        fontSize = 20.sp
                     )
-
                 }
 
             }
