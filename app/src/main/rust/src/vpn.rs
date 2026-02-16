@@ -30,16 +30,20 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                     n if n > 0 => {
                         let is_allowed = check_focus_whitelist(&buf[..n as usize]);
                         if is_allowed {
-                            // In a real shield, we might want to forward allowed packets
-                            // but Passive Shield is a black-hole by design.
-                            // However, we track that we *would* have allowed it.
+                            // Passive Shield is a black-hole, but we could forward if needed.
                         }
                         
                         BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
                         guard.clear_ready();
                     }
-                    _ => break,
+                    0 => break, // EOF
+                    _ => {
+                        let err = std::io::Error::last_os_error();
+                        if err.kind() != std::io::ErrorKind::WouldBlock {
+                            break;
+                        }
+                    }
                 }
             }
             Err(_) => break,
@@ -62,7 +66,7 @@ fn check_focus_whitelist(packet: &[u8]) -> bool {
     // This is a lightweight way to see where the user is going
     if let Ok(value) = etherparse::SlicedPacket::from_ip(packet) {
         if let Some(etherparse::TransportSlice::Tcp(tcp)) = value.transport {
-            let payload = &packet[packet.len() - tcp.payload().len()..];
+            let payload = tcp.payload();
             if payload.len() > 43 && payload[0] == 0x16 && payload[5] == 0x01 {
                 // Potential TLS Client Hello
                 for domain in &allowed {
@@ -122,20 +126,25 @@ pub fn start_vpn_loop(fd: i32) {
             }
         });
 
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        CORE_STATUS.store(2, Ordering::SeqCst);
-
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        
         let mut tun_config = tun::Configuration::default();
         tun_config.raw_fd(fd);
         
-        if let Ok(tun_device) = tun::create_as_async(&tun_config) {
-            if let Ok(proxy) = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()) {
-                let token = CancellationToken::new();
-                let mut args = Args::default();
-                args.proxy = proxy;
-                args.dns = ArgDns::Virtual;
-                args.verbosity = ArgVerbosity::Off;
-                let _ = run_tun2proxy(tun_device, 1500, args, token).await;
+        match tun::create_as_async(&tun_config) {
+            Ok(tun_device) => {
+                CORE_STATUS.store(2, Ordering::SeqCst);
+                if let Ok(proxy) = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()) {
+                    let token = CancellationToken::new();
+                    let mut args = Args::default();
+                    args.proxy = proxy;
+                    args.dns = ArgDns::Virtual;
+                    args.verbosity = ArgVerbosity::Off;
+                    let _ = run_tun2proxy(tun_device, 1500, args, token).await;
+                }
+            }
+            Err(_) => {
+                CORE_STATUS.store(3, Ordering::SeqCst);
             }
         }
         CORE_STATUS.store(0, Ordering::SeqCst);

@@ -43,8 +43,12 @@ class EgiVpnService : VpnService(), Runnable {
 
     override fun onCreate() {
         super.onCreate()
-        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        connectivityManager?.registerDefaultNetworkCallback(networkCallback)
+        try {
+            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            connectivityManager?.registerDefaultNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            TrafficEvent.log("SYSTEM >> CALLBACK_ERR: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -125,7 +129,7 @@ class EgiVpnService : VpnService(), Runnable {
                 .addAddress("10.255.0.1", 32)
                 .addAddress("fdff:egi::1", 128)
                 .setMtu(1500)
-                .setBlocking(true)
+                .setBlocking(false)
 
             // KILL SWITCH: Point back to MainActivity for configuration
             val configIntent = Intent(this, MainActivity::class.java)

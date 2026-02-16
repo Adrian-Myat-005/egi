@@ -589,37 +589,30 @@ fun TerminalDashboard(
                         .padding(vertical = 4.dp)
 
                         .clickable {
-
-                                                    if (!isSecure && !isBooting) {
-
-                                                        isBooting = true
-
-                                                        val intent = VpnService.prepare(context)
-
-                                                                                                                if (intent != null) {
-
-                                                                                                                    vpnLauncher.launch(intent)
-
-                                                                                                                } else {
-
-                                                                                                                    ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
-
-                                                                                                                    isBooting = false // Reset here if already prepared
-
-                                                                                                                }
-
-                                                                                                            } else if (isSecure) {
-
-                                val stopIntent = Intent(context, EgiVpnService::class.java).apply {
-
-                                    action = EgiVpnService.ACTION_STOP
-
+                            try {
+                                if (!isSecure && !isBooting) {
+                                    isBooting = true
+                                    TrafficEvent.log("USER >> INITIATING_SHIELD")
+                                    val intent = VpnService.prepare(context)
+                                    if (intent != null) {
+                                        vpnLauncher.launch(intent)
+                                    } else {
+                                        TrafficEvent.log("USER >> STARTING_SERVICE")
+                                        ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
+                                        isBooting = false
+                                    }
+                                } else if (isSecure) {
+                                    TrafficEvent.log("USER >> ABORTING_SHIELD")
+                                    val stopIntent = Intent(context, EgiVpnService::class.java).apply {
+                                        action = EgiVpnService.ACTION_STOP
+                                    }
+                                    context.startService(stopIntent)
                                 }
-
-                                context.startService(stopIntent)
-
+                            } catch (e: Exception) {
+                                TrafficEvent.log("CRITICAL_ERROR >> ${e.message}")
+                                isBooting = false
+                                Toast.makeText(context, "EXECUTION_FAILED: ${e.message}", Toast.LENGTH_LONG).show()
                             }
-
                         },
 
                     contentAlignment = Alignment.Center

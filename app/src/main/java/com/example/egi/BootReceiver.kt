@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import androidx.core.content.ContextCompat
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -11,7 +12,7 @@ class BootReceiver : BroadcastReceiver() {
             if (EgiPreferences.getAutoStart(context)) {
                 val vpnIntent = VpnService.prepare(context)
                 if (vpnIntent == null) {
-                    context.startService(Intent(context, EgiVpnService::class.java))
+                    ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
                 }
             }
         }

@@ -86,7 +86,9 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
     _class: JClass,
     fd: jint,
 ) {
-    vpn::start_vpn_loop(fd);
+    let _ = std::panic::catch_unwind(|| {
+        vpn::start_vpn_loop(fd);
+    });
 }
 
 #[no_mangle]
@@ -95,7 +97,9 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runPassiveShield(
     _class: JClass,
     fd: jint,
 ) {
-    TOKIO_RT.block_on(vpn::run_passive_shield_internal(fd));
+    let _ = std::panic::catch_unwind(|| {
+        TOKIO_RT.block_on(vpn::run_passive_shield_internal(fd));
+    });
 }
 
 #[no_mangle]
