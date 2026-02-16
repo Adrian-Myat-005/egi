@@ -140,6 +140,18 @@ fun TerminalDashboard(
     var showLogs by remember { mutableStateOf(false) }
     var currentSsid by remember { mutableStateOf<String?>(null) }
     var isCurrentSsidTrusted by remember { mutableStateOf(false) }
+    var isBatteryOptimized by remember { mutableStateOf(false) }
+
+    // Check battery optimization status
+    LaunchedEffect(Unit) {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        while (true) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                isBatteryOptimized = pm.isIgnoringBatteryOptimizations(context.packageName)
+            }
+            delay(10000)
+        }
+    }
 
     // HUD States
     var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
@@ -332,6 +344,9 @@ fun TerminalDashboard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("EGI CORE STATUS: NOMINAL", color = Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                if (!isBatteryOptimized) {
+                    Text("BATTERY_WARN", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
                 Text(
                     text = "[ ? ]",
                     color = Color.White,
@@ -454,7 +469,7 @@ fun TerminalDashboard(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
-                    MenuButton("[ VPN_SETTINGS ]") { openVpnSettings() }
+                    MenuButton("[ ALWAYS_ON_CONFIG ]") { openVpnSettings() }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -599,6 +614,12 @@ fun TerminalDashboard(
                         .clickable {
                             try {
                                 if (!isSecure && !isBooting) {
+                                    val vipList = EgiPreferences.getVipList(context)
+                                    if (!isStealthMode && vipList.isEmpty()) {
+                                        Toast.makeText(context, "PICK A TARGET APP FIRST!", Toast.LENGTH_LONG).show()
+                                        onOpenAppSelector()
+                                        return@clickable
+                                    }
                                     if (isStealthMode && outlineKey.isEmpty()) {
                                         Toast.makeText(context, "NO KEY >> SWITCHING TO OFFLINE SHIELD", Toast.LENGTH_SHORT).show()
                                         isStealthMode = false
@@ -679,7 +700,8 @@ fun TerminalDashboard(
                         ManualSection("NUCLEAR MODE + VPN", "To use a VPN for your Focus App while blocking others: Turn on 'Stealth Mode', enter Key, and enable 'Block connections without VPN' in Android Settings.")
                         ManualSection("STEALTH MODE", "If your WiFi blocks everything, turn this ON. Use 'IMPORT KEY' to paste a Shadowsocks (ss://) link. It wraps your traffic in a secret tunnel to sneak past firewalls.")
                         ManualSection("NETWORK RADAR", "Scan your current WiFi to see 'intruders'. If someone is hogging your speed, click their device to isolate them. Use 'LOCAL BYPASS' if you need to use your home printer.")
-                        ManualSection("STABILITY", "Turn on 'UNRESTRICTED_BATTERY' and 'AUTO_BOOT' so the shield never sleeps, even if you restart your phone.")
+                        ManualSection("STABILITY", "Turn on 'UNRESTRICTED_BATTERY' and 'AUTO_BOOT' so the shield never sleeps. IMPORTANT: For strict blocking, go to 'ALWAYS_ON_CONFIG' and enable 'Always-on VPN' and 'Block connections without VPN' for Egi.")
+                        ManualSection("TROUBLESHOOTING", "If 'EXECUTE' does nothing: 1. Pick a target app in NUCLEAR MODE first. 2. Check if another VPN is active. 3. Ensure you granted VPN permission.")
                         ManualSection("THE HUD", "The green graph shows your speed (Ping). High numbers (Red) mean lag. The 'THREATS BLOCKED' counter shows exactly how many distractions were terminated.")
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -693,7 +715,7 @@ fun TerminalDashboard(
                         ManualSection("NUCLEAR MODE (အဓိကလုပ်ဆောင်ချက်)", "မိမိသုံးမည့် App နှင့် Website ကို ရွေးချယ်ပေးရပါမည်။ 'Focus' တွင် App တစ်ခုတည်းကိုသာ သုံးနိုင်ပြီး 'Casual' တွင် App အများအပြားကို ရွေးချယ်နိုင်ပါသည်။ Website ကြည့်လိုပါက အကွက်ထဲတွင် Website link (ဥပမာ - stackoverflow.com) ကို ရိုက်ထည့်ပါ။ ကျန်ရှိသော App နှင့် Website အားလုံးကို ပိတ်ထားပေးပါမည်။")
                         ManualSection("STEALTH MODE (လျှို့ဝှက်ဥမှင်စနစ်)", "အင်တာနက်လိုင်း ပိတ်ဆို့ခံထားရပါက ဤစနစ်ကို သုံးပါ။ 'IMPORT KEY' ကိုနှိပ်ပြီး Shadowsocks (ss://) link ကို ထည့်ပါ။ ပိတ်ဆို့ထားသော အင်တာနက်လိုင်းများကို ကျော်ဖြတ်နိုင်ပါမည်။")
                         ManualSection("NETWORK RADAR (ဝိုင်ဖိုင်စစ်ဆေးခြင်း)", "မိမိသုံးနေသော WiFi ထဲတွင် အခြားသူများ ခိုးသုံးနေသလား စစ်ဆေးနိုင်ပါသည်။ အင်တာနက်လိုင်း ဆွဲနေသူများကို တွေ့ပါက [ KICK ] နှိပ်ပြီး ဖြတ်တောက်နိုင်ပါသည်။ အိမ်ရှိ Printer များကို သုံးလိုပါက 'LOCAL BYPASS' ကို ဖွင့်ထားပါ။")
-                        ManualSection("STABILITY (အမြဲပွင့်နေစေရန်)", "ဖုန်းပိတ်ပြီး ပြန်ဖွင့်လျှင်လည်း အလိုအလျောက် ပွင့်နေစေရန် 'AUTO_BOOT' ကို ဖွင့်ပါ။ အင်တာနက်လိုင်း မပြတ်တောက်စေရန် 'UNRESTRICTED_BATTERY' ကို နှိပ်ပြီး ခွင့်ပြုချက်ပေးပါ။")
+                        ManualSection("STABILITY (အမြဲပွင့်နေစေရန်)", "ဖုန်းပိတ်ပြီး ပြန်ဖွင့်လျှင်လည်း အလိုအလျောက် ပွင့်နေစေရန် 'AUTO_BOOT' ကို ဖွင့်ပါ။ အင်တာနက်လိုင်း မပြတ်တောက်စေရန် 'UNRESTRICTED_BATTERY' ကို နှိပ်ပြီး ခွင့်ပြုချက်ပေးပါ။ အမြဲတမ်း ပိတ်ဆို့ထားလိုပါက 'ALWAYS_ON_CONFIG' ထဲတွင် 'Always-on VPN' နှင့် 'Block connections without VPN' ကို ဖွင့်ပါ။")
                         ManualSection("THE HUD (အခြေအနေပြဘုတ်)", "အစိမ်းရောင် ဂရပ်ဖစ်မျဉ်းသည် အင်တာနက် အမြန်နှုန်း (Ping) ကို ပြခြင်းဖြစ်သည်။ ဂဏန်းကြီးလျှင် (အနီရောင်ဖြစ်လျှင်) လိုင်းလေးနေခြင်း ဖြစ်သည်။ 'THREATS BLOCKED' သည် အနှောင့်အယှက်ပေးသော App မည်မျှကို ပိတ်ဆို့ထားသည်ကို ပြခြင်း ဖြစ်သည်။")
 
                         Spacer(modifier = Modifier.height(12.dp))

@@ -149,27 +149,21 @@ class EgiVpnService : VpnService(), Runnable {
 
             // Split Tunneling logic
             if (!isGlobal || !isStealth) {
-                // In Split Tunnel (Stealth) OR Offline Shield (No Stealth):
-                // We want VIP apps to have internet.
-                // In Offline Shield: VIP -> Bypass (Direct). Others -> VPN (Blackhole).
-                // In Split Stealth: VIP -> VPN (Proxy). Others -> Direct (NOT BLOCKED by default Android behavior).
-                
-                // CRITICAL FIX FOR NUCLEAR MODE + VPN:
-                // If user wants Focus Mode + VPN, they must enable 'Block connections without VPN' in Android settings manually.
-                // Otherwise, 'Others' will bypass the VPN and have internet.
-                // We can't force block without root.
-                
-                vipList.forEach { pkg ->
-                    try {
-                        if (isStealth && ssKey.isNotEmpty()) {
-                            // Focus App goes through VPN
-                            builder.addAllowedApplication(pkg)
-                        } else {
-                            // Offline Shield: Focus App bypasses blackhole
-                            builder.addDisallowedApplication(pkg)
+                if (vipList.isEmpty() && !isStealth) {
+                    // EMERGENCY FALLBACK: If no apps selected for Nuclear Mode,
+                    // don't start the blackhole yet or it will block everything.
+                    TrafficEvent.log("SHIELD >> NO_APPS_SELECTED >> PASS-THROUGH")
+                } else {
+                    vipList.forEach { pkg ->
+                        try {
+                            if (isStealth && ssKey.isNotEmpty()) {
+                                builder.addAllowedApplication(pkg)
+                            } else {
+                                builder.addDisallowedApplication(pkg)
+                            }
+                        } catch (e: Exception) {
+                            TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
                         }
-                    } catch (e: Exception) {
-                        TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
                     }
                 }
             }
@@ -177,6 +171,9 @@ class EgiVpnService : VpnService(), Runnable {
 
             builder.addRoute("0.0.0.0", 0)
             builder.addRoute("::", 0)
+
+            // Small delay to let system settle
+            try { Thread.sleep(100) } catch (e: Exception) {}
 
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
