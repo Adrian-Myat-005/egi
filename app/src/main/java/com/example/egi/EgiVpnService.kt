@@ -36,6 +36,12 @@ class EgiVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
+        // Check for Always-on / Lockdown
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Note: This only works if we are the current Always-on VPN
+            // For general detection, we'll also use the network check in MainActivity
+        }
+
         isServiceActive = true
         createNotificationChannel()
         

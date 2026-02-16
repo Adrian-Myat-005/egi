@@ -142,11 +142,37 @@ fun TerminalDashboard(
     var currentSsid by remember { mutableStateOf<String?>(null) }
     var isCurrentSsidTrusted by remember { mutableStateOf(false) }
     var isBatteryOptimized by remember { mutableStateOf(false) }
+    var isStrictBlocking by remember { mutableStateOf(false) }
+    var showLockdownDialog by remember { mutableStateOf(false) }
 
     // Reset booting state when VPN becomes active
     LaunchedEffect(isSecure) {
         if (isSecure) {
             isBooting = false
+        }
+    }
+
+    // Detect if 'Block connections without VPN' is active
+    LaunchedEffect(isSecure) {
+        while (true) {
+            if (!isSecure) {
+                // If we can't even ping a known IP while VPN is off, 
+                // and we've granted VPN permissions, it's likely lockdown mode.
+                val isBlocked = withContext(Dispatchers.IO) {
+                    try {
+                        val socket = java.net.Socket()
+                        socket.connect(java.net.InetSocketAddress("1.1.1.1", 53), 1500)
+                        socket.close()
+                        false
+                    } catch (e: Exception) {
+                        true
+                    }
+                }
+                isStrictBlocking = isBlocked
+            } else {
+                isStrictBlocking = false
+            }
+            delay(5000)
         }
     }
 
@@ -361,6 +387,16 @@ fun TerminalDashboard(
                 )
                 if (!isBatteryOptimized) {
                     Text("BATTERY_WARN", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+                if (isStrictBlocking) {
+                    Text(
+                        text = "STRICT_BLOCKING", 
+                        color = Color.Red, 
+                        fontSize = 10.sp, 
+                        fontFamily = FontFamily.Monospace, 
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showLockdownDialog = true }
+                    )
                 }
                 Text(
                     text = "[ CONFIG ]",
@@ -614,6 +650,37 @@ fun TerminalDashboard(
 
     
 
+                if (showLockdownDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showLockdownDialog = false },
+                        containerColor = Color.Black,
+                        title = { Text("STRICT MODE ACTIVE", color = Color.Red, fontFamily = FontFamily.Monospace) },
+                        text = { 
+                            Text(
+                                "Your Android system is set to 'Block connections without VPN'.\n\n" +
+                                "1. To use Focus Mode OFFLINE: Click CONFIG and turn OFF 'Block connections without VPN'.\n\n" +
+                                "2. To use Focus Mode ONLINE: Turn ON 'Stealth Mode' and enter a VPN Key.",
+                                color = Color.White,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { 
+                                showLockdownDialog = false
+                                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+                            }) {
+                                Text("OPEN CONFIG", color = Color.Cyan, fontFamily = FontFamily.Monospace)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showLockdownDialog = false }) {
+                                Text("UNDERSTOOD", color = Color.Green, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    )
+                }
+
                 if (showManual) {
 
                     TacticalManual(onDismiss = { showManual = false })
@@ -674,9 +741,14 @@ fun TerminalDashboard(
                         text = when {
                             isBooting -> "> [ BOOTING... ] <"
                             isSecure -> "> [ ABORT ] <"
+                            isStrictBlocking && !isStealthMode -> "> [ LOCKED: CONFIG_VPN ] <"
                             else -> "> [ EXECUTE ] <"
                         },
-                        color = if (isSecure) Color.Red else Color.Green,
+                        color = when {
+                            isSecure -> Color.Red
+                            isStrictBlocking && !isStealthMode -> Color.Yellow
+                            else -> Color.Green
+                        },
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
