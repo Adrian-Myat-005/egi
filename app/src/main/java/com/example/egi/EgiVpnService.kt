@@ -12,6 +12,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.content.pm.ServiceInfo
 import kotlinx.coroutines.*
 import java.io.IOException
 
@@ -67,7 +68,12 @@ class EgiVpnService : VpnService(), Runnable {
 
         isServiceActive = true
         createNotificationChannel()
-        startForeground(1, createNotification())
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1, createNotification())
+        }
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
             startVpnThread()
@@ -163,16 +169,26 @@ class EgiVpnService : VpnService(), Runnable {
 
             val fd = vpnInterface!!.fd
             if (EgiNetwork.isAvailable()) {
-                val allowedDomains = EgiPreferences.getAllowedDomains(this)
-                EgiNetwork.setAllowedDomains(allowedDomains)
-            }
-            
-            if (isStealth && ssKey.isNotEmpty()) {
-                TrafficEvent.log("SHIELD >> STEALTH_ON")
-                EgiNetwork.runVpnLoop(fd)
+                try {
+                    val allowedDomains = EgiPreferences.getAllowedDomains(this)
+                    EgiNetwork.setAllowedDomains(allowedDomains)
+                    
+                    if (isStealth && ssKey.isNotEmpty()) {
+                        TrafficEvent.log("SHIELD >> STEALTH_ON")
+                        EgiNetwork.runVpnLoop(fd)
+                    } else {
+                        TrafficEvent.log("SHIELD >> PASSIVE_ON")
+                        EgiNetwork.runPassiveShield(fd)
+                    }
+                } catch (t: Throwable) {
+                    TrafficEvent.log("CORE_ERROR >> NATIVE_CRASH: ${t.message}")
+                }
             } else {
-                TrafficEvent.log("SHIELD >> PASSIVE_ON")
-                EgiNetwork.runPassiveShield(fd)
+                TrafficEvent.log("CORE >> NATIVE_LIB_UNAVAILABLE")
+                // Keep the interface open to avoid immediate restart loop
+                while (isServiceActive) {
+                    try { Thread.sleep(1000) } catch (e: InterruptedException) { break }
+                }
             }
 
         } catch (e: Exception) {

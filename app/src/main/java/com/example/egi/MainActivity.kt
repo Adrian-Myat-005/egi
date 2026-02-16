@@ -64,32 +64,6 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PingGraph(history: List<Int>, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        val maxPing = 200f
-        
-        // Draw Grid lines
-        drawLine(Color.DarkGray, start = androidx.compose.ui.geometry.Offset(0f, height * 0.5f), end = androidx.compose.ui.geometry.Offset(width, height * 0.5f), strokeWidth = 1f)
-        
-        if (history.size < 2) return@Canvas
-
-        val path = Path()
-        val step = width / (history.size - 1)
-        
-        history.forEachIndexed { index, ping ->
-            val x = index * step
-            val normalizedPing = (ping.coerceIn(0, maxPing.toInt()) / maxPing)
-            val y = height - (normalizedPing * height)
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        
-        drawPath(path, color = Color.Green, style = Stroke(width = 4f))
-    }
-}
-
-@Composable
 fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
@@ -171,7 +145,6 @@ fun TerminalDashboard(
     var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
     var currentPing by remember { mutableStateOf(0) }
     val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
-    var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
     var currentJitter by remember { mutableStateOf(0) }
     var serverStatus by remember { mutableStateOf("CONNECTING") }
     val blockedCount by TrafficEvent.blockedCount.collectAsState()
@@ -242,7 +215,7 @@ fun TerminalDashboard(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
-            context.startService(Intent(context, EgiVpnService::class.java))
+            ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
             isBooting = false
         } else {
             isBooting = false
@@ -279,9 +252,6 @@ fun TerminalDashboard(
                     currentPing = json.optInt("ping", -1)
                     currentJitter = json.optInt("jitter", 0)
                     serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
-                    if (currentPing != -1) {
-                        pingHistory = (pingHistory + currentPing).takeLast(20)
-                    }
                 } catch (e: Throwable) {
                     serverStatus = "ERROR"
                 }
@@ -388,16 +358,14 @@ fun TerminalDashboard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Graph & Ping
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                PingGraph(
-                    history = pingHistory,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(80.dp)
-                        .padding(end = 16.dp)
-                )
-                Column(horizontalAlignment = Alignment.End) {
+            // Stats HUD
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("PING", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Text(
                         text = if (currentPing == -1) "-- ms" else "$animatedPing ms",
                         color = when {
@@ -406,35 +374,39 @@ fun TerminalDashboard(
                             currentPing < 120 -> Color.Yellow
                             else -> Color.Red
                         },
-                        fontSize = 32.sp,
+                        fontSize = 24.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold
                     )
-                    Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(
+                        text = "$currentJitter ms",
+                        color = Color.Cyan,
+                        fontSize = 18.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("BLOCKED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(
+                        text = blockedCount.toString(),
+                        color = if (blockedCount > 0) Color.Red else Color.Green,
+                        fontSize = 18.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
-            // Secondary Stats
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
+                text = if (isSecure) ">> VPN TUNNEL: ENCRYPTED <<" else ">> VPN TUNNEL: INACTIVE <<",
                 color = if (isSecure) Color.Cyan else Color.Gray,
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
@@ -624,19 +596,19 @@ fun TerminalDashboard(
 
                                                         val intent = VpnService.prepare(context)
 
-                                                        if (intent != null) {
+                                                                                                                if (intent != null) {
 
-                                                            vpnLauncher.launch(intent)
+                                                                                                                    vpnLauncher.launch(intent)
 
-                                                        } else {
+                                                                                                                } else {
 
-                                                            context.startService(Intent(context, EgiVpnService::class.java))
+                                                                                                                    ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
 
-                                                            isBooting = false // Reset here if already prepared
+                                                                                                                    isBooting = false // Reset here if already prepared
 
-                                                        }
+                                                                                                                }
 
-                                                    } else if (isSecure) {
+                                                                                                            } else if (isSecure) {
 
                                 val stopIntent = Intent(context, EgiVpnService::class.java).apply {
 
