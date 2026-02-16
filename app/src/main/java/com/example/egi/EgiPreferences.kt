@@ -16,6 +16,7 @@ object EgiPreferences {
     private const val KEY_BANDWIDTH_LIMIT = "bandwidth_limit"
     private const val KEY_SYNC_ENDPOINT = "sync_endpoint"
     private const val KEY_STEALTH_MODE = "stealth_mode"
+    private const val KEY_VPN_TUNNEL_MODE = "vpn_tunnel_mode"
     private const val KEY_OUTLINE_KEY = "outline_key"
 
     fun saveMode(context: Context, mode: AppMode) {
@@ -31,6 +32,16 @@ object EgiPreferences {
     fun setStealthMode(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_STEALTH_MODE, enabled).apply()
+    }
+
+    fun setVpnTunnelMode(context: Context, isGlobal: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_VPN_TUNNEL_MODE, isGlobal).apply()
+    }
+
+    fun isVpnTunnelGlobal(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_VPN_TUNNEL_MODE, true) // Default to GLOBAL
     }
 
     fun saveOutlineKey(context: Context, key: String) {

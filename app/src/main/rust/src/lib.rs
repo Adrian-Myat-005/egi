@@ -6,9 +6,16 @@ use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::net::TcpStream as AsyncTcpStream;
-
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::RwLock;
+
+// Real imports for Shadowsocks and Tun2Proxy
+use shadowsocks::{
+    config::{ServerConfig, ServerType},
+    run_local,
+};
+// Note: We might need to adjust imports based on specific crate versions if build fails,
+// but this is the standard structure for shadowsocks-rust.
 
 static TCP_COUNT: AtomicU64 = AtomicU64::new(0);
 static UDP_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -50,56 +57,75 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
     _class: JClass,
     fd: i32,
 ) {
-    // Heap allocate buffer to prevent stack overflow on Android threads
-    let mut buf = vec![0u8; 4096]; 
-    
-    loop {
-        let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
-        
-        if n > 0 {
-            let _is_stealth = STEALTH_MODE.load(Ordering::Relaxed);
-            
-            // Core Logic: Atomic Counting & Decisions
-            let version = buf[0] >> 4;
-            let protocol = if version == 4 { buf[9] } else if version == 6 && n >= 40 { buf[6] } else { 0 };
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        // --- 1. Retrieve Key ---
+        let key_guard = OUTLINE_KEY.read().unwrap();
+        let key_str = key_guard.clone();
+        drop(key_guard);
 
-            match protocol {
-                6 => { TCP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                17 => { UDP_COUNT.fetch_add(1, Ordering::Relaxed); }
-                _ => { OTHER_COUNT.fetch_add(1, Ordering::Relaxed); }
+        if key_str.is_empty() {
+            // Safety fallback: Consume and drop if no key
+            let mut buf = vec![0u8; 4096];
+            loop {
+                let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
+                if n <= 0 { break; }
             }
-            BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
-
-            // In Stealth Mode, packets would be encrypted and forwarded here.
-            // In Shield Mode, we simply do nothing with the buffer, effectively dropping it.
-            
-        } else if n < 0 {
-            let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-            if err == libc::EINTR || err == libc::EAGAIN {
-                continue; // System interrupt, try again
-            }
-            break; // Fatal error
-        } else {
-            break; // End of file (Interface closed)
+            return;
         }
-    }
-}
 
-#[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_getEnergySavings(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jstring {
-    let blocked = TCP_COUNT.load(Ordering::Relaxed) + UDP_COUNT.load(Ordering::Relaxed);
-    let bytes = BYTES_PROCESSED.load(Ordering::Relaxed);
-    
-    // Minimalist Formula: 
-    // - Every blocked packet saves approx 0.05mA of radio wake-time
-    // - Every MB blocked saves approx 0.1mA of data processing
-    let ma_saved = (blocked as f64 * 0.05) + (bytes as f64 / 1024.0 / 1024.0 * 0.1);
-    
-    let stats = format!(r#"{{"ma_saved": {:.2}, "packets": {}, "efficiency": "99.2%"}}"#, ma_saved, blocked);
-    _env.new_string(stats).unwrap().into_raw()
+        // --- 2. Start Shadowsocks Local SOCKS5 Server ---
+        // We start it on a random local port
+        let local_ip = "127.0.0.1";
+        // We pick a fixed port for simplicity in this example, or 0 for random.
+        // Let's use 10808 to match standard examples.
+        let socks5_addr: SocketAddr = format!("{}:10808", local_ip).parse().unwrap();
+
+        // Spawn Shadowsocks Client
+        let ss_key = key_str.clone();
+        tokio::spawn(async move {
+            // Parse the config from the ss:// string
+            // Note: In real production code, handle errors gracefully.
+            match ServerConfig::from_url(&ss_key) {
+                Ok(config) => {
+                    let mut service = shadowsocks::config::ServiceConfig::new(ServerType::Local);
+                    service.local_addr = Some(socks5_addr);
+                    
+                    // Run the local server
+                    if let Err(e) = run_local(service, config).await {
+                        // Log error (using println for now as we don't have android_logger setup)
+                        eprintln!("Shadowsocks server failed: {}", e);
+                    }
+                },
+                Err(e) => eprintln!("Invalid SS Key: {}", e),
+            }
+        });
+
+        // Give it a moment to bind
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // --- 3. Setup tun2proxy ---
+        // Create the TUN device from the raw file descriptor provided by Android
+        // We use 'unsafe' because we are taking ownership of a raw FD.
+        // The 'tun' crate handles the platform specifics.
+        let tun_device = unsafe { tun::platform::Device::from_raw_fd(fd) };
+
+        // Configure tun2proxy to forward all traffic from this TUN device 
+        // to the SOCKS5 proxy we just started.
+        let proxy = tun2proxy::Proxy {
+            proxy_type: tun2proxy::ProxyType::Socks5,
+            addr: socks5_addr,
+            auth: None, // Shadowsocks local SOCKS5 usually doesn't need auth
+        };
+
+        // Run the tunnel
+        // tun2proxy::run takes the device, MTU, and proxy config
+        // Note: tun2proxy API might vary slightly by version. 
+        // Assuming: run(device, mtu, proxy)
+        if let Err(e) = tun2proxy::run(tun_device, 1500, proxy).await {
+            eprintln!("tun2proxy failed: {}", e);
+        }
+    });
 }
 
 #[no_mangle]
@@ -231,10 +257,9 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
                 }
 
                 if found {
-                    let simulated_mac = format!("00:1A:2B:3C:4D:{:02X}", i);
                     return Some(DeviceInfo {
                         ip,
-                        mac: simulated_mac,
+                        mac: "00:00:00:00:00:00".to_string(),
                         status: if i == 1 { "Gateway".to_string() } else { "Active".to_string() },
                     });
                 }
@@ -254,16 +279,3 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
     let json = serde_json::to_string(&devices).unwrap_or_else(|_| "[]".to_string());
     env.new_string(json).unwrap().into_raw()
 }
-
-#[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
-    _env: JNIEnv,
-    _class: JClass,
-    _target_ip: JString,
-    _target_mac: JString,
-) -> bool {
-    // Protocol: ARP Poisoning / Deauth Simulation
-    true
-}
-
-

@@ -99,17 +99,25 @@ class EgiVpnService : VpnService(), Runnable {
                 }
             }
 
-            // Split Tunneling Inversion: VIPs bypass the VPN (0ms lag)
-            vipList.forEach { packageName ->
-                try {
-                    builder.addDisallowedApplication(packageName)
-                } catch (e: Exception) {
-                    // Ignore missing apps
+            // Split Tunneling Configuration
+            val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
+            
+            if (!isGlobal) {
+                // SELECTED MODE: Only allow VIP apps through VPN
+                vipList.forEach { packageName ->
+                    try {
+                        builder.addAllowedApplication(packageName)
+                    } catch (e: Exception) {
+                        // Ignore missing apps
+                    }
                 }
+            } else {
+                // GLOBAL MODE: Tunnel everything EXCEPT specific bypasses (if any needed)
+                // We keep the "Disallowed" list empty or specific for things we NEVER want to tunnel
+                try {
+                    builder.addDisallowedApplication("com.example.egi") // Always exclude self
+                } catch (e: Exception) { }
             }
-
-            // Always disallow self to prevent UI lag
-            builder.addDisallowedApplication("com.example.egi")
 
             // The Trap: Capture ALL other traffic (IPv4 & IPv6)
             builder.addRoute("0.0.0.0", 0)

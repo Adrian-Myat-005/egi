@@ -88,6 +88,45 @@ fun AppSelectorScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // VPN Tunnel Mode Toggle
+        var isGlobal by remember { mutableStateOf(EgiPreferences.isVpnTunnelGlobal(context)) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .background(Color.DarkGray.copy(alpha = 0.3f))
+                .clickable {
+                    isGlobal = !isGlobal
+                    EgiPreferences.setVpnTunnelMode(context, isGlobal)
+                }
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("TUNNEL MODE", color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isGlobal) "GLOBAL (ALL APPS)" else "SELECTED APPS ONLY", 
+                    color = if (isGlobal) Color.Cyan else Color.Yellow, 
+                    fontSize = 10.sp, 
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Switch(
+                checked = isGlobal,
+                onCheckedChange = { 
+                    isGlobal = it 
+                    EgiPreferences.setVpnTunnelMode(context, it)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.Cyan,
+                    checkedTrackColor = Color.DarkGray,
+                    uncheckedThumbColor = Color.Yellow,
+                    uncheckedTrackColor = Color.DarkGray
+                )
+            )
+        }
+
         // Mode Tabs
         Row(modifier = Modifier.fillMaxWidth()) {
             ModeTab(

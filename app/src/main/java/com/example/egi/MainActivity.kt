@@ -83,18 +83,6 @@ fun PingGraph(history: List<Int>, modifier: Modifier = Modifier) {
         }
         
         drawPath(path, color = Color.Green, style = Stroke(width = 4f))
-
-        // Draw Simulated "Unoptimized" Red Path (Lag Spikes)
-        val redPath = Path()
-        history.forEachIndexed { index, ping ->
-            val x = index * step
-            // Simulate a lag spike on the red line
-            val simulatedLag = if (index % 5 == 0) (ping + 80).coerceIn(0, maxPing.toInt()) else (ping + 20).coerceIn(0, maxPing.toInt())
-            val normalizedPing = (simulatedLag / maxPing)
-            val y = height - (normalizedPing * height)
-            if (index == 0) redPath.moveTo(x, y) else redPath.lineTo(x, y)
-        }
-        drawPath(redPath, color = Color.Red.copy(alpha = 0.3f), style = Stroke(width = 2f))
     }
 }
 
@@ -154,804 +142,317 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun TerminalDashboard(
-
     onOpenAppPicker: () -> Unit,
-
     onOpenDnsPicker: () -> Unit,
-
     onOpenAppSelector: () -> Unit,
-
     onOpenWifiRadar: () -> Unit,
-
     dnsMsg: String?,
-
     onDnsLogConsumed: () -> Unit
-
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val isSecure by TrafficEvent.vpnActive.collectAsState()
+    var isBooting by remember { mutableStateOf(false) }
+    var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
+    var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
+    var showKeyDialog by remember { mutableStateOf(false) }
+    var showManual by remember { mutableStateOf(false) }
+    var currentSsid by remember { mutableStateOf<String?>(null) }
+    var isCurrentSsidTrusted by remember { mutableStateOf(false) }
 
-        val context = LocalContext.current
+    // HUD States
+    var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
+    var currentPing by remember { mutableStateOf(0) }
+    val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
+    var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
+    var currentJitter by remember { mutableStateOf(0) }
+    var serverStatus by remember { mutableStateOf("CONNECTING") }
+    val blockedCount by TrafficEvent.blockedCount.collectAsState()
 
-        val scope = rememberCoroutineScope()
+    // Dropdown State
+    var expanded by remember { mutableStateOf(false) }
 
-        val isSecure by TrafficEvent.vpnActive.collectAsState()
-
-        var isBooting by remember { mutableStateOf(false) }
-
-        var isGeofenceEnabled by remember { mutableStateOf(EgiPreferences.isGeofencingEnabled(context)) }
-
-        var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
-
-            var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
-
-            var showKeyDialog by remember { mutableStateOf(false) }
-
-            var showManual by remember { mutableStateOf(false) }
-
-            var currentSsid by remember { mutableStateOf<String?>(null) }
-
-            var isCurrentSsidTrusted by remember { mutableStateOf(false) }
-
-        
-
-            // HUD States
-
-            var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
-
-            var currentPing by remember { mutableStateOf(0) }
-
-            val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
-
-            var pingHistory by remember { mutableStateOf(List(20) { 0 }) }
-
-            var currentJitter by remember { mutableStateOf(0) }
-
-            var serverStatus by remember { mutableStateOf("CONNECTING") }
-
-            var maSaved by remember { mutableStateOf(0.0) }
-
-            var efficiency by remember { mutableStateOf("99.2%") }
-
-            val blockedCount by TrafficEvent.blockedCount.collectAsState()
-
-            
-
-            // Dropdown State
-
-            var expanded by remember { mutableStateOf(false) }
-
-        
-
-            fun syncConfig() {
-
-            scope.launch {
-
-                try {
-
-                    withContext(Dispatchers.IO) {
-
-                        // Minimalist JSON Sync: Post current blocklist to cloud
-
-                        val json = JSONObject()
-
-                        json.put("trusted_ssids", JSONArray(EgiPreferences.getTrustedSSIDs(context).toList()))
-
-                        json.put("blocked_count", blockedCount)
-
-                        json.put("outline_key", outlineKey)
-
-                        // Simulated POST
-
-                        delay(500)
-
-                    }
-
-                    Toast.makeText(context, "CONFIG SYNCED SECURELY", Toast.LENGTH_SHORT).show()
-
-                } catch (e: Exception) {
-
-                    Toast.makeText(context, "SYNC FAILED", Toast.LENGTH_SHORT).show()
-
-                }
-
+    fun importConfigFromClipboard() {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        if (clip != null && clip.itemCount > 0) {
+            val text = clip.getItemAt(0).text.toString()
+            if (text.startsWith("ss://")) {
+                outlineKey = text
+                EgiPreferences.saveOutlineKey(context, outlineKey)
+                Toast.makeText(context, "CONFIG IMPORTED", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "INVALID SS KEY", Toast.LENGTH_SHORT).show()
             }
-
         }
+    }
 
-    
+    // Sync Stealth state to native
+    LaunchedEffect(isStealthMode, outlineKey) {
+        if (EgiNetwork.isAvailable()) {
+            EgiNetwork.toggleStealthMode(isStealthMode)
+            if (outlineKey.isNotEmpty()) {
+                EgiNetwork.setOutlineKey(outlineKey)
+            }
+        }
+    }
 
-        // Sync Stealth state to native
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (granted) {
+            onOpenWifiRadar()
+        } else {
+            Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-        LaunchedEffect(isStealthMode, outlineKey) {
+    val vpnLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            context.startService(Intent(context, EgiVpnService::class.java))
+            isBooting = false
+        } else {
+            isBooting = false
+            Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
+        }
+    }
 
+    // WiFi Info Polling
+    LaunchedEffect(Unit) {
+        val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        while (true) {
+            val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
+            if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
+                currentSsid = ssid
+                isCurrentSsidTrusted = EgiPreferences.getTrustedSSIDs(context).contains(ssid)
+            } else {
+                currentSsid = null
+                isCurrentSsidTrusted = false
+            }
+            delay(5000)
+        }
+    }
+
+    // Real-Time Stats Loop (The HUD)
+    LaunchedEffect(selectedServer) {
+        while (true) {
+            delay(1500)
             if (EgiNetwork.isAvailable()) {
-
-                EgiNetwork.toggleStealthMode(isStealthMode)
-
-                if (outlineKey.isNotEmpty()) {
-
-                    EgiNetwork.setOutlineKey(outlineKey)
-
-                }
-
-            }
-
-        }
-
-    
-
-        val permissionLauncher = rememberLauncherForActivityResult(
-
-            contract = ActivityResultContracts.RequestMultiplePermissions()
-
-        ) { permissions ->
-
-            val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
-
-            if (granted) {
-
-                onOpenWifiRadar()
-
-            } else {
-
-                Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
-
-            }
-
-        }
-
-    
-
-        val vpnLauncher = rememberLauncherForActivityResult(
-
-            contract = ActivityResultContracts.StartActivityForResult()
-
-        ) { result ->
-
-            if (result.resultCode == android.app.Activity.RESULT_OK) {
-
-                context.startService(Intent(context, EgiVpnService::class.java))
-
-                isBooting = false
-
-            } else {
-
-                isBooting = false
-
-                Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
-
-            }
-
-        }
-
-    
-
-        // WiFi Info Polling
-
-        LaunchedEffect(Unit) {
-
-            val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-
-            while (true) {
-
-                val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
-
-                if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
-
-                    currentSsid = ssid
-
-                    isCurrentSsidTrusted = EgiPreferences.getTrustedSSIDs(context).contains(ssid)
-
-                } else {
-
-                    currentSsid = null
-
-                    isCurrentSsidTrusted = false
-
-                }
-
-                delay(5000)
-
-            }
-
-        }
-
-    
-
-        // Real-Time Stats Loop (The HUD)
-
-        LaunchedEffect(selectedServer) {
-
-            while (true) {
-
-                delay(1500)
-
-                if (EgiNetwork.isAvailable()) {
-
-                    try {
-
-                        val statsJson = withContext(Dispatchers.IO) {
-
-                            EgiNetwork.measureNetworkStats(selectedServer.ip)
-
-                        }
-
-                        val energyJson = EgiNetwork.getEnergySavings()
-
-                        
-
-                        // Parse JSON for HUD
-
-                        val json = JSONObject(statsJson)
-
-                        val enJson = JSONObject(energyJson)
-
-                        
-
-                        currentPing = json.optInt("ping", -1)
-
-                        currentJitter = json.optInt("jitter", 0)
-
-                        maSaved = enJson.optDouble("ma_saved", 0.0)
-
-                        efficiency = enJson.optString("efficiency", "99.2%")
-
-                        
-
-                        serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
-
-                        
-
-                        if (currentPing != -1) {
-
-                            pingHistory = (pingHistory + currentPing).takeLast(20)
-
-                        }
-
-                    } catch (e: Throwable) {
-
-                        serverStatus = "ERROR"
-
+                try {
+                    val statsJson = withContext(Dispatchers.IO) {
+                        EgiNetwork.measureNetworkStats(selectedServer.ip)
                     }
-
-                } else {
-
-                    serverStatus = "LIB_ERR"
-
+                    val json = JSONObject(statsJson)
+                    currentPing = json.optInt("ping", -1)
+                    currentJitter = json.optInt("jitter", 0)
+                    serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
+                    if (currentPing != -1) {
+                        pingHistory = (pingHistory + currentPing).takeLast(20)
+                    }
+                } catch (e: Throwable) {
+                    serverStatus = "ERROR"
                 }
-
+            } else {
+                serverStatus = "LIB_ERR"
             }
-
         }
+    }
 
-    
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .padding(16.dp)
+    ) {
+        // --- TOP SECTION: THE HUD (Weight 0.45) ---
         Column(
-
             modifier = Modifier
-
-                .fillMaxSize()
-
-                .background(Color.Black)
-
-                .padding(16.dp)
-
+                .weight(0.48f)
+                .fillMaxWidth()
         ) {
-
-            // --- TOP SECTION: THE HUD (Weight 0.45) ---
-
-            Column(
-
-                modifier = Modifier
-
-                    .weight(0.48f)
-
-                    .fillMaxWidth()
-
-            ) {
-
-                // Server Selector & Stealth Toggle
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-
-                    Box(
-
-                        modifier = Modifier
-
-                            .weight(1f)
-
-                            .clickable { expanded = true }
-
-                            .background(Color.DarkGray.copy(alpha = 0.3f))
-
-                            .padding(8.dp)
-
-                    ) {
-
-                        Text(
-
-                            text = "SERVER: ${selectedServer.name}",
-
-                            color = Color.Green,
-
-                            fontFamily = FontFamily.Monospace,
-
-                            fontWeight = FontWeight.Bold
-
-                        )
-
-                        DropdownMenu(
-
-                            expanded = expanded,
-
-                            onDismissRequest = { expanded = false },
-
-                            modifier = Modifier.background(Color.Black)
-
-                        ) {
-
-                            GameServers.list.forEach { server ->
-
-                                DropdownMenuItem(
-
-                                    text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
-
-                                    onClick = {
-
-                                        selectedServer = server
-
-                                        expanded = false
-
-                                    }
-
-                                )
-
-                            }
-
-                        }
-
-                    }
-
-                    
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    
-
-                                    // Stealth Mode Toggle
-
-                    
-
-                                    Text(
-
-                    
-
-                                        text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
-
-                    
-
-                                        color = if (isStealthMode) Color.Magenta else Color.Gray,
-
-                    
-
-                                        fontFamily = FontFamily.Monospace,
-
-                    
-
-                                        fontSize = 10.sp,
-
-                    
-
-                                        modifier = Modifier
-
-                    
-
-                                            .clickable {
-
-                    
-
-                                                isStealthMode = !isStealthMode
-
-                    
-
-                                                EgiPreferences.setStealthMode(context, isStealthMode)
-
-                    
-
-                                            }
-
-                    
-
-                                            .padding(4.dp)
-
-                    
-
-                                    )
-
-                    
-
-                                }
-
-                    
-
-                    
-
-                    
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                    
-
-                    
-
-                    
-
-                                // Battery Impact Dashboard (Static Clean)
-
-                    
-
-                                Row(
-
-                    
-
-                                    modifier = Modifier
-
-                    
-
-                                        .fillMaxWidth()
-
-                    
-
-                                        .background(Color.DarkGray.copy(alpha = 0.2f))
-
-                    
-
-                                        .padding(4.dp),
-
-                    
-
-                                    horizontalArrangement = Arrangement.SpaceAround,
-
-                    
-
-                                    verticalAlignment = Alignment.CenterVertically
-
-                    
-
-                                ) {
-
-                    
-
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-                    
-
-                                        Text("ENERGY SAVED", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-
-                    
-
-                                        Text("${String.format("%.2f", maSaved)} mA", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-
-                    
-
-                                    }
-
-                    
-
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-                    
-
-                                        Text("CORE EFFICIENCY", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-
-                    
-
-                                        Text(efficiency, color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-
-                    
-
-                                    }
-
-                    
-
-                                    // HELP BUTTON
-
-                    
-
-                                    Text(
-
-                    
-
-                                        text = "[ ? ]",
-
-                    
-
-                                        color = Color.White,
-
-                    
-
-                                        fontSize = 14.sp,
-
-                    
-
-                                        fontFamily = FontFamily.Monospace,
-
-                    
-
-                                        fontWeight = FontWeight.Bold,
-
-                    
-
-                                        modifier = Modifier.clickable { showManual = true }.padding(4.dp)
-
-                    
-
-                                    )
-
-                    
-
-                                }
-
-    
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                
-
-                // WiFi Info / Trust Action / Geofence
-
-                Row(
-
-                    modifier = Modifier.fillMaxWidth(),
-
-                    horizontalArrangement = Arrangement.SpaceBetween,
-
-                    verticalAlignment = Alignment.CenterVertically
-
+            // Server Selector & Stealth Toggle
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { expanded = true }
+                        .background(Color.DarkGray.copy(alpha = 0.3f))
+                        .padding(8.dp)
                 ) {
-
-                    if (currentSsid != null) {
-
-                        Text(
-
-                            text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
-
-                            color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
-
-                            fontFamily = FontFamily.Monospace,
-
-                            fontSize = 10.sp
-
-                        )
-
-                    } else {
-
-                        Text("NO WIFI DETECTED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-
-                    }
-
-                    
-
                     Text(
-
-                        text = if (isGeofenceEnabled) "[ GEOFENCE: ON ]" else "[ GEOFENCE: OFF ]",
-
-                        color = if (isGeofenceEnabled) Color.Cyan else Color.Gray,
-
+                        text = "SERVER: ${selectedServer.name}",
+                        color = Color.Green,
                         fontFamily = FontFamily.Monospace,
-
-                        fontSize = 10.sp,
-
-                        modifier = Modifier
-
-                            .clickable {
-
-                                isGeofenceEnabled = !isGeofenceEnabled
-
-                                EgiPreferences.setGeofencingEnabled(context, isGeofenceEnabled)
-
-                            }
-
-                            .padding(4.dp)
-
+                        fontWeight = FontWeight.Bold
                     )
-
-                }
-
-    
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-    
-
-                // Graph & Ping
-
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-
-                    PingGraph(
-
-                        history = pingHistory,
-
-                        modifier = Modifier
-
-                            .weight(1f)
-
-                            .height(80.dp)
-
-                            .padding(end = 16.dp)
-
-                    )
-
-                    Column(horizontalAlignment = Alignment.End) {
-
-                        Text(
-
-                            text = if (currentPing == -1) "-- ms" else "$animatedPing ms",
-
-                            color = when {
-
-                                currentPing == -1 -> Color.Red
-
-                                currentPing < 60 -> Color.Green
-
-                                currentPing < 120 -> Color.Yellow
-
-                                else -> Color.Red
-
-                            },
-
-                            fontSize = 32.sp,
-
-                            fontFamily = FontFamily.Monospace,
-
-                            fontWeight = FontWeight.Bold
-
-                        )
-
-                        Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.background(Color.Black)
+                    ) {
+                        GameServers.list.forEach { server ->
+                            DropdownMenuItem(
+                                text = { Text(server.name, color = Color.Green, fontFamily = FontFamily.Monospace) },
+                                onClick = {
+                                    selectedServer = server
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
-
                 }
-
-    
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-    
-
-                // Secondary Stats
-
-                Row(
-
-                    modifier = Modifier.fillMaxWidth(),
-
-                    horizontalArrangement = Arrangement.SpaceBetween
-
-                ) {
-
-                    Column {
-
-                        Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-
-                        Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-
-                    }
-
-                    Column(horizontalAlignment = Alignment.End) {
-
-                        Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-
-                        Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-
-                    }
-
-                }
-
                 
-
-                Spacer(modifier = Modifier.height(8.dp))
-
+                Spacer(modifier = Modifier.width(8.dp))
                 
-
                 Text(
-
-                    text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
-
-                    color = if (isSecure) Color.Cyan else Color.Gray,
-
-                    fontSize = 12.sp,
-
+                    text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
+                    color = if (isStealthMode) Color.Magenta else Color.Gray,
                     fontFamily = FontFamily.Monospace,
-
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-
+                    fontSize = 10.sp,
+                    modifier = Modifier
+                        .clickable {
+                            isStealthMode = !isStealthMode
+                            EgiPreferences.setStealthMode(context, isStealthMode)
+                        }
+                        .padding(4.dp)
                 )
-
+            }
+                
+            Spacer(modifier = Modifier.height(8.dp))
+                
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.DarkGray.copy(alpha = 0.2f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("EGI CORE STATUS: NOMINAL", color = Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    text = "[ ? ]",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { showManual = true }.padding(4.dp)
+                )
             }
 
-    
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // WiFi Info
+            if (currentSsid != null) {
+                Text(
+                    text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
+                    color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp
+                )
+            } else {
+                Text("NO WIFI DETECTED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
 
-            Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-    
-
-            // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.52) ---
-
-            Column(
-
-                modifier = Modifier
-
-                    .weight(0.52f)
-
-                    .fillMaxWidth(),
-
-                horizontalAlignment = Alignment.CenterHorizontally,
-
-                verticalArrangement = Arrangement.Center
-
-            ) {
-
-                ShieldStatusCard(blockedCount, isSecure)
-
-    
-
-                Spacer(modifier = Modifier.weight(1f))
-
-    
-
-                // Control Grid
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-
-                     Row(
-
-                        modifier = Modifier.fillMaxWidth(),
-
-                        horizontalArrangement = Arrangement.SpaceEvenly
-
-                    ) {
-
-                        MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
-
-                        MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
-
-                    }
-
-                    Row(
-
-                        modifier = Modifier.fillMaxWidth(),
-
-                        horizontalArrangement = Arrangement.SpaceEvenly
-
-                    ) {
-
-                        MenuButton("[ SYNC CONFIG ]") { syncConfig() }
-
-                        MenuButton("[ NETWORK RADAR ]") {
-
-                            val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
-
-                            if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-
-                                onOpenWifiRadar()
-
-                            } else {
-
-                                permissionLauncher.launch(arrayOf(
-
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-
-                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
-
-                                ))
-
-                            }
-
-                        }
-
-                    }
-
+            // Graph & Ping
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                PingGraph(
+                    history = pingHistory,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp)
+                        .padding(end = 16.dp)
+                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (currentPing == -1) "-- ms" else "$animatedPing ms",
+                        color = when {
+                            currentPing == -1 -> Color.Red
+                            currentPing < 60 -> Color.Green
+                            currentPing < 120 -> Color.Yellow
+                            else -> Color.Red
+                        },
+                        fontSize = 32.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("CURRENT PING", color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Secondary Stats
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text("$currentJitter ms", color = Color.Green, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(serverStatus, color = if(serverStatus == "ONLINE") Color.Green else Color.Red, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = if (isSecure) "VPN TUNNEL: ENCRYPTED" else "VPN TUNNEL: INACTIVE",
+                color = if (isSecure) Color.Cyan else Color.Gray,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+
+        Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+        // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.52) ---
+        Column(
+            modifier = Modifier
+                .weight(0.52f)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            ShieldStatusCard(blockedCount, isSecure)
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Control Grid
+            Column(modifier = Modifier.fillMaxWidth()) {
+                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
+                    MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MenuButton("[ IMPORT KEY ]") { importConfigFromClipboard() }
+                    MenuButton("[ NETWORK RADAR ]") {
+                        val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            onOpenWifiRadar()
+                        } else {
+                            permissionLauncher.launch(arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            ))
+                        }
+                    }
+                }
+            }
 
                 
 

@@ -44,7 +44,6 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
     var resolvedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var isScanning by remember { mutableStateOf(true) }
     var selectedDevice by remember { mutableStateOf<DeviceInfo?>(null) }
-    var kickedDevices by remember { mutableStateOf(setOf<String>()) }
     var isMapView by remember { mutableStateOf(false) }
 
     // Channel Analysis State
@@ -128,16 +127,8 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
 
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(resolvedDevices) { device ->
-                    val isKicked = kickedDevices.contains(device.ip)
                     DeviceRow(
-                        device = device.copy(isKicked = isKicked),
-                        onKick = {
-                            if (EgiNetwork.isAvailable()) {
-                                EgiNetwork.kickDevice(device.ip, device.mac)
-                                kickedDevices = kickedDevices + device.ip
-                                Toast.makeText(context, "BLACK HOLE ACTIVE: ${device.ip}", Toast.LENGTH_SHORT).show()
-                            }
-                        },
+                        device = device,
                         onClick = {
                             if (device.status != "Gateway") {
                                 selectedDevice = device
@@ -155,13 +146,13 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
             onDismissRequest = { selectedDevice = null },
             containerColor = Color.Black,
             title = {
-                Text("HOSTILE DETECTED", color = Color.Red, fontFamily = FontFamily.Monospace)
+                Text("DEVICE DETAILS", color = Color.Cyan, fontFamily = FontFamily.Monospace)
             },
             text = {
                 Text(
                     """Name: ${device.name}
 Target: ${device.ip}
-Action: Intercept and Redirect to Gateway for manual blacklisting.""",
+Action: Open router dashboard for advanced management.""",
                     color = Color.Green,
                     fontFamily = FontFamily.Monospace
                 )
@@ -380,7 +371,7 @@ fun ColumnScope.TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInf
                     val y = (r * Math.sin(angle.toDouble())).toFloat()
                     
                     drawLine(
-                        color = if (device.isKicked) Color.Red.copy(alpha = 0.3f) else Color.Green.copy(alpha = 0.3f),
+                        color = Color.Green.copy(alpha = 0.3f),
                         start = center,
                         end = center.copy(x = center.x + x, y = center.y + y),
                         strokeWidth = 2f
@@ -417,7 +408,7 @@ fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(if (isGateway) 48.dp else 32.dp)
-                .background(if (device.isKicked) Color.Red else Color.Black, androidx.compose.foundation.shape.CircleShape)
+                .background(Color.Black, androidx.compose.foundation.shape.CircleShape)
                 .background(
                     if (isGateway) Color.Green.copy(alpha = 0.2f) else Color.Cyan.copy(alpha = 0.1f),
                     androidx.compose.foundation.shape.CircleShape
@@ -428,13 +419,13 @@ fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (device.isKicked) Color.White else if (isGateway) Color.Green else Color.Cyan,
+                tint = if (isGateway) Color.Green else Color.Cyan,
                 modifier = Modifier.fillMaxSize()
             )
         }
         Text(
             text = if (isGateway) "GATEWAY" else device.ip.split(".").last(),
-            color = if (device.isKicked) Color.Red else Color.Green,
+            color = Color.Green,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold
@@ -444,7 +435,7 @@ fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
 
 
 @Composable
-fun DeviceRow(device: DeviceInfo, onKick: () -> Unit, onClick: () -> Unit) {
+fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
     val icon = when {
         device.status == "Gateway" -> Icons.Default.Router
         device.name.contains("Android", true) || device.name.contains("Galaxy", true) || device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
@@ -462,35 +453,22 @@ fun DeviceRow(device: DeviceInfo, onKick: () -> Unit, onClick: () -> Unit) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (device.isKicked) Color.Red else if (device.status == "Gateway") Color.Green else Color.Yellow,
+            tint = if (device.status == "Gateway") Color.Green else Color.Yellow,
             modifier = Modifier.size(32.dp).padding(end = 12.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (device.status == "Gateway" && device.name == "Unknown Device") "Gateway (${device.ip})" else device.name,
-                color = if (device.isKicked) Color.Red else Color.Green,
+                color = Color.Green,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "IP: ${device.ip} | MAC: ${device.mac}",
-                color = if (device.isKicked) Color.Red.copy(alpha = 0.5f) else Color.Gray,
+                color = Color.Gray,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp
-            )
-        }
-        
-        if (device.status != "Gateway") {
-            Text(
-                text = if (device.isKicked) "[ BLOCKED ]" else "[ KICK ]",
-                color = if (device.isKicked) Color.Red else Color.Cyan,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clickable { onKick() }
-                    .padding(8.dp)
             )
         }
     }
@@ -500,6 +478,5 @@ data class DeviceInfo(
     val ip: String,
     val name: String = "Unknown Device",
     val status: String,
-    val mac: String = "00:00:00:00:00:00",
-    val isKicked: Boolean = false
+    val mac: String = "00:00:00:00:00:00"
 )
