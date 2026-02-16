@@ -67,6 +67,7 @@ class EgiVpnService : VpnService(), Runnable {
 
     private fun stopVpn() {
         isServiceActive = false
+        TrafficEvent.setVpnActive(false)
         serviceScope.cancel()
         vpnThread?.interrupt()
         closeInterface()

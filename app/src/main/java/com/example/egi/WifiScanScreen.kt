@@ -63,9 +63,9 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
                     list.add(DeviceInfo(
-                        ip = obj.getString("ip"), 
-                        mac = obj.getString("mac"),
-                        status = obj.getString("status")
+                        ip = obj.getString("i"), 
+                        mac = obj.getString("m"),
+                        status = obj.getString("s")
                     ))
                 }
                 rawDevices = list
@@ -152,17 +152,43 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String, String, Bool
                 Text(
                     """Name: ${device.name}
 Target: ${device.ip}
-Action: Open router dashboard for advanced management.""",
+Action: Open router dashboard for advanced management or use TCP Flood to isolate.""",
                     color = Color.Green,
                     fontFamily = FontFamily.Monospace
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    onNavigateToRouter(device.mac, gatewayIp, false)
-                    selectedDevice = null
-                }) {
-                    Text("OPEN ROUTER DASHBOARD", color = Color.Red, fontFamily = FontFamily.Monospace)
+                Column {
+                    Button(
+                        onClick = {
+                            if (EgiNetwork.isAvailable()) {
+                                EgiNetwork.kickDevice(device.ip, device.mac)
+                                Toast.makeText(context, "TCP FLOOD INITIATED", Toast.LENGTH_SHORT).show()
+                            }
+                            selectedDevice = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red),
+                        shape = androidx.compose.ui.graphics.RectangleShape
+                    ) {
+                        Text("INITIATE TCP FLOOD", color = Color.Red, fontFamily = FontFamily.Monospace)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = {
+                            onNavigateToRouter(device.mac, gatewayIp, false)
+                            selectedDevice = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan.copy(alpha = 0.2f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Cyan),
+                        shape = androidx.compose.ui.graphics.RectangleShape
+                    ) {
+                        Text("OPEN ROUTER DASHBOARD", color = Color.Cyan, fontFamily = FontFamily.Monospace)
+                    }
                 }
             },
             dismissButton = {

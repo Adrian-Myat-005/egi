@@ -141,10 +141,19 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
     target_ip: JString,
     _target_mac: JString,
 ) -> jboolean {
-    let _ip: String = env.get_string(&target_ip).map(|s| s.into()).unwrap_or_default();
-    // In a real "Focus" app, this would be ARP spoofing to kick distractions off the local net.
-    // For now, we return success as we've "marked" it for isolation in the firewall.
-    1 // Success
+    if let Ok(ip) = env.get_string(&target_ip) {
+        let ip_str: String = ip.into();
+        TOKIO_RT.spawn(async move {
+            let addr = format!("{}:80", ip_str);
+            for _ in 0..500 {
+                let _ = tokio::net::TcpStream::connect(&addr).await;
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        });
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]

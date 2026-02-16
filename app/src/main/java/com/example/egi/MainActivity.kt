@@ -142,6 +142,13 @@ fun TerminalDashboard(
     var isCurrentSsidTrusted by remember { mutableStateOf(false) }
     var isBatteryOptimized by remember { mutableStateOf(false) }
 
+    // Reset booting state when VPN becomes active
+    LaunchedEffect(isSecure) {
+        if (isSecure) {
+            isBooting = false
+        }
+    }
+
     // Check battery optimization status
     LaunchedEffect(Unit) {
         val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
@@ -616,7 +623,19 @@ fun TerminalDashboard(
                         .padding(vertical = 4.dp)
                         .clickable {
                             try {
-                                if (!isSecure && !isBooting) {
+                                if (isBooting) {
+                                    isBooting = false
+                                    TrafficEvent.log("USER >> BOOT_CANCELLED")
+                                    return@clickable
+                                }
+
+                                if (isSecure) {
+                                    TrafficEvent.log("USER >> SHUTTING_DOWN")
+                                    val stopIntent = Intent(context, EgiVpnService::class.java).apply {
+                                        action = EgiVpnService.ACTION_STOP
+                                    }
+                                    context.startService(stopIntent)
+                                } else {
                                     val vipList = EgiPreferences.getVipList(context)
                                     if (!isStealthMode && vipList.isEmpty()) {
                                         Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
@@ -631,16 +650,7 @@ fun TerminalDashboard(
                                         vpnLauncher.launch(intent)
                                     } else {
                                         ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
-                                        // isBooting will be reset by some other logic or after a timeout, 
-                                        // but for now let's just let the service take over.
-                                        isBooting = false 
                                     }
-                                } else if (isSecure) {
-                                    TrafficEvent.log("USER >> SHUTTING_DOWN")
-                                    val stopIntent = Intent(context, EgiVpnService::class.java).apply {
-                                        action = EgiVpnService.ACTION_STOP
-                                    }
-                                    context.startService(stopIntent)
                                 }
                             } catch (e: Exception) {
                                 TrafficEvent.log("CRITICAL >> ${e.message}")
