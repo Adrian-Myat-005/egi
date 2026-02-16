@@ -10,12 +10,13 @@ use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::RwLock;
 
 // Shadowsocks and Tun2Proxy imports
-use shadowsocks::config::ServerConfig;
-use shadowsocks_service::config::{Config, ConfigType, LocalInstanceConfig, LocalConfig, ProtocolType, Mode};
+use shadowsocks::config::{ServerConfig, Mode};
+use shadowsocks_service::config::{Config, ConfigType, LocalInstanceConfig, LocalConfig, ProtocolType, ServerInstanceConfig};
 use shadowsocks_service::local::run as run_ss_local;
 use shadowsocks::config::ServerAddr;
-use tun2proxy::{run as run_tun2proxy, ArgProxy, ArgDns, ArgVerbosity, CancellationToken};
+use tun2proxy::{run as run_tun2proxy, Args, ArgProxy, ArgDns, ArgVerbosity, CancellationToken};
 use std::str::FromStr;
+use std::convert::TryFrom;
 
 static TCP_COUNT: AtomicU64 = AtomicU64::new(0);
 static UDP_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -90,7 +91,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
                         config: local_config,
                         acl: None,
                     });
-                    config.server.push(server_config);
+                    config.server.push(ServerInstanceConfig::with_server_config(server_config));
                     
                     if let Err(e) = run_ss_local(config).await {
                         eprintln!("Shadowsocks local failed: {}", e);
@@ -103,11 +104,18 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // --- 3. Setup tun2proxy ---
-        let tun_device = unsafe { tun::platform::Device::from_raw_fd(fd) };
-        let proxy = ArgProxy::from_str(&format!("socks5://{}", local_addr_str)).unwrap();
+        let mut tun_config = tun::Configuration::default();
+        tun_config.raw_fd(fd);
+        let tun_device = tun::create_as_async(&tun_config).unwrap();
+        let proxy = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()).unwrap();
         let token = CancellationToken::new();
 
-        if let Err(e) = run_tun2proxy(tun_device, 1500, proxy, ArgDns::Virtual, ArgVerbosity::None, token).await {
+        let mut args = Args::default();
+        args.proxy = proxy;
+        args.dns = ArgDns::Virtual;
+        args.verbosity = ArgVerbosity::Off;
+        
+        if let Err(e) = run_tun2proxy(tun_device, 1500, args, token).await {
             eprintln!("tun2proxy failed: {}", e);
         }
     });
