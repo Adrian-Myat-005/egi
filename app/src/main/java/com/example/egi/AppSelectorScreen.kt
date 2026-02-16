@@ -91,6 +91,44 @@ fun AppSelectorScreen(onBack: () -> Unit) {
 
         // VPN Tunnel Mode Toggle
         var isGlobal by remember { mutableStateOf(EgiPreferences.isVpnTunnelGlobal(context)) }
+        
+        Text("QUICK PRESETS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Button(
+                onClick = {
+                    val streamingApps = setOf("com.google.android.youtube", "com.google.android.gms", "com.android.vending")
+                    if (currentMode == AppMode.FOCUS) {
+                        focusTarget = "com.google.android.youtube"
+                        EgiPreferences.saveFocusTarget(context, "com.google.android.youtube")
+                    } else {
+                        val newList = (casualWhitelist + streamingApps).toSet()
+                        casualWhitelist = newList
+                        EgiPreferences.saveCasualWhitelist(context, newList)
+                    }
+                    Toast.makeText(context, "STREAMING OPTIMIZED", Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                modifier = Modifier.weight(1f).padding(end = 4.dp)
+            ) {
+                Text("STREAMING / YT", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+            Button(
+                onClick = {
+                    val gamingApps = setOf("com.tencent.ig", "com.mobile.legends", "com.dts.freefireth", "com.google.android.gms")
+                    if (currentMode == AppMode.CASUAL) {
+                        val newList = (casualWhitelist + gamingApps).toSet()
+                        casualWhitelist = newList
+                        EgiPreferences.saveCasualWhitelist(context, newList)
+                    }
+                    Toast.makeText(context, "GAMING OPTIMIZED", Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                modifier = Modifier.weight(1f).padding(start = 4.dp)
+            ) {
+                Text("GAMING / PING", color = Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()

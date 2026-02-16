@@ -22,7 +22,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
         }
     };
 
-    let mut buf = vec![0u8; 4096];
+    let mut buf = vec![0u8; 65536]; // 64KB buffer for high-speed throughput
     loop {
         match async_fd.readable().await {
             Ok(mut guard) => {

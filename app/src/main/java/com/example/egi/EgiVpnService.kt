@@ -84,10 +84,10 @@ class EgiVpnService : VpnService(), Runnable {
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER")
             val builder = Builder()
                 .setSession("EgiShield")
-                .addAddress("172.19.0.1", 30)
+                .addAddress("192.168.254.1", 30) // Use a less common private range
                 .addRoute("0.0.0.0", 0)
-                .setMtu(1400)
-                .setBlocking(true)
+                .setMtu(if (isStealth) 1400 else 1500) // Adaptive MTU
+                .setBlocking(false)
 
             val configIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
@@ -96,8 +96,15 @@ class EgiVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // DNS is critical for 'Key Sign' on some devices
-            builder.addDnsServer("1.1.1.1")
+            // Use system DNS if not in stealth to avoid 1.1.1.1 bottlenecks
+            if (!isStealth) {
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                cm.getLinkProperties(cm.activeNetwork)?.dnsServers?.forEach { 
+                    builder.addDnsServer(it.hostAddress)
+                }
+            } else {
+                builder.addDnsServer("1.1.1.1")
+            }
 
             // NUCLEAR LOGIC:
             // Offline Mode: VIP apps bypass VPN (direct internet). Others go to VPN (blackhole).
