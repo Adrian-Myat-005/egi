@@ -18,6 +18,9 @@ object EgiPreferences {
     private const val KEY_STEALTH_MODE = "stealth_mode"
     private const val KEY_VPN_TUNNEL_MODE = "vpn_tunnel_mode"
     private const val KEY_OUTLINE_KEY = "outline_key"
+    private const val KEY_LOCAL_BYPASS = "local_bypass"
+    private const val KEY_AUTO_START = "auto_start"
+    private const val KEY_ALLOWED_DOMAINS = "allowed_domains"
 
     fun saveMode(context: Context, mode: AppMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -46,12 +49,40 @@ object EgiPreferences {
 
     fun saveOutlineKey(context: Context, key: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_OUTLINE_KEY, key).apply()
+        val encryptedKey = if (key.isNotEmpty()) SecurityUtils.encrypt(key) else ""
+        prefs.edit().putString(KEY_OUTLINE_KEY, encryptedKey).apply()
     }
 
     fun getOutlineKey(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_OUTLINE_KEY, "") ?: ""
+        val encryptedKey = prefs.getString(KEY_OUTLINE_KEY, "") ?: ""
+        return if (encryptedKey.isNotEmpty()) {
+            try {
+                SecurityUtils.decrypt(encryptedKey)
+            } catch (e: Exception) {
+                ""
+            }
+        } else ""
+    }
+
+    fun setLocalBypass(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_LOCAL_BYPASS, enabled).apply()
+    }
+
+    fun getLocalBypass(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_LOCAL_BYPASS, false)
+    }
+
+    fun setAutoStart(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+    }
+
+    fun getAutoStart(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_START, false)
     }
 
     fun setBandwidthLimit(context: Context, limit: Int) {
@@ -137,5 +168,15 @@ object EgiPreferences {
             AppMode.FOCUS -> getFocusTarget(context)?.let { setOf(it) } ?: emptySet()
             AppMode.CASUAL -> getCasualWhitelist(context)
         }
+    }
+
+    fun saveAllowedDomains(context: Context, domains: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_ALLOWED_DOMAINS, domains).apply()
+    }
+
+    fun getAllowedDomains(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_ALLOWED_DOMAINS, "") ?: ""
     }
 }

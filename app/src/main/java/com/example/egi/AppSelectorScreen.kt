@@ -27,6 +27,7 @@ fun AppSelectorScreen(onBack: () -> Unit) {
     var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context)) }
     var casualWhitelist by remember { mutableStateOf(EgiPreferences.getCasualWhitelist(context)) }
     var searchQuery by remember { mutableStateOf("") }
+    var allowedDomains by remember { mutableStateOf(EgiPreferences.getAllowedDomains(context)) }
 
     val installedApps = remember {
         val pm = context.packageManager
@@ -146,6 +147,26 @@ fun AppSelectorScreen(onBack: () -> Unit) {
                     currentMode = AppMode.CASUAL
                     EgiPreferences.saveMode(context, AppMode.CASUAL)
                 }
+            )
+        }
+
+        if (currentMode == AppMode.FOCUS) {
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = allowedDomains,
+                onValueChange = { 
+                    allowedDomains = it 
+                    EgiPreferences.saveAllowedDomains(context, it)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                label = { Text("FOCUS_TARGET_WEBSITES (comma separated)", color = Color.Cyan.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                placeholder = { Text("docs.google.com, github.com", color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Cyan,
+                    unfocusedBorderColor = Color.Cyan.copy(alpha = 0.5f),
+                    cursorColor = Color.Cyan
+                )
             )
         }
 

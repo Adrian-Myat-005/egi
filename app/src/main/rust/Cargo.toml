@@ -19,3 +19,5 @@ tun2proxy = "0.6"
 tun = { version = "0.7", features = ["async"] }
 base64 = "0.21"
 lazy_static = "1.4"
+zeroize = { version = "1.7", features = ["derive"] }
+etherparse = "0.14"

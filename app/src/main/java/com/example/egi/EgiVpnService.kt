@@ -3,17 +3,17 @@ package com.example.egi
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import kotlinx.coroutines.*
-import java.io.FileInputStream
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicLong
 
 class EgiVpnService : VpnService(), Runnable {
     companion object {
@@ -23,40 +23,81 @@ class EgiVpnService : VpnService(), Runnable {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vpnThread: Thread? = null
+    private var isServiceActive = false
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
+    private var connectivityManager: ConnectivityManager? = null
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            TrafficEvent.log("NETWORK >> AVAILABLE")
+            if (isServiceActive && (vpnThread == null || !vpnThread!!.isAlive)) {
+                startVpnThread()
+            }
+        }
+
+        override fun onLost(network: Network) {
+            TrafficEvent.log("NETWORK >> LOST")
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager?.registerDefaultNetworkCallback(networkCallback)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            TrafficEvent.log("USER_COMMAND >> STOP")
             stopVpn()
             return START_NOT_STICKY
         }
 
-        if (intent?.action == ACTION_RESTART) {
-            closeInterface() // Builder only applies on establish()
+        // Permission Pre-flight
+        if (prepare(this) != null) {
+            TrafficEvent.log("PERMISSION >> REVOKED")
+            stopSelf()
+            return START_NOT_STICKY
         }
 
+        // Handle Always-on VPN
+        if (intent == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            TrafficEvent.log("SYSTEM >> ALWAYS_ON_RESTORE")
+        }
+
+        isServiceActive = true
         createNotificationChannel()
         startForeground(1, createNotification())
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
-            TrafficEvent.resetCount()
-            vpnThread = Thread(this, "EgiVpnThread")
-            vpnThread?.start()
-            
-            // Heartbeat Reporter: Poll native atomic counter
-            serviceScope.launch {
-                while (isActive) {
-                    delay(1000)
-                    if (EgiNetwork.isAvailable()) {
-                        TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
-                    }
+            startVpnThread()
+        }
+
+        // Watchdog
+        serviceScope.launch {
+            while (isActive) {
+                delay(5000)
+                if (isServiceActive && (vpnThread == null || !vpnThread!!.isAlive)) {
+                    TrafficEvent.log("WATCHDOG >> RESTART")
+                    startVpnThread()
+                }
+                if (EgiNetwork.isAvailable()) {
+                    TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
                 }
             }
         }
         return START_STICKY
     }
 
+    private fun startVpnThread() {
+        vpnThread?.interrupt()
+        TrafficEvent.resetCount()
+        vpnThread = Thread(this, "EgiVpnThread")
+        vpnThread?.start()
+    }
+
     private fun stopVpn() {
+        isServiceActive = false
         serviceScope.cancel()
         vpnThread?.interrupt()
         closeInterface()
@@ -65,102 +106,115 @@ class EgiVpnService : VpnService(), Runnable {
     }
 
     override fun run() {
-        val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
-        val dnsProvider = sharedPrefs.getString("dns_provider", null)
         val vipList = EgiPreferences.getVipList(this)
+        val isStealth = EgiPreferences.isStealthMode(this)
+        val ssKey = EgiPreferences.getOutlineKey(this)
+        val allowLocal = EgiPreferences.getLocalBypass(this)
+        val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
 
         try {
             val builder = Builder()
                 .setSession("EgiShield")
-                .addAddress("10.0.0.2", 32)
-                .addAddress("fd00::2", 128)
+                // Obscure IP to avoid 10.0.0.x conflicts
+                .addAddress("10.255.0.1", 32)
+                .addAddress("fdff:egi::1", 128)
                 .setMtu(1500)
+                .setBlocking(true)
 
-            // Apply DNS Settings
-            if (dnsProvider != null) {
-                builder.addDnsServer(dnsProvider)
-                // Secondary & IPv6 lookups for total leak protection
-                when (dnsProvider) {
-                    "1.1.1.1" -> {
-                        builder.addDnsServer("1.0.0.1")
-                        builder.addDnsServer("2606:4700:4700::1111")
-                        builder.addDnsServer("2606:4700:4700::1001")
-                    }
-                    "8.8.8.8" -> {
-                        builder.addDnsServer("8.8.4.4")
-                        builder.addDnsServer("2001:4860:4860::8888")
-                        builder.addDnsServer("2001:4860:4860::8844")
-                    }
-                    "94.140.14.14" -> {
-                        builder.addDnsServer("94.140.15.15")
-                        builder.addDnsServer("2a10:50c0::ad1:ff")
-                        builder.addDnsServer("2a10:50c0::ad2:ff")
-                    }
-                }
+            // KILL SWITCH: Point back to MainActivity for configuration
+            val configIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            builder.setConfigureIntent(pendingIntent)
+
+            if (allowLocal) builder.allowBypass()
+
+            // DNS Selection
+            val sharedPrefs = getSharedPreferences("egi_prefs", Context.MODE_PRIVATE)
+            sharedPrefs.getString("dns_provider", "1.1.1.1")?.let { dns ->
+                builder.addDnsServer(dns)
+                // Also add IPv6 DNS to prevent leaks
+                if (dns == "1.1.1.1") builder.addDnsServer("2606:4700:4700::1111")
             }
 
-            // Split Tunneling Configuration
-            val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
-            
+            // Split Tunneling logic
             if (!isGlobal) {
-                // SELECTED MODE: Only allow VIP apps through VPN
-                vipList.forEach { packageName ->
+                vipList.forEach { pkg ->
                     try {
-                        builder.addAllowedApplication(packageName)
-                    } catch (e: Exception) {
-                        // Ignore missing apps
-                    }
+                        if (isStealth && ssKey.isNotEmpty()) builder.addAllowedApplication(pkg)
+                        else builder.addDisallowedApplication(pkg)
+                    } catch (e: Exception) {}
                 }
+                try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
             } else {
-                // GLOBAL MODE: Tunnel everything EXCEPT specific bypasses (if any needed)
-                // We keep the "Disallowed" list empty or specific for things we NEVER want to tunnel
-                try {
-                    builder.addDisallowedApplication("com.example.egi") // Always exclude self
-                } catch (e: Exception) { }
+                try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
             }
 
-            // The Trap: Capture ALL other traffic (IPv4 & IPv6)
             builder.addRoute("0.0.0.0", 0)
             builder.addRoute("::", 0)
 
-            try {
-                vpnInterface = builder.establish()
-            } catch (e: Exception) {
-                Log.e("EgiVpnService", "CRITICAL: Kernel denied VPN slot", e)
-                TrafficEvent.log("ERROR >> SLOT_DENIED")
-                Thread.sleep(1000) // Don't spam retries
-                return
-            }
-
+            vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                TrafficEvent.log("ERROR >> PERMISSION_MISSING")
+                TrafficEvent.log("CORE >> ESTABLISH_FAILED")
                 return
             }
-
+            
             TrafficEvent.setVpnActive(true)
-            TrafficEvent.log("SHIELD_ENGAGED >> SYSTEM_SILENCED")
 
-            // PASSIVE SHIELD: Delegate loop to Rust for Zero-Copy and Near-Zero Heat
+            val fd = vpnInterface!!.fd
             if (EgiNetwork.isAvailable()) {
-                val fd = vpnInterface!!.fd
+                val allowedDomains = EgiPreferences.getAllowedDomains(this)
+                EgiNetwork.setAllowedDomains(allowedDomains)
+            }
+            
+            if (isStealth && ssKey.isNotEmpty()) {
+                TrafficEvent.log("SHIELD >> STEALTH_ON")
                 EgiNetwork.runVpnLoop(fd)
             } else {
-                val inputStream = FileInputStream(vpnInterface?.fileDescriptor)
-                val packet = ByteBuffer.allocate(4096)
-                while (!Thread.interrupted()) {
-                    val length = try { inputStream.read(packet.array()) } catch (e: Exception) { -1 }
-                    if (length <= 0) break
-                    packet.clear()
-                }
+                TrafficEvent.log("SHIELD >> PASSIVE_ON")
+                EgiNetwork.runPassiveShield(fd)
             }
+
         } catch (e: Exception) {
-            Log.e("EgiVpnService", "Error in VPN loop", e)
+            TrafficEvent.log("CORE_ERROR >> ${e.message}")
         } finally {
             TrafficEvent.setVpnActive(false)
-            TrafficEvent.log("SHIELD_DISENGAGED")
             closeInterface()
         }
     }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("egi_vpn", "Egi VPN", NotificationManager.IMPORTANCE_LOW)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(): Notification {
+        val stopIntent = Intent(this, EgiVpnService::class.java).apply { action = ACTION_STOP }
+        val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        return Notification.Builder(this, "egi_vpn")
+            .setContentTitle("Egi Shield Active")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
+            .build()
+    }
+
+    private fun closeInterface() {
+        try {
+            vpnInterface?.close()
+            vpnInterface = null
+        } catch (e: IOException) {}
+    }
+
+    override fun onDestroy() {
+        connectivityManager?.unregisterNetworkCallback(networkCallback)
+        stopVpn()
+        super.onDestroy()
+    }
+}
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -175,20 +229,27 @@ class EgiVpnService : VpnService(), Runnable {
     }
 
     private fun createNotification(): Notification {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val stopIntent = Intent(this, EgiVpnService::class.java).apply {
+            action = ACTION_STOP
+        }
+        val stopPendingIntent = android.app.PendingIntent.getService(
+            this, 0, stopIntent, 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.app.PendingIntent.FLAG_IMMUTABLE else 0
+        )
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, "egi_vpn")
-                .setContentTitle("Egi Focus Mode Active")
-                .setContentText("Black-holing distractions...")
-                .setSmallIcon(android.R.drawable.ic_lock_lock)
-                .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("Egi Focus Mode Active")
-                .setContentText("Black-holing distractions...")
-                .setSmallIcon(android.R.drawable.ic_lock_lock)
-                .build()
         }
+
+        return builder
+            .setContentTitle("Egi Focus Mode Active")
+            .setContentText("Black-holing distractions...")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
+            .build()
     }
 
     private fun closeInterface() {

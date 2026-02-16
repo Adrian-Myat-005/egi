@@ -679,6 +679,7 @@ name = "egi_core"
 version = "0.1.0"
 dependencies = [
  "base64 0.21.7",
+ "etherparse 0.14.3",
  "futures",
  "jni",
  "lazy_static",
@@ -690,6 +691,7 @@ dependencies = [
  "tokio",
  "tun",
  "tun2proxy",
+ "zeroize",
 ]
 
 [[package]]
@@ -751,6 +753,15 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "etherparse"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "095ab548cf452be5813424558a18af88f0a620d0f4a3d8793aa09311a3b6fa5f"
+dependencies = [
+ "arrayvec",
 ]
 
 [[package]]
@@ -1313,7 +1324,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a626df75428c2345d750239f51fcfc4ad86298706ba18f16641d11a31cf92bbb"
 dependencies = [
  "ahash",
- "etherparse",
+ "etherparse 0.16.0",
  "log",
  "rand 0.8.5",
  "thiserror 2.0.18",
@@ -2334,7 +2345,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0136791f7c95b1f6dd99f9cc786b91bb81c3800b639b3478e561ddb7be95e5f1"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.1",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -3387,6 +3398,20 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "zerotrie"

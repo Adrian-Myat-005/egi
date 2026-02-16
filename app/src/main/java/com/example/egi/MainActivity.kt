@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -154,11 +155,15 @@ fun TerminalDashboard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
+    val events by TrafficEvent.events.collect(initial = "SYSTEM_READY").collectAsState(initial = "SYSTEM_READY")
     var isBooting by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
+    var isLocalBypass by remember { mutableStateOf(EgiPreferences.getLocalBypass(context)) }
+    var isAutoStart by remember { mutableStateOf(EgiPreferences.getAutoStart(context)) }
     var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
     var showKeyDialog by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
     var currentSsid by remember { mutableStateOf<String?>(null) }
     var isCurrentSsidTrusted by remember { mutableStateOf(false) }
 
@@ -185,6 +190,29 @@ fun TerminalDashboard(
                 Toast.makeText(context, "CONFIG IMPORTED", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(context, "INVALID SS KEY", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun openVpnSettings() {
+        val intent = Intent("android.net.vpn.SETTINGS")
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "COULD NOT OPEN SETTINGS", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun requestBatteryOptimizationBypass() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.data = android.net.Uri.parse("package:${context.packageName}")
+                context.startActivity(intent)
+            } else {
+                Toast.makeText(context, "BATTERY_OPTIMIZATION ALREADY BYPASSED", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -424,7 +452,11 @@ fun TerminalDashboard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            ShieldStatusCard(blockedCount, isSecure)
+            if (showLogs) {
+                TerminalLog(onClose = { showLogs = false })
+            } else {
+                ShieldStatusCard(blockedCount, isSecure)
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -435,7 +467,14 @@ fun TerminalDashboard(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
+                    MenuButton("[ TERMINAL_LOG ]") { showLogs = true }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
                     MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
+                    MenuButton("[ VPN_SETTINGS ]") { openVpnSettings() }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -453,6 +492,39 @@ fun TerminalDashboard(
                             ))
                         }
                     }
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MenuButton("[ UNRESTRICTED_BATTERY ]") { requestBatteryOptimizationBypass() }
+                    MenuButton(if (isAutoStart) "[ AUTO_BOOT: ON ]" else "[ AUTO_BOOT: OFF ]") {
+                        isAutoStart = !isAutoStart
+                        EgiPreferences.setAutoStart(context, isAutoStart)
+                    }
+                }
+                
+                // Local Bypass Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("LOCAL NETWORK BYPASS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Switch(
+                        checked = isLocalBypass,
+                        onCheckedChange = {
+                            isLocalBypass = it
+                            EgiPreferences.setLocalBypass(context, it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Green,
+                            uncheckedThumbColor = Color.DarkGray
+                        )
+                    )
                 }
             }
 
@@ -611,121 +683,50 @@ fun TerminalDashboard(
     
 
     fun TacticalManual(onDismiss: () -> Unit) {
-
-    
-
         AlertDialog(
-
-    
-
             onDismissRequest = onDismiss,
-
-    
-
             containerColor = Color.Black,
-
-    
-
             title = {
-
-    
-
-                Text("EGI >> SYSTEM MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-
-    
-
+                Text("EGI >> COMPLETE OPERATING MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
             },
-
-    
-
             text = {
-
-    
-
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-
-    
-
                     item {
-
-    
-
-                        Text("1. [ VIP LANE ]: Open this and pick the apps you want to keep ALIVE (e.g. Facebook, Chrome).", color = Color.Green, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-
-    
-
+                        // English Section
+                        Text("[ ENGLISH - FULL GUIDE ]", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
-
-    
-
-                        Text("2. [ EXECUTE ]: Click this button. Egi will capture all traffic. Apps in your VIP list get 100% speed. Apps NOT in the list are silented (blocked) to save data and battery.", color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-
-    
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-    
-
-                        Text("3. [ STEALTH ]: Only turn this ON if your WiFi is blocking you. It uses your Outline key to sneak past firewalls.", color = Color.Yellow, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-
-    
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-    
-
-                        Text("4. [ RADAR ]: Use this to see who else is on your WiFi. If they are stealing your speed, click [ KICK ] to silence them locally.", color = Color.Magenta, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-
-    
-
                         
+                        ManualSection("NUCLEAR MODE", "This is your primary weapon. Pick 'Focus' to use ONLY 1 app, or 'Casual' to allow a few apps. Type specific website URLs (e.g. stackoverflow.com) in the box to whitelist them. Everything else is black-holed.")
+                        ManualSection("STEALTH MODE", "If your WiFi blocks everything, turn this ON. Use 'IMPORT KEY' to paste a Shadowsocks (ss://) link. It wraps your traffic in a secret tunnel to sneak past firewalls.")
+                        ManualSection("NETWORK RADAR", "Scan your current WiFi to see 'intruders'. If someone is hogging your speed, click their device to isolate them. Use 'LOCAL BYPASS' if you need to use your home printer.")
+                        ManualSection("STABILITY", "Turn on 'UNRESTRICTED_BATTERY' and 'AUTO_BOOT' so the shield never sleeps, even if you restart your phone.")
+                        ManualSection("THE HUD", "The green graph shows your speed (Ping). High numbers (Red) mean lag. The 'THREATS BLOCKED' counter shows exactly how many distractions were terminated.")
 
-    
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Divider(color = Color.Green, thickness = 2.dp)
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                        Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
+                        // Burmese Section
+                        Text("[ မြန်မာဘာသာ - အသုံးပြုနည်းအပြည့်အစုံ ]", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        ManualSection("NUCLEAR MODE (အဓိကလုပ်ဆောင်ချက်)", "မိမိသုံးမည့် App နှင့် Website ကို ရွေးချယ်ပေးရပါမည်။ 'Focus' တွင် App တစ်ခုတည်းကိုသာ သုံးနိုင်ပြီး 'Casual' တွင် App အများအပြားကို ရွေးချယ်နိုင်ပါသည်။ Website ကြည့်လိုပါက အကွက်ထဲတွင် Website link (ဥပမာ - stackoverflow.com) ကို ရိုက်ထည့်ပါ။ ကျန်ရှိသော App နှင့် Website အားလုံးကို ပိတ်ထားပေးပါမည်။")
+                        ManualSection("STEALTH MODE (လျှို့ဝှက်ဥမှင်စနစ်)", "အင်တာနက်လိုင်း ပိတ်ဆို့ခံထားရပါက ဤစနစ်ကို သုံးပါ။ 'IMPORT KEY' ကိုနှိပ်ပြီး Shadowsocks (ss://) link ကို ထည့်ပါ။ ပိတ်ဆို့ထားသော အင်တာနက်လိုင်းများကို ကျော်ဖြတ်နိုင်ပါမည်။")
+                        ManualSection("NETWORK RADAR (ဝိုင်ဖိုင်စစ်ဆေးခြင်း)", "မိမိသုံးနေသော WiFi ထဲတွင် အခြားသူများ ခိုးသုံးနေသလား စစ်ဆေးနိုင်ပါသည်။ အင်တာနက်လိုင်း ဆွဲနေသူများကို တွေ့ပါက [ KICK ] နှိပ်ပြီး ဖြတ်တောက်နိုင်ပါသည်။ အိမ်ရှိ Printer များကို သုံးလိုပါက 'LOCAL BYPASS' ကို ဖွင့်ထားပါ။")
+                        ManualSection("STABILITY (အမြဲပွင့်နေစေရန်)", "ဖုန်းပိတ်ပြီး ပြန်ဖွင့်လျှင်လည်း အလိုအလျောက် ပွင့်နေစေရန် 'AUTO_BOOT' ကို ဖွင့်ပါ။ အင်တာနက်လိုင်း မပြတ်တောက်စေရန် 'UNRESTRICTED_BATTERY' ကို နှိပ်ပြီး ခွင့်ပြုချက်ပေးပါ။")
+                        ManualSection("THE HUD (အခြေအနေပြဘုတ်)", "အစိမ်းရောင် ဂရပ်ဖစ်မျဉ်းသည် အင်တာနက် အမြန်နှုန်း (Ping) ကို ပြခြင်းဖြစ်သည်။ ဂဏန်းကြီးလျှင် (အနီရောင်ဖြစ်လျှင်) လိုင်းလေးနေခြင်း ဖြစ်သည်။ 'THREATS BLOCKED' သည် အနှောင့်အယှက်ပေးသော App မည်မျှကို ပိတ်ဆို့ထားသည်ကို ပြခြင်း ဖြစ်သည်။")
 
-    
-
-                        Text("GOAL: 0ms Lag, 100% Signal, 0% Data Waste.", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-
-    
-
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("GOAL: 100% PRODUCTIVITY. 0% LAG.", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                     }
-
-    
-
                 }
-
-    
-
             },
-
-    
-
             confirmButton = {
-
-    
-
                 TextButton(onClick = onDismiss) {
-
-    
-
                     Text("[ MISSION UNDERSTOOD ]", color = Color.Green, fontFamily = FontFamily.Monospace)
-
-    
-
                 }
-
-    
-
             }
-
-    
-
         )
-
-    
-
     }
 
     
@@ -788,4 +789,57 @@ fun MenuButton(text: String, onClick: () -> Unit) {
             .clickable { onClick() }
             .padding(8.dp)
     )
+}
+
+@Composable
+fun TerminalLog(onClose: () -> Unit) {
+    val events = TrafficEvent.events.collectAsState(initial = "INITIALIZING...")
+    val logHistory = remember { mutableStateListOf<String>() }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(events.value) {
+        if (events.value == "CONSOLE_CLEARED") {
+            logHistory.clear()
+        } else {
+            logHistory.add("${System.currentTimeMillis() % 100000} >> ${events.value}")
+            if (logHistory.size > 50) logHistory.removeAt(0)
+            listState.animateScrollToItem(logHistory.size)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .background(Color.Black)
+            .padding(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("EGI_CONSOLE_V1.0", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Row {
+                Text(
+                    "[ CLEAR ]", 
+                    color = Color.Yellow, 
+                    fontSize = 12.sp, 
+                    modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(end = 8.dp)
+                )
+                Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() })
+            }
+        }
+        Divider(color = Color.Cyan, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            items(logHistory) { log ->
+                Text(
+                    text = log,
+                    color = if (log.contains("ERROR") || log.contains("CRITICAL")) Color.Red else Color.Green,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
 }

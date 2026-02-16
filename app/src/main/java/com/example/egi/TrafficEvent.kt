@@ -22,6 +22,10 @@ object TrafficEvent {
         _events.tryEmit(message)
     }
 
+    fun clearLogs() {
+        _events.tryEmit("CONSOLE_CLEARED")
+    }
+
     fun setVpnActive(active: Boolean) {
         _vpnActive.value = active
     }
