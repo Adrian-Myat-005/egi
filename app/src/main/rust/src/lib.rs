@@ -9,13 +9,13 @@ use tokio::net::TcpStream as AsyncTcpStream;
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::RwLock;
 
-// Real imports for Shadowsocks and Tun2Proxy
-use shadowsocks::{
-    config::{ServerConfig, ServerType},
-    run_local,
-};
-// Note: We might need to adjust imports based on specific crate versions if build fails,
-// but this is the standard structure for shadowsocks-rust.
+// Shadowsocks and Tun2Proxy imports
+use shadowsocks::config::ServerConfig;
+use shadowsocks_service::config::{Config, ConfigType, LocalInstanceConfig, LocalConfig, ProtocolType, Mode};
+use shadowsocks_service::local::run as run_ss_local;
+use shadowsocks::config::ServerAddr;
+use tun2proxy::{run as run_tun2proxy, ArgProxy, ArgDns, ArgVerbosity, CancellationToken};
+use std::str::FromStr;
 
 static TCP_COUNT: AtomicU64 = AtomicU64::new(0);
 static UDP_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -65,7 +65,6 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
         drop(key_guard);
 
         if key_str.is_empty() {
-            // Safety fallback: Consume and drop if no key
             let mut buf = vec![0u8; 4096];
             loop {
                 let n = unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
@@ -75,54 +74,40 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
         }
 
         // --- 2. Start Shadowsocks Local SOCKS5 Server ---
-        // We start it on a random local port
-        let local_ip = "127.0.0.1";
-        // We pick a fixed port for simplicity in this example, or 0 for random.
-        // Let's use 10808 to match standard examples.
-        let socks5_addr: SocketAddr = format!("{}:10808", local_ip).parse().unwrap();
-
-        // Spawn Shadowsocks Client
+        let local_addr_str = "127.0.0.1:10808";
         let ss_key = key_str.clone();
+
         tokio::spawn(async move {
-            // Parse the config from the ss:// string
-            // Note: In real production code, handle errors gracefully.
             match ServerConfig::from_url(&ss_key) {
-                Ok(config) => {
-                    let mut service = shadowsocks::config::ServiceConfig::new(ServerType::Local);
-                    service.local_addr = Some(socks5_addr);
+                Ok(server_config) => {
+                    let mut config = Config::new(ConfigType::Local);
                     
-                    // Run the local server
-                    if let Err(e) = run_local(service, config).await {
-                        // Log error (using println for now as we don't have android_logger setup)
-                        eprintln!("Shadowsocks server failed: {}", e);
+                    let mut local_config = LocalConfig::new(ProtocolType::Socks);
+                    local_config.addr = Some(ServerAddr::from_str(local_addr_str).unwrap());
+                    local_config.mode = Mode::TcpAndUdp;
+                    
+                    config.local.push(LocalInstanceConfig {
+                        config: local_config,
+                        acl: None,
+                    });
+                    config.server.push(server_config);
+                    
+                    if let Err(e) = run_ss_local(config).await {
+                        eprintln!("Shadowsocks local failed: {}", e);
                     }
                 },
                 Err(e) => eprintln!("Invalid SS Key: {}", e),
             }
         });
 
-        // Give it a moment to bind
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         // --- 3. Setup tun2proxy ---
-        // Create the TUN device from the raw file descriptor provided by Android
-        // We use 'unsafe' because we are taking ownership of a raw FD.
-        // The 'tun' crate handles the platform specifics.
         let tun_device = unsafe { tun::platform::Device::from_raw_fd(fd) };
+        let proxy = ArgProxy::from_str(&format!("socks5://{}", local_addr_str)).unwrap();
+        let token = CancellationToken::new();
 
-        // Configure tun2proxy to forward all traffic from this TUN device 
-        // to the SOCKS5 proxy we just started.
-        let proxy = tun2proxy::Proxy {
-            proxy_type: tun2proxy::ProxyType::Socks5,
-            addr: socks5_addr,
-            auth: None, // Shadowsocks local SOCKS5 usually doesn't need auth
-        };
-
-        // Run the tunnel
-        // tun2proxy::run takes the device, MTU, and proxy config
-        // Note: tun2proxy API might vary slightly by version. 
-        // Assuming: run(device, mtu, proxy)
-        if let Err(e) = tun2proxy::run(tun_device, 1500, proxy).await {
+        if let Err(e) = run_tun2proxy(tun_device, 1500, proxy, ArgDns::Virtual, ArgVerbosity::None, token).await {
             eprintln!("tun2proxy failed: {}", e);
         }
     });
