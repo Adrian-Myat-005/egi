@@ -7,6 +7,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -361,6 +362,16 @@ fun TerminalDashboard(
                 if (!isBatteryOptimized) {
                     Text("BATTERY_WARN", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
+                Text(
+                    text = "[ CONFIG ]",
+                    color = Color.Cyan,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { 
+                        context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+                    }.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
                 Text(
                     text = "[ ? ]",
                     color = Color.White,
