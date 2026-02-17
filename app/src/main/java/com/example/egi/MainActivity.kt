@@ -70,6 +70,22 @@ fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
     var gatewayIp by remember { mutableStateOf("") }
+    var showLogs by remember { mutableStateOf(false) }
+
+    if (showLogs) {
+        AlertDialog(
+            onDismissRequest = { showLogs = false },
+            containerColor = Color.Black,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            text = { TerminalLog(onClose = { showLogs = false }) },
+            confirmButton = {
+                TextButton(onClick = { showLogs = false }) {
+                    Text("[ CLOSE_LOGS ]", color = Color.Red, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
 
     Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
         when (screen) {
@@ -97,6 +113,7 @@ fun MainContent() {
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
                 onOpenWifiRadar = { currentScreen = Screen.WIFI_RADAR },
+                onShowLogs = { showLogs = true },
                 dnsMsg = dnsLogMessage,
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
@@ -121,6 +138,7 @@ fun TerminalDashboard(
     onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
     onOpenWifiRadar: () -> Unit,
+    onShowLogs: () -> Unit,
     dnsMsg: String?,
     onDnsLogConsumed: () -> Unit
 ) {
@@ -135,7 +153,6 @@ fun TerminalDashboard(
     var outlineKey by remember { mutableStateOf(EgiPreferences.getOutlineKey(context)) }
     var showKeyDialog by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
-    var showLogs by remember { mutableStateOf(false) }
     var currentSsid by remember { mutableStateOf<String?>(null) }
     var isCurrentSsidTrusted by remember { mutableStateOf(false) }
     var isBatteryOptimized by remember { mutableStateOf(false) }
@@ -358,7 +375,7 @@ fun TerminalDashboard(
         }
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth().height(60.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton("[ NUCLEAR MODE ]", Modifier.weight(1f)) { onOpenAppSelector() }
                 GridButton("[ NETWORK RADAR ]", Modifier.weight(1f)) {
                     val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -369,8 +386,11 @@ fun TerminalDashboard(
                     }
                 }
             }
-            Row(modifier = Modifier.fillMaxWidth().height(60.dp)) {
-                GridButton("[ TERMINAL LOG ]", Modifier.weight(1f)) { showLogs = true }
+            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
+                GridButton("[ TERMINAL LOG ]", Modifier.weight(1f)) { onShowLogs() }
+                GridButton("[ STEALTH KEY ]", Modifier.weight(1f)) { showKeyDialog = true }
+            }
+            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton("[ BATTERY / BOOT ]", Modifier.weight(1f)) {
                     val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
@@ -378,9 +398,12 @@ fun TerminalDashboard(
                         intent.data = android.net.Uri.parse("package:${context.packageName}")
                         context.startActivity(intent)
                     } else {
-                        Toast.makeText(context, "STABILITY OPTIMIZED", Toast.LENGTH_SHORT).show()
+                        isAutoStart = !isAutoStart
+                        EgiPreferences.setAutoStart(context, isAutoStart)
+                        Toast.makeText(context, "AUTO_BOOT: ${if(isAutoStart) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
                     }
                 }
+                GridButton("[ VIP LANE ]", Modifier.weight(1f)) { onOpenAppPicker() }
             }
         }
 

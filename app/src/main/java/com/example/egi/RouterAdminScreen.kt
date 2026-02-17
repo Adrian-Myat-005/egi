@@ -45,23 +45,42 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
     LaunchedEffect(webViewInstance) {
         while (true) {
             webViewInstance?.let { view ->
+                statusMessage = "SYNCING_WITH_ROUTER..."
                 val scraper = """
                     (function() {
                         const devices = [];
-                        // Scrape every table row, list item, or div that looks like a device entry
-                        const rows = Array.from(document.querySelectorAll('tr, .device-row, .client-item, li, div.device'));
+                        // 1. Target tables, lists, and specific known device classes
+                        const selectors = 'tr, .device-row, .client-item, li, div.device, .client-list-item';
+                        const rows = Array.from(document.querySelectorAll(selectors));
+                        
                         rows.forEach(r => {
                             const text = r.innerText;
+                            // Regex for IP and MAC
                             const ipMatch = text.match(/\d+\.\d+\.\d+\.\d+/);
                             const macMatch = text.match(/([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})/);
-                            if (ipMatch && ipMatch[0] !== '$gatewayIp') {
+                            
+                            if (ipMatch && ipMatch[0] !== '$gatewayIp' && ipMatch[0] !== '0.0.0.0') {
                                 devices.push({ 
                                     i: ipMatch[0], 
-                                    m: macMatch ? macMatch[0] : 'SNY_ROUTER', 
+                                    m: macMatch ? macMatch[0] : 'MAC_HIDDEN', 
                                     s: 'Online' 
                                 });
                             }
                         });
+                        
+                        // 2. Backup: Look for any IP-like string in the whole body if list is empty
+                        if (devices.length === 0) {
+                            const bodyText = document.body.innerText;
+                            const allIps = bodyText.match(/\d+\.\d+\.\d+\.\d+/g);
+                            if (allIps) {
+                                [...new Set(allIps)].forEach(ip => {
+                                    if (ip !== '$gatewayIp' && !ip.startsWith('127.')) {
+                                        devices.push({ i: ip, m: 'AUTO_DETECT', s: 'Active' });
+                                    }
+                                });
+                            }
+                        }
+                        
                         return JSON.stringify(devices);
                     })()
                 """.trimIndent()
@@ -75,25 +94,30 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                                 val list = mutableListOf<DeviceInfo>()
                                 for (i in 0 until array.length()) {
                                     val obj = array.getJSONObject(i)
+                                    val ip = obj.getString("i")
                                     list.add(DeviceInfo(
-                                        ip = obj.getString("i"), 
+                                        ip = ip, 
                                         status = obj.getString("s"), 
                                         mac = obj.getString("m"),
-                                        name = "Remote Device " + obj.getString("i").split(".").last()
+                                        name = "Asset_" + ip.split(".").last()
                                     ))
                                 }
                                 if (list.isNotEmpty()) {
                                     scrapedDevices = list.distinctBy { it.ip }
-                                    statusMessage = "SYNC_ACTIVE >> ${list.size}_ASSETS_MONITORED"
+                                    statusMessage = "BRIDGE_STABLE >> ${list.size}_DEVICES_SCANNED"
+                                } else {
+                                    statusMessage = "BRIDGE_IDLE >> SEEKING_DATA"
                                 }
                             } catch(e: Exception) {
-                                // Silent fail on malformed JSON during page transitions
+                                statusMessage = "SCRAPE_DATA_PARSE_ERROR"
                             }
+                        } else {
+                            statusMessage = "BRIDGE_CONNECTED >> SCANNING_PAGE..."
                         }
                     }
                 }
             }
-            delay(4000) // Poll every 4 seconds for responsiveness
+            delay(3000) // Faster polling
         }
     }
 
@@ -105,27 +129,47 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                     webViewInstance = this
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
-                            statusMessage = "BRIDGE_LOCKED >> INJECTING_AUTH"
+                            statusMessage = "AUTH_CHALLENGE >> INJECTING_CREDENTIALS"
                             val loginScript = """
                                 (function() {
                                     const b = '$brand'; const u = '$user'; const p = '$pass';
                                     const inputs = document.querySelectorAll('input');
-                                    const userField = Array.from(inputs).find(i => i.type==='text' || i.id.includes('user') || i.name.includes('user'));
-                                    const passField = Array.from(inputs).find(i => i.type==='password');
-                                    const loginBtn = document.querySelector('button[type="submit"], input[type="submit"], .login-btn, #loginBtn, #btn_login');
-
-                                    if (userField) userField.value = u;
-                                    if (passField) passField.value = p;
-                                    if (loginBtn) {
-                                        setTimeout(() => loginBtn.click(), 500);
+                                    
+                                    // 1. Precise Brand Login
+                                    if (b === 'TP-Link') {
+                                        const userF = document.querySelector('#username') || document.querySelector('#login-username');
+                                        const passF = document.querySelector('#password') || document.querySelector('#login-password');
+                                        if (userF) userF.value = u;
+                                        if (passF) passF.value = p;
+                                        (document.querySelector('.login-btn') || document.querySelector('#login-btn'))?.click();
+                                    } else if (b === 'Huawei') {
+                                        if (document.querySelector('#txt_user')) document.querySelector('#txt_user').value = u;
+                                        if (document.querySelector('#txt_pwd')) document.querySelector('#txt_pwd').value = p;
+                                        document.querySelector('#btn_login')?.click();
+                                    } else if (b === 'ASUS') {
+                                        if (document.querySelector('#login_username')) document.querySelector('#login_username').value = u;
+                                        if (document.querySelector('#login_passwd')) document.querySelector('#login_passwd').value = p;
+                                        document.querySelector('.button')?.click();
+                                    } else if (b === 'ZTE') {
+                                        if (document.querySelector('#username')) document.querySelector('#username').value = u;
+                                        if (document.querySelector('#password')) document.querySelector('#password').value = p;
+                                        document.querySelector('#loginBtn')?.click();
+                                    } else {
+                                        // Generic Fallback
+                                        const pField = Array.from(inputs).find(i => i.type==='password');
+                                        if (pField) pField.value = p;
+                                        const uField = Array.from(inputs).find(i => (i.type==='text' || i.id.includes('user')) && i !== pField);
+                                        if (uField) uField.value = u;
+                                        document.querySelector('button[type="submit"], input[type="submit"]')?.click();
                                     }
 
-                                    // Navigation: Seek Device List
-                                    setTimeout(() => {
-                                        const navLinks = Array.from(document.querySelectorAll('a, span, li'));
-                                        const target = navLinks.find(l => ['device', 'client', 'attached', 'status', 'host'].some(k => l.innerText.toLowerCase().includes(k)));
-                                        if (target) target.click();
-                                    }, 2000);
+                                    // 2. Continuous Navigation Seeking
+                                    const seek = () => {
+                                        const navLinks = Array.from(document.querySelectorAll('a, span, li, button'));
+                                        const target = navLinks.find(l => ['device', 'client', 'attached', 'status', 'host', 'lan'].some(k => l.innerText.toLowerCase().includes(k)));
+                                        if (target && !window.location.href.includes('client')) target.click();
+                                    };
+                                    setInterval(seek, 3000);
                                 })()
                             """.trimIndent()
                             view?.evaluateJavascript(loginScript, null)
