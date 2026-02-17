@@ -56,94 +56,107 @@ fun AppPickerScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(16.dp)
+            .padding(8.dp)
     ) {
-        Text(
-            text = "EGI >> VIP_LANE_CONFIGURATOR",
-            color = Color.Cyan,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 20.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Text(
-            text = "AUTHORIZED APPS BYPASS THE BLACK HOLE (0ms OVERHEAD).",
-            color = Color.Green.copy(alpha = 0.6f),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(installedApps) { app ->
-                AppRow(
-                    app = app,
-                    isBlocked = blockedApps.contains(app.packageName),
-                    onToggle = { isChecked ->
-                        val newList = blockedApps.toMutableSet()
-                        if (isChecked) newList.add(app.packageName) else newList.remove(app.packageName)
-                        blockedApps = newList
-                        sharedPrefs.edit().putStringSet("kill_list", newList).apply()
-                    }
+        // --- MATRIX HEADER ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "EGI >> VIP_LANE",
+                    color = Color.Cyan,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
                 )
+            }
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ BACK ]", color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             }
         }
 
-        Text(
-            text = "[ RETURN_TO_TERMINAL ]",
-            color = Color.Green,
-            fontFamily = FontFamily.Monospace,
+        // Sub-Header Tile
+        Box(
             modifier = Modifier
-                .padding(top = 16.dp)
-                .align(Alignment.CenterHorizontally)
-                .background(Color.DarkGray.copy(alpha = 0.3f))
-                .padding(8.dp)
-                .clickable { onBack() }
-        )
+                .fillMaxWidth()
+                .height(40.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.3f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "AUTHORIZED APPS BYPASS THE SHIELD (0ms OVERHEAD)",
+                color = Color.Green.copy(alpha = 0.6f),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        // List Grid
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(installedApps) { app ->
+                    MatrixAppRow(
+                        app = app,
+                        isBlocked = blockedApps.contains(app.packageName),
+                        onToggle = { isChecked ->
+                            val newList = blockedApps.toMutableSet()
+                            if (isChecked) newList.add(app.packageName) else newList.remove(app.packageName)
+                            blockedApps = newList
+                            sharedPrefs.edit().putStringSet("kill_list", newList).apply()
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun AppRow(app: AppInfo, isBlocked: Boolean, onToggle: (Boolean) -> Unit) {
+fun MatrixAppRow(app: AppInfo, isBlocked: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .height(65.dp)
+            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
+            .clickable { onToggle(!isBlocked) }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Image(
-                painter = rememberDrawablePainter(drawable = app.icon),
-                contentDescription = null,
-                modifier = Modifier.size(40.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = app.name,
-                    color = Color.Green,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = app.packageName,
-                    color = Color.Green.copy(alpha = 0.6f),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                )
-            }
+        Image(painter = rememberDrawablePainter(drawable = app.icon), contentDescription = null, modifier = Modifier.size(32.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = app.name, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
+            Text(text = app.packageName, color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
         }
-
-        Switch(
-            checked = isBlocked,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.Red,
-                checkedTrackColor = Color.Red.copy(alpha = 0.5f),
-                uncheckedThumbColor = Color.Green,
-                uncheckedTrackColor = Color.Green.copy(alpha = 0.5f)
-            )
+        Text(
+            text = if (isBlocked) "[ AUTHORIZED ]" else "[ SHIELDED ]",
+            color = if (isBlocked) Color.Cyan else Color.Red.copy(alpha = 0.7f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
+

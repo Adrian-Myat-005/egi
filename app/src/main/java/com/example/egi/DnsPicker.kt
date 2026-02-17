@@ -41,7 +41,94 @@ fun DnsPickerScreen(onBack: (String?) -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(16.dp)
+            .padding(8.dp)
+    ) {
+        // --- MATRIX HEADER ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "EGI >> DNS_CONFIG",
+                    color = Color.Green,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable { onBack(null) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ ABORT ]", color = Color.Red, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // DNS List
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(dnsProviders) { provider ->
+                    MatrixDnsRow(
+                        provider = provider,
+                        isSelected = selectedDns == provider.primary,
+                        onSelect = {
+                            selectedDns = provider.primary
+                            sharedPrefs.edit().putString("dns_provider", provider.primary).apply()
+                            onBack(provider.description)
+                        }
+                    )
+                }
+            }
+        }
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .border(0.5.dp, Color.Yellow.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "CAUTION: System Default fixes Captive Portals.",
+                color = Color.Yellow.copy(alpha = 0.7f),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun MatrixDnsRow(provider: DnsProvider, isSelected: Boolean, onSelect: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp)
+            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
+            .background(if (isSelected) Color.Cyan.copy(alpha = 0.05f) else Color.Transparent)
+            .clickable { onSelect() }
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.Center
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -49,82 +136,27 @@ fun DnsPickerScreen(onBack: (String?) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "EGI >> DNS_CONFIG",
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp
-            )
-            
-            Text(
-                text = "[ ABORT ]",
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .clickable { onBack(null) }
-                    .padding(8.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(dnsProviders) { provider ->
-                DnsRow(
-                    provider = provider,
-                    isSelected = selectedDns == provider.primary,
-                    onSelect = {
-                        selectedDns = provider.primary
-                        sharedPrefs.edit().putString("dns_provider", provider.primary).apply()
-                        onBack(provider.description)
-                    }
-                )
-            }
-        }
-        
-        Text(
-            text = "CAUTION: System Default fixes Captive Portals.",
-            color = Color.Yellow.copy(alpha = 0.7f),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-    }
-}
-
-@Composable
-fun DnsRow(provider: DnsProvider, isSelected: Boolean, onSelect: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect() }
-            .padding(vertical = 12.dp, horizontal = 8.dp)
-            .background(if (isSelected) Color.DarkGray.copy(alpha = 0.3f) else Color.Transparent)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
                 text = provider.name,
                 color = if (isSelected) Color.Cyan else Color.Green,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
             if (isSelected) {
                 Text(
-                    text = "[ SELECTED ]",
+                    text = "[ ACTIVE ]",
                     color = Color.Cyan,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp
+                    fontSize = 12.sp
                 )
             }
         }
         Text(
             text = if (provider.primary != null) "${provider.primary} | ${provider.secondary}" else "Use Network Settings",
-            color = Color.Green.copy(alpha = 0.6f),
+            color = Color.Gray,
             fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp
+            fontSize = 10.sp
         )
     }
 }
+

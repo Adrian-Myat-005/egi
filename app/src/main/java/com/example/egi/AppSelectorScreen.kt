@@ -53,247 +53,176 @@ fun AppSelectorScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(16.dp)
+            .padding(8.dp)
     ) {
-        Text(
-            text = "EGI >> NUCLEAR_TARGET_SELECTOR",
-            color = Color.Yellow,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 20.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace),
-            label = { Text("SEARCH_TARGET_APP", color = Color.Green.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace) },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color.Cyan,
-                unfocusedBorderColor = Color.Green.copy(alpha = 0.5f),
-                cursorColor = Color.Cyan
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "SELECT PRIMARY APPLICATION FOR MAXIMUM PRIORITY. ALL OTHER TRAFFIC WILL BE TERMINATED.",
-            color = Color.Red.copy(alpha = 0.7f),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            lineHeight = 14.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // VPN Tunnel Mode Toggle
-        var isGlobal by remember { mutableStateOf(EgiPreferences.isVpnTunnelGlobal(context)) }
-        
-        Text("QUICK PRESETS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Button(
-                onClick = {
-                    val streamingApps = setOf("com.google.android.youtube", "com.google.android.gms", "com.android.vending")
-                    if (currentMode == AppMode.FOCUS) {
-                        focusTarget = "com.google.android.youtube"
-                        EgiPreferences.saveFocusTarget(context, "com.google.android.youtube")
-                    } else {
-                        val newList = (casualWhitelist + streamingApps).toSet()
-                        casualWhitelist = newList
-                        EgiPreferences.saveCasualWhitelist(context, newList)
-                    }
-                    Toast.makeText(context, "STREAMING OPTIMIZED", Toast.LENGTH_SHORT).show()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                modifier = Modifier.weight(1f).padding(end = 4.dp)
-            ) {
-                Text("STREAMING / YT", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            }
-            Button(
-                onClick = {
-                    val gamingApps = setOf("com.tencent.ig", "com.mobile.legends", "com.dts.freefireth", "com.google.android.gms")
-                    if (currentMode == AppMode.CASUAL) {
-                        val newList = (casualWhitelist + gamingApps).toSet()
-                        casualWhitelist = newList
-                        EgiPreferences.saveCasualWhitelist(context, newList)
-                    }
-                    Toast.makeText(context, "GAMING OPTIMIZED", Toast.LENGTH_SHORT).show()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                modifier = Modifier.weight(1f).padding(start = 4.dp)
-            ) {
-                Text("GAMING / PING", color = Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            }
-        }
-
+        // Header Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp)
-                .background(Color.DarkGray.copy(alpha = 0.3f))
-                .clickable {
-                    isGlobal = !isGlobal
-                    EgiPreferences.setVpnTunnelMode(context, isGlobal)
-                }
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .height(50.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
-                Text("TUNNEL MODE", color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                Text(
-                    if (isGlobal) "GLOBAL (ALL APPS)" else "SELECTED APPS ONLY", 
-                    color = if (isGlobal) Color.Cyan else Color.Yellow, 
-                    fontSize = 10.sp, 
-                    fontFamily = FontFamily.Monospace
-                )
+            Text(
+                text = " EGI >> NUCLEAR_SELECTOR",
+                color = Color.Yellow,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(80.dp)
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ BACK ]", color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             }
-            Switch(
-                checked = isGlobal,
-                onCheckedChange = { 
-                    isGlobal = it 
-                    EgiPreferences.setVpnTunnelMode(context, it)
-                },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.Cyan,
-                    checkedTrackColor = Color.DarkGray,
-                    uncheckedThumbColor = Color.Yellow,
-                    uncheckedTrackColor = Color.DarkGray
-                )
-            )
         }
 
-        // Mode Tabs
-        Row(modifier = Modifier.fillMaxWidth()) {
-            ModeTab(
-                label = "FOCUS",
-                isActive = currentMode == AppMode.FOCUS,
-                modifier = Modifier.weight(1f),
-                onClick = { 
-                    currentMode = AppMode.FOCUS
-                    EgiPreferences.saveMode(context, AppMode.FOCUS)
-                }
-            )
-            ModeTab(
-                label = "CASUAL",
-                isActive = currentMode == AppMode.CASUAL,
-                modifier = Modifier.weight(1f),
-                onClick = { 
-                    currentMode = AppMode.CASUAL
-                    EgiPreferences.saveMode(context, AppMode.CASUAL)
-                }
-            )
-        }
-
-        if (currentMode == AppMode.FOCUS) {
-            Spacer(modifier = Modifier.height(16.dp))
+        // Search Tile
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                .padding(4.dp)
+        ) {
             OutlinedTextField(
-                value = allowedDomains,
-                onValueChange = { 
-                    allowedDomains = it 
-                    EgiPreferences.saveAllowedDomains(context, it)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                label = { Text("FOCUS_TARGET_WEBSITES (comma separated)", color = Color.Cyan.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                placeholder = { Text("docs.google.com, github.com", color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxSize(),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                placeholder = { Text("SEARCH_TARGET_APP...", color = Color.Green.copy(alpha = 0.3f), fontSize = 12.sp) },
+                singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Cyan,
-                    unfocusedBorderColor = Color.Cyan.copy(alpha = 0.5f),
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
                     cursorColor = Color.Cyan
                 )
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(filteredApps) { app ->
-                SelectorRow(
-                    app = app,
-                    mode = currentMode,
-                    isSelected = if (currentMode == AppMode.FOCUS) focusTarget == app.packageName else casualWhitelist.contains(app.packageName),
-                    onSelect = {
-                        if (currentMode == AppMode.FOCUS) {
-                            focusTarget = app.packageName
-                            EgiPreferences.saveFocusTarget(context, app.packageName)
-                        } else {
-                            val newList = casualWhitelist.toMutableSet()
-                            if (newList.contains(app.packageName)) newList.remove(app.packageName) else newList.add(app.packageName)
-                            casualWhitelist = newList
-                            EgiPreferences.saveCasualWhitelist(context, newList)
-                        }
-                    }
-                )
+        // Mode Tabs Grid
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, Modifier.weight(1f)) {
+                currentMode = AppMode.FOCUS
+                casualWhitelist = emptySet()
+            }
+            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, Modifier.weight(1f)) {
+                currentMode = AppMode.CASUAL
+                focusTarget = ""
             }
         }
 
-        Text(
-            text = "[ BACK ]",
-            color = Color.Green,
-            fontFamily = FontFamily.Monospace,
+        // App List
+        Box(
             modifier = Modifier
-                .padding(top = 16.dp)
-                .align(Alignment.CenterHorizontally)
-                .clickable { onBack() }
-        )
+                .weight(1f)
+                .fillMaxWidth()
+                .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(filteredApps) { app ->
+                    MatrixSelectorRow(
+                        app = app,
+                        mode = currentMode,
+                        isSelected = if (currentMode == AppMode.FOCUS) focusTarget == app.packageName else casualWhitelist.contains(app.packageName),
+                        onSelect = {
+                            if (currentMode == AppMode.FOCUS) {
+                                focusTarget = if (focusTarget == app.packageName) "" else app.packageName
+                            } else {
+                                val newList = casualWhitelist.toMutableSet()
+                                if (newList.contains(app.packageName)) newList.remove(app.packageName) else newList.add(app.packageName)
+                                casualWhitelist = newList
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        // Confirm Button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(70.dp)
+                .border(1.dp, Color.Green)
+                .background(Color.Green.copy(alpha = 0.1f))
+                .clickable {
+                    EgiPreferences.saveMode(context, currentMode)
+                    EgiPreferences.saveFocusTarget(context, focusTarget)
+                    EgiPreferences.saveCasualWhitelist(context, casualWhitelist)
+                    EgiPreferences.saveAllowedDomains(context, allowedDomains)
+                    Toast.makeText(context, "TARGETS ARMED", Toast.LENGTH_SHORT).show()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "[ CONFIRM SELECTION ]",
+                color = Color.Green,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        }
     }
 }
 
 @Composable
-fun ModeTab(label: String, isActive: Boolean, modifier: Modifier, onClick: () -> Unit) {
+fun MatrixTab(label: String, isActive: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
-            .background(if (isActive) Color.Green else Color.Transparent)
-            .clickable { onClick() }
-            .padding(8.dp),
+            .fillMaxHeight()
+            .background(if (isActive) Color.Green.copy(alpha = 0.2f) else Color.Transparent)
+            .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (isActive) Color.Black else Color.Green,
+            color = if (isActive) Color.Green else Color.Gray,
             fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
+            fontSize = 12.sp,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
         )
     }
 }
 
 @Composable
-fun SelectorRow(app: AppInfo, mode: AppMode, isSelected: Boolean, onSelect: () -> Unit) {
+fun MatrixSelectorRow(app: AppInfo, mode: AppMode, isSelected: Boolean, onSelect: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(60.dp)
+            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
             .clickable { onSelect() }
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
             painter = rememberDrawablePainter(drawable = app.icon),
             contentDescription = null,
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(32.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = app.name, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
-            Text(text = app.packageName, color = Color.Green.copy(alpha = 0.6f), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+            Text(text = app.name, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
+            Text(text = app.packageName, color = Color.Green.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
         }
-
-        if (mode == AppMode.FOCUS) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onSelect,
-                colors = RadioButtonDefaults.colors(selectedColor = Color.Cyan, unselectedColor = Color.Green)
-            )
-        } else {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onSelect() },
-                colors = CheckboxDefaults.colors(checkedColor = Color.Cyan, uncheckedColor = Color.Green, checkmarkColor = Color.Black)
-            )
-        }
+        Text(
+            text = if (isSelected) "[X]" else "[ ]",
+            color = if (isSelected) Color.Cyan else Color.Green.copy(alpha = 0.5f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp
+        )
     }
 }
+

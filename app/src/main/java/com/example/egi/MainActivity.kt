@@ -37,6 +37,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -68,7 +69,7 @@ class MainActivity : ComponentActivity() {
 fun MainContent() {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
-    var routerAdminData by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) } // mac, gateway, autoOpt
+    var gatewayIp by remember { mutableStateOf("") }
 
     Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
         when (screen) {
@@ -80,20 +81,16 @@ fun MainContent() {
             Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
             Screen.WIFI_RADAR -> WifiScanScreen(
                 onBack = { currentScreen = Screen.TERMINAL },
-                onNavigateToRouter = { mac, gateway, autoOpt ->
-                    routerAdminData = Triple(mac, gateway, autoOpt)
+                onNavigateToRouter = { ip ->
+                    gatewayIp = ip
                     currentScreen = Screen.ROUTER_ADMIN
                 }
             )
             Screen.ROUTER_ADMIN -> {
-                routerAdminData?.let { (mac, gateway, autoOpt) ->
-                    RouterAdminScreen(
-                        targetMac = mac,
-                        gatewayIp = gateway,
-                        autoOptimize = autoOpt,
-                        onBack = { currentScreen = Screen.WIFI_RADAR }
-                    )
-                }
+                RouterAdminScreen(
+                    gatewayIp = gatewayIp,
+                    onBack = { currentScreen = Screen.WIFI_RADAR }
+                )
             }
             Screen.TERMINAL -> TerminalDashboard(
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
@@ -156,8 +153,6 @@ fun TerminalDashboard(
     LaunchedEffect(isSecure) {
         while (true) {
             if (!isSecure) {
-                // If we can't even ping a known IP while VPN is off, 
-                // and we've granted VPN permissions, it's likely lockdown mode.
                 val isBlocked = withContext(Dispatchers.IO) {
                     try {
                         val socket = java.net.Socket()
@@ -187,61 +182,24 @@ fun TerminalDashboard(
         }
     }
 
-    // HUD States
-    var selectedServer by remember { mutableStateOf(GameServers.list.first()) }
+    // Simplified HUD Loop (Pings 1.1.1.1 for Internet Quality)
     var currentPing by remember { mutableStateOf(0) }
     val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
     var currentJitter by remember { mutableStateOf(0) }
-    var serverStatus by remember { mutableStateOf("CONNECTING") }
     val blockedCount by TrafficEvent.blockedCount.collectAsState()
 
-    // Dropdown State
-    var expanded by remember { mutableStateOf(false) }
-
-    fun importConfigFromClipboard() {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = clipboard.primaryClip
-        if (clip != null && clip.itemCount > 0) {
-            val text = clip.getItemAt(0).text.toString()
-            if (text.startsWith("ss://")) {
-                outlineKey = text
-                EgiPreferences.saveOutlineKey(context, outlineKey)
-                Toast.makeText(context, "CONFIG IMPORTED", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "INVALID SS KEY", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun openVpnSettings() {
-        val intent = Intent("android.net.vpn.SETTINGS")
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, "COULD NOT OPEN SETTINGS", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun requestBatteryOptimizationBypass() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
-                val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                intent.data = android.net.Uri.parse("package:${context.packageName}")
-                context.startActivity(intent)
-            } else {
-                Toast.makeText(context, "BATTERY_OPTIMIZATION ALREADY BYPASSED", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    // Sync Stealth state to native
-    LaunchedEffect(isStealthMode, outlineKey) {
-        if (EgiNetwork.isAvailable()) {
-            EgiNetwork.toggleStealthMode(isStealthMode)
-            if (outlineKey.isNotEmpty()) {
-                EgiNetwork.setOutlineKey(outlineKey)
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2000)
+            if (EgiNetwork.isAvailable()) {
+                try {
+                    val statsJson = withContext(Dispatchers.IO) {
+                        EgiNetwork.measureNetworkStats("1.1.1.1")
+                    }
+                    val json = JSONObject(statsJson)
+                    currentPing = json.optInt("ping", -1)
+                    currentJitter = json.optInt("jitter", 0)
+                } catch (e: Throwable) {}
             }
         }
     }
@@ -249,8 +207,7 @@ fun TerminalDashboard(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (granted) {
+        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             onOpenWifiRadar()
         } else {
             Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
@@ -287,528 +244,317 @@ fun TerminalDashboard(
         }
     }
 
-    // Real-Time Stats Loop (The HUD)
-    LaunchedEffect(selectedServer) {
-        while (true) {
-            delay(1500)
-            if (EgiNetwork.isAvailable()) {
-                try {
-                    val statsJson = withContext(Dispatchers.IO) {
-                        EgiNetwork.measureNetworkStats(selectedServer.ip)
-                    }
-                    val json = JSONObject(statsJson)
-                    currentPing = json.optInt("ping", -1)
-                    currentJitter = json.optInt("jitter", 0)
-                    serverStatus = if (currentPing != -1) "ONLINE" else "UNREACHABLE"
-                } catch (e: Throwable) {
-                    serverStatus = "ERROR"
-                }
-            } else {
-                serverStatus = "LIB_ERR"
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(16.dp)
+            .padding(8.dp)
     ) {
-        // --- TOP SECTION: THE HUD (Weight 0.45) ---
-        Column(
+        // --- TOP SECTION: THE MATRIX HEADER ---
+        Row(
             modifier = Modifier
-                .weight(0.48f)
                 .fillMaxWidth()
+                .height(60.dp)
         ) {
-                        // Connection Status & Stealth Toggle
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(Color.DarkGray.copy(alpha = 0.3f))
-                                    .padding(8.dp)
-                            ) {
-                                Text(
-                                    text = "LINK_QUALITY: ${if(currentPing > 0) "$currentPing ms" else "MEASURING..."}",
-                                    color = when {
-                                        currentPing in 1..80 -> Color.Green
-                                        currentPing in 81..150 -> Color.Yellow
-                                        currentPing > 150 -> Color.Red
-                                        else -> Color.Gray
-                                    },
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            }
-            
-                            Spacer(modifier = Modifier.width(8.dp))                
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable {
+                        isStealthMode = !isStealthMode
+                        EgiPreferences.setStealthMode(context, isStealthMode)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = if (isStealthMode) "[ STEALTH: ACTIVE ]" else "[ STEALTH: OFF ]",
+                    text = if (isStealthMode) "[ STEALTH: ON ]" else "[ STEALTH: OFF ]",
                     color = if (isStealthMode) Color.Magenta else Color.Gray,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
-                    modifier = Modifier
-                        .clickable {
-                            isStealthMode = !isStealthMode
-                            EgiPreferences.setStealthMode(context, isStealthMode)
-                        }
-                        .padding(4.dp)
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
-                
-            Spacer(modifier = Modifier.height(8.dp))
-                
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.DarkGray.copy(alpha = 0.2f))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .weight(1.2f)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (EgiNetwork.isAvailable()) "EGI CORE STATUS: NOMINAL" else "EGI CORE STATUS: LIB_MISSING",
-                    color = if (EgiNetwork.isAvailable()) Color.Green else Color.Red,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace
+                    text = if (currentSsid != null) "[ WIFI: $currentSsid ]" else "[ NO_WIFI ]",
+                    color = if (isCurrentSsidTrusted) Color.Green else Color.Yellow,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 1
                 )
-                if (!isBatteryOptimized) {
-                    Text("BATTERY_WARN", color = Color.Red, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                }
+            }
+            Box(
+                modifier = Modifier
+                    .weight(0.8f)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ CONFIG ]", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(0.4f)
+                    .fillMaxHeight()
+                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .clickable { showManual = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ ? ]", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color.Green else Color.Red)
+            StatsTile("JITTER", "$currentJitter ms", 1f, Color.Cyan)
+            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color.Green else Color.Gray)
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .border(0.5.dp, Color.Green.copy(alpha = 0.3f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "THREATS BLOCKED",
+                    color = Color.Green.copy(alpha = 0.7f),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = String.format("%,d", blockedCount),
+                    color = if (isSecure) Color.Green else Color.DarkGray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
                 if (isStrictBlocking) {
                     Text(
-                        text = "STRICT_BLOCKING", 
-                        color = Color.Red, 
-                        fontSize = 10.sp, 
-                        fontFamily = FontFamily.Monospace, 
-                        fontWeight = FontWeight.Bold,
+                        "STRICT_BLOCKING_DETECTED",
+                        color = Color.Red,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
                         modifier = Modifier.clickable { showLockdownDialog = true }
                     )
                 }
-                Text(
-                    text = "[ CONFIG ]",
-                    color = Color.Cyan,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { 
-                        context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-                    }.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-                Text(
-                    text = "[ ? ]",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { showManual = true }.padding(4.dp)
-                )
             }
+        }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // WiFi Info
-            if (currentSsid != null) {
-                Text(
-                    text = "WIFI: $currentSsid (${if(isCurrentSsidTrusted) "TRUSTED" else "UNTRUSTED"})",
-                    color = if(isCurrentSsidTrusted) Color.Green else Color.Yellow,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                )
-            } else {
-                Text("NO WIFI DETECTED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Stats HUD
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("PING", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text(
-                        text = if (currentPing == -1) "-- ms" else "$animatedPing ms",
-                        color = when {
-                            currentPing == -1 -> Color.Red
-                            currentPing < 60 -> Color.Green
-                            currentPing < 120 -> Color.Yellow
-                            else -> Color.Red
-                        },
-                        fontSize = 24.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("JITTER", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text(
-                        text = "$currentJitter ms",
-                        color = Color.Cyan,
-                        fontSize = 18.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("BLOCKED", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Text(
-                        text = blockedCount.toString(),
-                        color = if (blockedCount > 0) Color.Red else Color.Green,
-                        fontSize = 18.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth().height(60.dp)) {
+                GridButton("[ NUCLEAR MODE ]", Modifier.weight(1f)) { onOpenAppSelector() }
+                GridButton("[ NETWORK RADAR ]", Modifier.weight(1f)) {
+                    val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        onOpenWifiRadar()
+                    } else {
+                        permissionLauncher.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION))
+                    }
                 }
             }
+            Row(modifier = Modifier.fillMaxWidth().height(60.dp)) {
+                GridButton("[ TERMINAL LOG ]", Modifier.weight(1f)) { showLogs = true }
+                GridButton("[ BATTERY / BOOT ]", Modifier.weight(1f)) {
+                    val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        intent.data = android.net.Uri.parse("package:${context.packageName}")
+                        context.startActivity(intent)
+                    } else {
+                        Toast.makeText(context, "STABILITY OPTIMIZED", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .border(1.dp, Color.Green)
+                .background(if (isSecure) Color.Red.copy(alpha = 0.1f) else Color.Green.copy(alpha = 0.05f))
+                .clickable {
+                    handleExecuteToggle(context, isSecure, isBooting, isStealthMode, onOpenAppSelector, vpnLauncher) { isBooting = it }
+                },
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = when {
-                    !isSecure -> ">> VPN TUNNEL: INACTIVE <<"
-                    isStealthMode && outlineKey.isNotEmpty() -> ">> STEALTH TUNNEL: ENCRYPTED <<"
-                    else -> ">> OFFLINE SHIELD: ACTIVE <<"
+                    isBooting -> "> [ BOOTING... ] <"
+                    isSecure -> "> [ ABORT ] <"
+                    isStrictBlocking && !isStealthMode -> "> [ LOCKED: CONFIG_VPN ] <"
+                    else -> "> [ EXECUTE ] <"
                 },
-                color = when {
-                    !isSecure -> Color.Gray
-                    isStealthMode && outlineKey.isNotEmpty() -> Color.Cyan
-                    else -> Color.Yellow // Yellow for caution/offline blocking
-                },
-                fontSize = 12.sp,
+                color = if (isSecure) Color.Red else Color.Green,
                 fontFamily = FontFamily.Monospace,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp
             )
         }
-
-        Divider(color = Color.Green, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-        // --- BOTTOM SECTION: SILENT SHIELD (Weight 0.52) ---
-        Column(
-            modifier = Modifier
-                .weight(0.52f)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            if (showLogs) {
-                TerminalLog(onClose = { showLogs = false })
-            } else {
-                ShieldStatusCard(blockedCount, isSecure)
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Control Grid
-            Column(modifier = Modifier.fillMaxWidth()) {
-                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    MenuButton("[ NUCLEAR MODE ]") { onOpenAppSelector() }
-                    MenuButton("[ TERMINAL_LOG ]") { showLogs = true }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    MenuButton("[ STEALTH KEY ]") { showKeyDialog = true }
-                    MenuButton("[ IMPORT KEY ]") { importConfigFromClipboard() }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    MenuButton("[ NETWORK RADAR ]") {
-                        val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                        if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                            onOpenWifiRadar()
-                        } else {
-                            permissionLauncher.launch(arrayOf(
-                                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                android.Manifest.permission.ACCESS_COARSE_LOCATION
-                            ))
-                        }
-                    }
-                }
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    MenuButton("[ UNRESTRICTED_BATTERY ]") { requestBatteryOptimizationBypass() }
-                    MenuButton(if (isAutoStart) "[ AUTO_BOOT: ON ]" else "[ AUTO_BOOT: OFF ]") {
-                        isAutoStart = !isAutoStart
-                        EgiPreferences.setAutoStart(context, isAutoStart)
-                    }
-                }
-                
-                // Local Bypass Toggle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("LOCAL NETWORK BYPASS", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    Switch(
-                        checked = isLocalBypass,
-                        onCheckedChange = {
-                            isLocalBypass = it
-                            EgiPreferences.setLocalBypass(context, it)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.Green,
-                            uncheckedThumbColor = Color.DarkGray
-                        )
-                    )
-                }
-            }
-
-                
-
-                if (showKeyDialog) {
-
-                    var tempKey by remember { mutableStateOf(outlineKey) }
-
-                    AlertDialog(
-
-                        onDismissRequest = { showKeyDialog = false },
-
-                        containerColor = Color.Black,
-
-                        title = { Text("STEALTH TUNNEL CONFIG", color = Color.Green, fontFamily = FontFamily.Monospace) },
-
-                        text = {
-
-                            OutlinedTextField(
-
-                                value = tempKey,
-
-                                onValueChange = { tempKey = it },
-
-                                label = { Text("OUTLINE / SS KEY", color = Color.Gray) },
-
-                                modifier = Modifier.fillMaxWidth(),
-
-                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace)
-
-                            )
-
-                        },
-
-                        confirmButton = {
-
-                            TextButton(onClick = {
-
-                                outlineKey = tempKey
-
-                                EgiPreferences.saveOutlineKey(context, outlineKey)
-
-                                showKeyDialog = false
-
-                            }) {
-
-                                Text("SAVE", color = Color.Green, fontFamily = FontFamily.Monospace)
-
-                            }
-
-                        },
-
-                        dismissButton = {
-
-                            TextButton(onClick = { showKeyDialog = false }) {
-
-                                Text("CANCEL", color = Color.Red, fontFamily = FontFamily.Monospace)
-
-                            }
-
-                        }
-
-                    )
-
-                }
-
-    
-
-                if (showLockdownDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showLockdownDialog = false },
-                        containerColor = Color.Black,
-                        title = { Text("STRICT MODE ACTIVE", color = Color.Red, fontFamily = FontFamily.Monospace) },
-                        text = { 
-                            Text(
-                                "Your Android system is set to 'Block connections without VPN'.\n\n" +
-                                "1. To use Focus Mode OFFLINE: Click CONFIG and turn OFF 'Block connections without VPN'.\n\n" +
-                                "2. To use Focus Mode ONLINE: Turn ON 'Stealth Mode' and enter a VPN Key.",
-                                color = Color.White,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { 
-                                showLockdownDialog = false
-                                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-                            }) {
-                                Text("OPEN CONFIG", color = Color.Cyan, fontFamily = FontFamily.Monospace)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showLockdownDialog = false }) {
-                                Text("UNDERSTOOD", color = Color.Green, fontFamily = FontFamily.Monospace)
-                            }
-                        }
-                    )
-                }
-
-                if (showManual) {
-
-                    TacticalManual(onDismiss = { showManual = false })
-
-                }
-
-    
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-    
-
-                // Main Toggle Button
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            try {
-                                if (isBooting) {
-                                    isBooting = false
-                                    TrafficEvent.log("USER >> BOOT_CANCELLED")
-                                    return@clickable
-                                }
-
-                                if (isSecure) {
-                                    TrafficEvent.log("USER >> SHUTTING_DOWN")
-                                    val stopIntent = Intent(context, EgiVpnService::class.java).apply {
-                                        action = EgiVpnService.ACTION_STOP
-                                    }
-                                    context.startService(stopIntent)
-                                } else {
-                                    val vipList = EgiPreferences.getVipList(context)
-                                    if (!isStealthMode && vipList.isEmpty()) {
-                                        Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
-                                        onOpenAppSelector()
-                                        return@clickable
-                                    }
-                                    
-                                    isBooting = true
-                                    TrafficEvent.log("USER >> BOOTING_SHIELD")
-                                    val intent = VpnService.prepare(context)
-                                    if (intent != null) {
-                                        vpnLauncher.launch(intent)
-                                    } else {
-                                        ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                TrafficEvent.log("CRITICAL >> ${e.message}")
-                                isBooting = false
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = when {
-                            isBooting -> "> [ BOOTING... ] <"
-                            isSecure -> "> [ ABORT ] <"
-                            isStrictBlocking && !isStealthMode -> "> [ LOCKED: CONFIG_VPN ] <"
-                            else -> "> [ EXECUTE ] <"
-                        },
-                        color = when {
-                            isSecure -> Color.Red
-                            isStrictBlocking && !isStealthMode -> Color.Yellow
-                            else -> Color.Green
-                        },
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                }
-
-            }
-
-        }
-
     }
 
-    
-
-    @Composable
-
-    
-
-    fun TacticalManual(onDismiss: () -> Unit) {
+    if (showKeyDialog) {
+        var tempKey by remember { mutableStateOf(outlineKey) }
         AlertDialog(
-            onDismissRequest = onDismiss,
+            onDismissRequest = { showKeyDialog = false },
             containerColor = Color.Black,
-            title = {
-                Text("EGI >> COMPLETE OPERATING MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-            },
+            title = { Text("STEALTH TUNNEL CONFIG", color = Color.Green, fontFamily = FontFamily.Monospace) },
             text = {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    item {
-                        // English Section
-                        Text("[ ENGLISH - FULL GUIDE ]", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        ManualSection("NUCLEAR MODE (OFFLINE)", "No VPN Key needed. Automatically blocks all apps except your 'Focus' target. The Shield runs locally.")
-                        ManualSection("NUCLEAR MODE + VPN", "To use a VPN for your Focus App while blocking others: Turn on 'Stealth Mode', enter Key, and enable 'Block connections without VPN' in Android Settings.")
-                        ManualSection("STEALTH MODE", "If your WiFi blocks everything, turn this ON. Use 'IMPORT KEY' to paste a Shadowsocks (ss://) link. It wraps your traffic in a secret tunnel to sneak past firewalls.")
-                        ManualSection("NETWORK RADAR", "Scan your current WiFi to see 'intruders'. If someone is hogging your speed, click their device to isolate them. Use 'LOCAL BYPASS' if you need to use your home printer.")
-                        ManualSection("STABILITY", "Turn on 'UNRESTRICTED_BATTERY' and 'AUTO_BOOT' so the shield never sleeps. IMPORTANT: For strict blocking, go to the '[ CONFIG ]' button in the HUD and enable 'Always-on VPN' and 'Block connections without VPN' for Egi.")
-                        ManualSection("TROUBLESHOOTING", "If 'EXECUTE' does nothing: 1. Pick a target app in NUCLEAR MODE first. 2. Check if another VPN is active. 3. Ensure you granted VPN permission.")
-                        ManualSection("THE HUD", "The green graph shows your speed (Ping). High numbers (Red) mean lag. The 'THREATS BLOCKED' counter shows exactly how many distractions were terminated.")
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Divider(color = Color.Green, thickness = 2.dp)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Burmese Section
-                        Text("[ မြန်မာဘာသာ - အသုံးပြုနည်းအပြည့်အစုံ ]", color = Color.Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        ManualSection("NUCLEAR MODE (အဓိကလုပ်ဆောင်ချက်)", "မိမိသုံးမည့် App နှင့် Website ကို ရွေးချယ်ပေးရပါမည်။ 'Focus' တွင် App တစ်ခုတည်းကိုသာ သုံးနိုင်ပြီး 'Casual' တွင် App အများအပြားကို ရွေးချယ်နိုင်ပါသည်။ Website ကြည့်လိုပါက အကွက်ထဲတွင် Website link (ဥပမာ - stackoverflow.com) ကို ရိုက်ထည့်ပါ။ ကျန်ရှိသော App နှင့် Website အားလုံးကို ပိတ်ထားပေးပါမည်။")
-                        ManualSection("STEALTH MODE (လျှို့ဝှက်ဥမှင်စနစ်)", "အင်တာနက်လိုင်း ပိတ်ဆို့ခံထားရပါက ဤစနစ်ကို သုံးပါ။ 'IMPORT KEY' ကိုနှိပ်ပြီး Shadowsocks (ss://) link ကို ထည့်ပါ။ ပိတ်ဆို့ထားသော အင်တာနက်လိုင်းများကို ကျော်ဖြတ်နိုင်ပါမည်။")
-                        ManualSection("NETWORK RADAR (ဝိုင်ဖိုင်စစ်ဆေးခြင်း)", "မိမိသုံးနေသော WiFi ထဲတွင် အခြားသူများ ခိုးသုံးနေသလား စစ်ဆေးနိုင်ပါသည်။ အင်တာနက်လိုင်း ဆွဲနေသူများကို တွေ့ပါက [ KICK ] နှိပ်ပြီး ဖြတ်တောက်နိုင်ပါသည်။ အိမ်ရှိ Printer များကို သုံးလိုပါက 'LOCAL BYPASS' ကို ဖွင့်ထားပါ။")
-                        ManualSection("STABILITY (အမြဲပွင့်နေစေရန်)", "ဖုန်းပိတ်ပြီး ပြန်ဖွင့်လျှင်လည်း အလိုအလျောက် ပွင့်နေစေရန် 'AUTO_BOOT' ကို ဖွင့်ပါ။ အင်တာနက်လိုင်း မပြတ်တောက်စေရန် 'UNRESTRICTED_BATTERY' ကို နှိပ်ပြီး ခွင့်ပြုချက်ပေးပါ။ အမြဲတမ်း ပိတ်ဆို့ထားလိုပါက HUD ထဲရှိ '[ CONFIG ]' ထဲတွင် 'Always-on VPN' နှင့် 'Block connections without VPN' ကို ဖွင့်ပါ။")
-                        ManualSection("THE HUD (အခြေအနေပြဘုတ်)", "အစိမ်းရောင် ဂရပ်ဖစ်မျဉ်းသည် အင်တာနက် အမြန်နှုန်း (Ping) ကို ပြခြင်းဖြစ်သည်။ ဂဏန်းကြီးလျှင် (အနီရောင်ဖြစ်လျှင်) လိုင်းလေးနေခြင်း ဖြစ်သည်။ 'THREATS BLOCKED' သည် အနှောင့်အယှက်ပေးသော App မည်မျှကို ပိတ်ဆို့ထားသည်ကို ပြခြင်း ဖြစ်သည်။")
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("GOAL: 100% PRODUCTIVITY. 0% LAG.", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                    }
+                Column {
+                    OutlinedTextField(
+                        value = tempKey,
+                        onValueChange = { tempKey = it },
+                        label = { Text("OUTLINE / SS KEY", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "[ PASTE FROM CLIPBOARD ]",
+                        color = Color.Yellow,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.clickable { 
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = clipboard.primaryClip
+                            if (clip != null && clip.itemCount > 0) {
+                                tempKey = clip.getItemAt(0).text.toString()
+                            }
+                        }.padding(4.dp)
+                    )
                 }
             },
             confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("[ MISSION UNDERSTOOD ]", color = Color.Green, fontFamily = FontFamily.Monospace)
+                TextButton(onClick = {
+                    outlineKey = tempKey
+                    EgiPreferences.saveOutlineKey(context, outlineKey)
+                    showKeyDialog = false
+                }) {
+                    Text("SAVE", color = Color.Green, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showKeyDialog = false }) {
+                    Text("CANCEL", color = Color.Red, fontFamily = FontFamily.Monospace)
                 }
             }
         )
     }
 
-    
+    if (showManual) { TacticalManual(onDismiss = { showManual = false }) }
+}
 
-    
+@Composable
+fun StatsTile(label: String, value: String, weight: Float, valueColor: Color) {
+    Box(
+        modifier = Modifier
+            .weight(weight)
+            .fillMaxHeight()
+            .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+            Text(value, color = valueColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        }
+    }
+}
 
-    
+@Composable
+fun GridButton(text: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = Color.Green,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+private fun handleExecuteToggle(
+    context: Context,
+    isSecure: Boolean,
+    isBooting: Boolean,
+    isStealthMode: Boolean,
+    onOpenAppSelector: () -> Unit,
+    vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
+    setBooting: (Boolean) -> Unit
+) {
+    try {
+        if (isBooting) {
+            setBooting(false)
+            TrafficEvent.log("USER >> BOOT_CANCELLED")
+            return
+        }
+        if (isSecure) {
+            TrafficEvent.log("USER >> SHUTTING_DOWN")
+            val stopIntent = Intent(context, EgiVpnService::class.java).apply { action = EgiVpnService.ACTION_STOP }
+            context.startService(stopIntent)
+        } else {
+            val vipList = EgiPreferences.getVipList(context)
+            if (!isStealthMode && vipList.isEmpty()) {
+                Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
+                onOpenAppSelector()
+                return
+            }
+            setBooting(true)
+            TrafficEvent.log("USER >> BOOTING_SHIELD")
+            val intent = VpnService.prepare(context)
+            if (intent != null) { vpnLauncher.launch(intent) } 
+            else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+        }
+    } catch (e: Exception) {
+        TrafficEvent.log("CRITICAL >> ${e.message}")
+        setBooting(false)
+    }
+}
+
+@Composable
+fun TacticalManual(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.Black,
+        title = { Text("EGI >> OPERATING MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace) },
+        text = {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                item {
+                    ManualSection("NUCLEAR MODE", "Blocks all apps except target. Runs locally.")
+                    ManualSection("STEALTH MODE", "Tunnels traffic via SS Key to bypass firewalls.")
+                    ManualSection("NETWORK RADAR", "Scan WiFi for intruders and isolate them.")
+                    ManualSection("STABILITY", "Enable Auto-Boot and Unrestricted Battery.")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("[ UNDERSTOOD ]", color = Color.Green, fontFamily = FontFamily.Monospace) }
+        }
+    )
+}
 
 @Composable
 fun ManualSection(title: String, desc: String) {
@@ -820,100 +566,27 @@ fun ManualSection(title: String, desc: String) {
 }
 
 @Composable
-fun ShieldStatusCard(count: Int, isActive: Boolean) {
-    val animatedCount by animateIntAsState(targetValue = count, animationSpec = tween(500), label = "CountAnim")
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.padding(24.dp)
-    ) {
-        Text(
-            text = if (isActive) "SHIELD ACTIVE" else "SHIELD STANDBY",
-            color = if (isActive) Color.Cyan else Color.Gray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "$animatedCount",
-            color = if (isActive) Color.Green else Color.DarkGray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 64.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-        Text(
-            text = "THREATS BLOCKED",
-            color = if (isActive) Color.Green.copy(alpha = 0.7f) else Color.Gray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp
-        )
-    }
-}
-
-
-@Composable
-fun MenuButton(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        color = Color.Green,
-        fontFamily = FontFamily.Monospace,
-        fontSize = 12.sp,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(8.dp)
-    )
-}
-
-@Composable
 fun TerminalLog(onClose: () -> Unit) {
     val events = TrafficEvent.events.collectAsState(initial = "INITIALIZING...")
     val logHistory = remember { mutableStateListOf<String>() }
     val listState = rememberLazyListState()
-
     LaunchedEffect(events.value) {
-        if (events.value == "CONSOLE_CLEARED") {
-            logHistory.clear()
-        } else {
+        if (events.value == "CONSOLE_CLEARED") { logHistory.clear() } 
+        else {
             logHistory.add("${System.currentTimeMillis() % 100000} >> ${events.value}")
             if (logHistory.size > 50) logHistory.removeAt(0)
             listState.animateScrollToItem(logHistory.size)
         }
     }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .background(Color.Black)
-            .padding(8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("EGI_CONSOLE_V1.0", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            Row {
-                Text(
-                    "[ CLEAR ]", 
-                    color = Color.Yellow, 
-                    fontSize = 12.sp, 
-                    modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(end = 8.dp)
-                )
-                Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() })
-            }
+            Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() })
         }
         Divider(color = Color.Cyan, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(logHistory) { log ->
-                Text(
-                    text = log,
-                    color = if (log.contains("ERROR") || log.contains("CRITICAL")) Color.Red else Color.Green,
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                Text(text = log, color = if (log.contains("ERROR")) Color.Red else Color.Green, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
         }
     }
