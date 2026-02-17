@@ -45,17 +45,30 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
     LaunchedEffect(webViewInstance) {
         while (true) {
             webViewInstance?.let { view ->
-                statusMessage = "SYNCING_WITH_ROUTER..."
-                val scraper = """
+                val monitorScript = """
                     (function() {
+                        const body = document.body.innerText.toLowerCase();
+                        const html = document.documentElement.innerHTML.toLowerCase();
+                        
+                        // 1. Check for Login Failures
+                        if (body.includes('invalid') || body.includes('fail') || body.includes('wrong') || body.includes('incorrect')) {
+                            return 'ERROR_AUTH_FAILED';
+                        }
+                        
+                        // 2. Check if we are still on Login Page
+                        const inputs = document.querySelectorAll('input');
+                        const passFields = Array.from(inputs).filter(i => i.type === 'password');
+                        if (passFields.length > 0 && passFields.some(f => f.offsetWidth > 0)) {
+                            return 'STATUS_WAITING_AUTH';
+                        }
+
+                        // 3. Scrape Devices
                         const devices = [];
-                        // 1. Target tables, lists, and specific known device classes
                         const selectors = 'tr, .device-row, .client-item, li, div.device, .client-list-item';
                         const rows = Array.from(document.querySelectorAll(selectors));
                         
                         rows.forEach(r => {
                             const text = r.innerText;
-                            // Regex for IP and MAC
                             const ipMatch = text.match(/\d+\.\d+\.\d+\.\d+/);
                             const macMatch = text.match(/([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})/);
                             
@@ -68,10 +81,8 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                             }
                         });
                         
-                        // 2. Backup: Look for any IP-like string in the whole body if list is empty
                         if (devices.length === 0) {
-                            const bodyText = document.body.innerText;
-                            const allIps = bodyText.match(/\d+\.\d+\.\d+\.\d+/g);
+                            const allIps = body.match(/\d+\.\d+\.\d+\.\d+/g);
                             if (allIps) {
                                 [...new Set(allIps)].forEach(ip => {
                                     if (ip !== '$gatewayIp' && !ip.startsWith('127.')) {
@@ -81,43 +92,56 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                             }
                         }
                         
-                        return JSON.stringify(devices);
+                        return JSON.stringify({
+                            status: 'SUCCESS',
+                            data: devices
+                        });
                     })()
                 """.trimIndent()
                 
                 withContext(Dispatchers.Main) {
-                    view.evaluateJavascript(scraper) { json ->
-                        if (json != null && json != "null" && json != "[]") {
-                            try {
-                                val cleanJson = json.replace("\\\"", "\"").trim('"')
-                                val array = JSONArray(cleanJson)
-                                val list = mutableListOf<DeviceInfo>()
-                                for (i in 0 until array.length()) {
-                                    val obj = array.getJSONObject(i)
-                                    val ip = obj.getString("i")
-                                    list.add(DeviceInfo(
-                                        ip = ip, 
-                                        status = obj.getString("s"), 
-                                        mac = obj.getString("m"),
-                                        name = "Asset_" + ip.split(".").last()
-                                    ))
-                                }
-                                if (list.isNotEmpty()) {
-                                    scrapedDevices = list.distinctBy { it.ip }
-                                    statusMessage = "BRIDGE_STABLE >> ${list.size}_DEVICES_SCANNED"
-                                } else {
-                                    statusMessage = "BRIDGE_IDLE >> SEEKING_DATA"
-                                }
-                            } catch(e: Exception) {
-                                statusMessage = "SCRAPE_DATA_PARSE_ERROR"
+                    view.evaluateJavascript(monitorScript) { res ->
+                        val cleanRes = res?.trim('"') ?: ""
+                        when {
+                            cleanRes == "ERROR_AUTH_FAILED" -> {
+                                statusMessage = "CRITICAL >> AUTH_FAILED: INVALID_CREDENTIALS"
                             }
-                        } else {
-                            statusMessage = "BRIDGE_CONNECTED >> SCANNING_PAGE..."
+                            cleanRes == "STATUS_WAITING_AUTH" -> {
+                                statusMessage = "BRIDGE >> WAITING_FOR_ROUTER_HANDSHAKE..."
+                            }
+                            cleanRes.startsWith("{") -> {
+                                try {
+                                    val json = JSONObject(cleanRes.replace("\\\"", "\""))
+                                    val array = json.getJSONArray("data")
+                                    val list = mutableListOf<DeviceInfo>()
+                                    for (i in 0 until array.length()) {
+                                        val obj = array.getJSONObject(i)
+                                        val ip = obj.getString("i")
+                                        list.add(DeviceInfo(
+                                            ip = ip, 
+                                            status = obj.getString("s"), 
+                                            mac = obj.getString("m"),
+                                            name = "Asset_" + ip.split(".").last()
+                                        ))
+                                    }
+                                    if (list.isNotEmpty()) {
+                                        scrapedDevices = list.distinctBy { it.ip }
+                                        statusMessage = "BRIDGE_STABLE >> ${list.size}_DEVICES_SCANNED"
+                                    } else {
+                                        statusMessage = "BRIDGE_IDLE >> SEARCHING_INTERNAL_TABLES"
+                                    }
+                                } catch(e: Exception) {
+                                    statusMessage = "BRIDGE >> DATA_SYNC_IN_PROGRESS..."
+                                }
+                            }
+                            else -> {
+                                statusMessage = "BRIDGE_CONNECTED >> SCANNING_NODES..."
+                            }
                         }
                     }
                 }
             }
-            delay(3000) // Faster polling
+            delay(3000)
         }
     }
 
@@ -129,47 +153,54 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                     webViewInstance = this
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
-                            statusMessage = "AUTH_CHALLENGE >> INJECTING_CREDENTIALS"
+                            statusMessage = "BRIDGE >> INJECTING_CREDENTIALS..."
                             val loginScript = """
                                 (function() {
                                     const b = '$brand'; const u = '$user'; const p = '$pass';
                                     const inputs = document.querySelectorAll('input');
                                     
-                                    // 1. Precise Brand Login
-                                    if (b === 'TP-Link') {
-                                        const userF = document.querySelector('#username') || document.querySelector('#login-username');
-                                        const passF = document.querySelector('#password') || document.querySelector('#login-password');
-                                        if (userF) userF.value = u;
-                                        if (passF) passF.value = p;
-                                        (document.querySelector('.login-btn') || document.querySelector('#login-btn'))?.click();
-                                    } else if (b === 'Huawei') {
-                                        if (document.querySelector('#txt_user')) document.querySelector('#txt_user').value = u;
-                                        if (document.querySelector('#txt_pwd')) document.querySelector('#txt_pwd').value = p;
-                                        document.querySelector('#btn_login')?.click();
-                                    } else if (b === 'ASUS') {
-                                        if (document.querySelector('#login_username')) document.querySelector('#login_username').value = u;
-                                        if (document.querySelector('#login_passwd')) document.querySelector('#login_passwd').value = p;
-                                        document.querySelector('.button')?.click();
-                                    } else if (b === 'ZTE') {
-                                        if (document.querySelector('#username')) document.querySelector('#username').value = u;
-                                        if (document.querySelector('#password')) document.querySelector('#password').value = p;
-                                        document.querySelector('#loginBtn')?.click();
-                                    } else {
-                                        // Generic Fallback
-                                        const pField = Array.from(inputs).find(i => i.type==='password');
-                                        if (pField) pField.value = p;
-                                        const uField = Array.from(inputs).find(i => (i.type==='text' || i.id.includes('user')) && i !== pField);
-                                        if (uField) uField.value = u;
-                                        document.querySelector('button[type="submit"], input[type="submit"]')?.click();
-                                    }
+                                    const doLogin = () => {
+                                        if (b === 'TP-Link') {
+                                            const userF = document.querySelector('#username') || document.querySelector('#login-username');
+                                            const passF = document.querySelector('#password') || document.querySelector('#login-password');
+                                            if (userF) userF.value = u;
+                                            if (passF) passF.value = p;
+                                            (document.querySelector('.login-btn') || document.querySelector('#login-btn'))?.click();
+                                        } else if (b === 'Huawei') {
+                                            if (document.querySelector('#txt_user')) document.querySelector('#txt_user').value = u;
+                                            if (document.querySelector('#txt_pwd')) document.querySelector('#txt_pwd').value = p;
+                                            document.querySelector('#btn_login')?.click();
+                                        } else if (b === 'ASUS') {
+                                            if (document.querySelector('#login_username')) document.querySelector('#login_username').value = u;
+                                            if (document.querySelector('#login_passwd')) document.querySelector('#login_passwd').value = p;
+                                            document.querySelector('.button')?.click();
+                                        } else if (b === 'ZTE') {
+                                            if (document.querySelector('#username')) document.querySelector('#username').value = u;
+                                            if (document.querySelector('#password')) document.querySelector('#password').value = p;
+                                            document.querySelector('#loginBtn')?.click();
+                                        } else {
+                                            const pField = Array.from(inputs).find(i => i.type==='password');
+                                            if (pField) pField.value = p;
+                                            const uField = Array.from(inputs).find(i => (i.type==='text' || i.id.includes('user')) && i !== pField);
+                                            if (uField) uField.value = u;
+                                            document.querySelector('button[type="submit"], input[type="submit"]')?.click();
+                                        }
+                                    };
 
-                                    // 2. Continuous Navigation Seeking
+                                    doLogin();
+
                                     const seek = () => {
                                         const navLinks = Array.from(document.querySelectorAll('a, span, li, button'));
-                                        const target = navLinks.find(l => ['device', 'client', 'attached', 'status', 'host', 'lan'].some(k => l.innerText.toLowerCase().includes(k)));
-                                        if (target && !window.location.href.includes('client')) target.click();
+                                        const target = navLinks.find(l => {
+                                            const t = l.innerText.toLowerCase();
+                                            return ['device', 'client', 'attached', 'status', 'host', 'lan', 'wireless'].some(k => t.includes(k)) && 
+                                                   !['log', 'help', 'reboot'].some(k => t.includes(k));
+                                        });
+                                        if (target && !window.location.href.includes('client')) {
+                                            target.click();
+                                        }
                                     };
-                                    setInterval(seek, 3000);
+                                    setInterval(seek, 5000);
                                 })()
                             """.trimIndent()
                             view?.evaluateJavascript(loginScript, null)
@@ -177,10 +208,11 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                     }
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
                     loadUrl("http://$gatewayIp")
                 }
             },
-            modifier = Modifier.size(1.dp) // Headless
+            modifier = Modifier.size(1.dp)
         )
 
         // 2. Native Matrix UI
@@ -196,17 +228,31 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
             }
 
             // Status Console
-            Box(Modifier.fillMaxWidth().height(30.dp).background(Color.DarkGray.copy(alpha = 0.1f)).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                Text(statusMessage, color = Color.Green, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Box(Modifier.fillMaxWidth().height(40.dp).background(Color.DarkGray.copy(alpha = 0.1f)).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                Text(statusMessage, color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
 
             // Scraped Asset List
             Box(modifier = Modifier.weight(1f).fillMaxWidth().border(0.5.dp, Color.Green.copy(alpha = 0.3f))) {
                 if (scrapedDevices.isEmpty()) {
                     Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color.Green, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.height(16.dp))
-                        Text("INTERROGATING_ROUTER...", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text(
+                            text = if(statusMessage.contains("FAILED")) "AUTHENTICATION_REQUIRED" else "INTERROGATING_ROUTER...", 
+                            color = if(statusMessage.contains("FAILED")) Color.Red else Color.Gray, 
+                            fontSize = 11.sp, 
+                            fontFamily = FontFamily.Monospace
+                        )
+                        if (statusMessage.contains("FAILED")) {
+                            Text(
+                                "CHECK CREDENTIALS IN RADAR SETUP",
+                                color = Color.Red.copy(alpha = 0.6f),
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -226,7 +272,7 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                                     })()
                                 """.trimIndent()
                                 webViewInstance?.evaluateJavascript(blockScript) { res ->
-                                    statusMessage = "BRIDGE_RESP >> " + res.uppercase()
+                                    statusMessage = "BRIDGE_RESP >> " + (res?.uppercase() ?: "NULL")
                                 }
                             }
                         }

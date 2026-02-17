@@ -275,26 +275,7 @@ fun TerminalDashboard(
         ) {
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
-                    .clickable {
-                        isStealthMode = !isStealthMode
-                        EgiPreferences.setStealthMode(context, isStealthMode)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (isStealthMode) "[ STEALTH: ON ]" else "[ STEALTH: OFF ]",
-                    color = if (isStealthMode) Color.Magenta else Color.Gray,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1.2f)
+                    .weight(1.8f)
                     .fillMaxHeight()
                     .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
@@ -303,17 +284,17 @@ fun TerminalDashboard(
                     text = if (currentSsid != null) "[ WIFI: $currentSsid ]" else "[ NO_WIFI ]",
                     color = if (isCurrentSsidTrusted) Color.Green else Color.Yellow,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 1
                 )
             }
             Box(
                 modifier = Modifier
-                    .weight(0.8f)
+                    .weight(1f)
                     .fillMaxHeight()
                     .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
-                    .clickable { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) },
+                    .clickable { showKeyDialog = true },
                 contentAlignment = Alignment.Center
             ) {
                 Text("[ CONFIG ]", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
@@ -376,7 +357,15 @@ fun TerminalDashboard(
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("[ NUCLEAR MODE ]", Modifier.weight(1f)) { onOpenAppSelector() }
+                GridButton(
+                    text = if (!isStealthMode) "[ NUCLEAR: ACTIVE ]" else "[ NUCLEAR MODE ]",
+                    modifier = Modifier.weight(1f),
+                    color = if (!isStealthMode) Color.Yellow else Color.Green
+                ) {
+                    isStealthMode = false
+                    EgiPreferences.setStealthMode(context, false)
+                    onOpenAppSelector()
+                }
                 GridButton("[ NETWORK RADAR ]", Modifier.weight(1f)) {
                     val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
                     if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -403,7 +392,15 @@ fun TerminalDashboard(
                         Toast.makeText(context, "AUTO_BOOT: ${if(isAutoStart) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
                     }
                 }
-                GridButton("[ VIP LANE ]", Modifier.weight(1f)) { onOpenAppPicker() }
+                GridButton(
+                    text = if (isStealthMode) "[ VIP LANE: ACTIVE ]" else "[ VIP LANE ]",
+                    modifier = Modifier.weight(1f),
+                    color = if (isStealthMode) Color.Magenta else Color.Green
+                ) {
+                    isStealthMode = true
+                    EgiPreferences.setStealthMode(context, true)
+                    onOpenAppPicker()
+                }
             }
         }
 
@@ -501,7 +498,7 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
 }
 
 @Composable
-fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Color = Color.Green, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -511,7 +508,7 @@ fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, onClick: ()
     ) {
         Text(
             text = text,
-            color = Color.Green,
+            color = color,
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -540,9 +537,14 @@ private fun handleExecuteToggle(
             context.startService(stopIntent)
         } else {
             val vipList = EgiPreferences.getVipList(context)
-            if (!isStealthMode && vipList.isEmpty()) {
-                Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
-                onOpenAppSelector()
+            if (vipList.isEmpty()) {
+                if (isStealthMode) {
+                    Toast.makeText(context, "PICK A VIP APP FIRST!", Toast.LENGTH_LONG).show()
+                    onOpenAppPicker()
+                } else {
+                    Toast.makeText(context, "PICK A TARGET APP FIRST!", Toast.LENGTH_LONG).show()
+                    onOpenAppSelector()
+                }
                 return
             }
             setBooting(true)

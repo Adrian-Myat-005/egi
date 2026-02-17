@@ -35,11 +35,7 @@ data class AppInfo(
 @Composable
 fun AppPickerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val sharedPrefs = remember { context.getSharedPreferences("egi_prefs", Context.MODE_PRIVATE) }
-    
-    var blockedApps by remember { 
-        mutableStateOf(sharedPrefs.getStringSet("kill_list", emptySet()) ?: emptySet()) 
-    }
+    var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context) ?: "") }
     
     val installedApps = remember {
         val pm = context.packageManager
@@ -76,8 +72,8 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
-                    text = "EGI >> VIP_LANE",
-                    color = Color.Cyan,
+                    text = "EGI >> VPN_FOCUS",
+                    color = Color.Magenta,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -104,8 +100,8 @@ fun AppPickerScreen(onBack: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "AUTHORIZED APPS BYPASS THE SHIELD (0ms OVERHEAD)",
-                color = Color.Green.copy(alpha = 0.6f),
+                "SELECTED APP WILL BE TUNNELED VIA ENCRYPTED LANE",
+                color = Color.Magenta.copy(alpha = 0.6f),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )
@@ -122,12 +118,11 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 items(installedApps) { app ->
                     MatrixAppRow(
                         app = app,
-                        isBlocked = blockedApps.contains(app.packageName),
-                        onToggle = { isChecked ->
-                            val newList = blockedApps.toMutableSet()
-                            if (isChecked) newList.add(app.packageName) else newList.remove(app.packageName)
-                            blockedApps = newList
-                            sharedPrefs.edit().putStringSet("kill_list", newList).apply()
+                        isSelected = focusTarget == app.packageName,
+                        onToggle = {
+                            focusTarget = app.packageName
+                            EgiPreferences.saveFocusTarget(context, focusTarget)
+                            EgiPreferences.saveMode(context, AppMode.FOCUS)
                         }
                     )
                 }
@@ -137,13 +132,13 @@ fun AppPickerScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun MatrixAppRow(app: AppInfo, isBlocked: Boolean, onToggle: (Boolean) -> Unit) {
+fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(65.dp)
             .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
-            .clickable { onToggle(!isBlocked) }
+            .clickable { onToggle() }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -154,8 +149,8 @@ fun MatrixAppRow(app: AppInfo, isBlocked: Boolean, onToggle: (Boolean) -> Unit) 
             Text(text = app.packageName, color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
         }
         Text(
-            text = if (isBlocked) "[ AUTHORIZED ]" else "[ SHIELDED ]",
-            color = if (isBlocked) Color.Cyan else Color.Red.copy(alpha = 0.7f),
+            text = if (isSelected) "[ FOCUS ]" else "[ STANDBY ]",
+            color = if (isSelected) Color.Magenta else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold
