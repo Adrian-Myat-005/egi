@@ -193,10 +193,11 @@ object EgiPreferences {
     }
 
     fun getVipList(context: Context): Set<String> {
-        return when (getMode(context)) {
+        val baseList = when (getMode(context)) {
             AppMode.FOCUS -> getFocusTarget(context)?.let { setOf(it) } ?: emptySet()
             AppMode.CASUAL -> getCasualWhitelist(context)
         }
+        return PackageUtils.expandPackageList(baseList)
     }
 
     fun saveAllowedDomains(context: Context, domains: String) {
