@@ -380,21 +380,32 @@ fun TerminalDashboard(
                 GridButton("[ STEALTH KEY ]", Modifier.weight(1f)) { showKeyDialog = true }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("[ BATTERY / BOOT ]", Modifier.weight(1f)) {
+                GridButton(
+                    text = if (isBatteryOptimized) "[ BATTERY: OK ]" else "[ BATTERY: FIX ]",
+                    modifier = Modifier.weight(0.8f),
+                    color = if (isBatteryOptimized) Color.Green else Color.Red
+                ) {
                     val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
                         intent.data = android.net.Uri.parse("package:${context.packageName}")
                         context.startActivity(intent)
                     } else {
-                        isAutoStart = !isAutoStart
-                        EgiPreferences.setAutoStart(context, isAutoStart)
-                        Toast.makeText(context, "AUTO_BOOT: ${if(isAutoStart) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "BATTERY_OPTIMIZATION: UNRESTRICTED", Toast.LENGTH_SHORT).show()
                     }
                 }
                 GridButton(
+                    text = if (isAutoStart) "[ BOOT: ON ]" else "[ BOOT: OFF ]",
+                    modifier = Modifier.weight(0.8f),
+                    color = if (isAutoStart) Color.Cyan else Color.Gray
+                ) {
+                    isAutoStart = !isAutoStart
+                    EgiPreferences.setAutoStart(context, isAutoStart)
+                    Toast.makeText(context, "AUTO_BOOT: ${if(isAutoStart) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
+                }
+                GridButton(
                     text = if (isStealthMode) "[ VIP LANE: ACTIVE ]" else "[ VIP LANE ]",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.4f),
                     color = if (isStealthMode) Color.Magenta else Color.Green
                 ) {
                     isStealthMode = true
