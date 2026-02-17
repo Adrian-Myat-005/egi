@@ -547,6 +547,13 @@ private fun handleExecuteToggle(
             TrafficEvent.log("USER >> SHUTTING_DOWN")
             val stopIntent = Intent(context, EgiVpnService::class.java).apply { action = EgiVpnService.ACTION_STOP }
             context.startService(stopIntent)
+            
+            // Auto-Redirect to System VPN Settings to disable Always-on/Lockdown
+            val settingsIntent = Intent(Settings.ACTION_VPN_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(settingsIntent)
+            Toast.makeText(context, "DISABLE ALWAYS-ON / LOCKDOWN IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
             val vipList = EgiPreferences.getVipList(context)
             if (vipList.isEmpty()) {
