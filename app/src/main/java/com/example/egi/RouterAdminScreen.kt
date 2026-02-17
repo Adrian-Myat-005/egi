@@ -275,6 +275,8 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                 }
             },
             modifier = Modifier.size(1.dp)
+        )
+
         // 2. Native Matrix UI
         Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
             // Header
@@ -305,45 +307,46 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
 
                 // Scraped Asset List
                 Box(modifier = Modifier.weight(1f).fillMaxWidth().border(0.5.dp, Color.Green.copy(alpha = 0.3f))) {
-                if (scrapedDevices.isEmpty()) {
-                    Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = if(statusMessage.contains("FAILED")) "AUTHENTICATION_REQUIRED" else "INTERROGATING_ROUTER...", 
-                            color = if(statusMessage.contains("FAILED")) Color.Red else Color.Gray, 
-                            fontSize = 11.sp, 
-                            fontFamily = FontFamily.Monospace
-                        )
-                        if (statusMessage.contains("FAILED")) {
+                    if (scrapedDevices.isEmpty()) {
+                        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.height(16.dp))
                             Text(
-                                "CHECK CREDENTIALS IN RADAR SETUP",
-                                color = Color.Red.copy(alpha = 0.6f),
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(top = 4.dp)
+                                text = if(statusMessage.contains("FAILED")) "AUTHENTICATION_REQUIRED" else "INTERROGATING_ROUTER...", 
+                                color = if(statusMessage.contains("FAILED")) Color.Red else Color.Gray, 
+                                fontSize = 11.sp, 
+                                fontFamily = FontFamily.Monospace
                             )
+                            if (statusMessage.contains("FAILED")) {
+                                Text(
+                                    "CHECK CREDENTIALS IN RADAR SETUP",
+                                    color = Color.Red.copy(alpha = 0.6f),
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(scrapedDevices) { device ->
-                            MatrixScrapedRow(device) {
-                                statusMessage = "EXECUTING_REMOTE_BLOCK >> ${device.ip}"
-                                val blockScript = """
-                                    (function() {
-                                        const targetIp = '${device.ip}';
-                                        const rows = Array.from(document.querySelectorAll('tr, li, .device-row'));
-                                        const targetRow = rows.find(r => r.innerText.includes(targetIp));
-                                        if (targetRow) {
-                                            const btn = targetRow.querySelector('button, input, .switch, .block');
-                                            if (btn) { btn.click(); return "SIGNAL_EMITTED"; }
-                                        }
-                                        return "TARGET_NOT_FOUND_ON_PAGE";
-                                    })()
-                                """.trimIndent()
-                                webViewInstance?.evaluateJavascript(blockScript) { res ->
-                                    statusMessage = "BRIDGE_RESP >> " + (res?.uppercase() ?: "NULL")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(scrapedDevices) { device ->
+                                MatrixScrapedRow(device) {
+                                    statusMessage = "EXECUTING_REMOTE_BLOCK >> ${device.ip}"
+                                    val blockScript = """
+                                        (function() {
+                                            const targetIp = '${device.ip}';
+                                            const rows = Array.from(document.querySelectorAll('tr, li, .device-row'));
+                                            const targetRow = rows.find(r => r.innerText.includes(targetIp));
+                                            if (targetRow) {
+                                                const btn = targetRow.querySelector('button, input, .switch, .block');
+                                                if (btn) { btn.click(); return "SIGNAL_EMITTED"; }
+                                            }
+                                            return "TARGET_NOT_FOUND_ON_PAGE";
+                                        })()
+                                    """.trimIndent()
+                                    webViewInstance?.evaluateJavascript(blockScript) { res ->
+                                        statusMessage = "BRIDGE_RESP >> " + (res?.uppercase() ?: "NULL")
+                                    }
                                 }
                             }
                         }
