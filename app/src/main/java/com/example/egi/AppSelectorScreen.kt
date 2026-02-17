@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,7 +26,7 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 fun AppSelectorScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var currentMode by remember { mutableStateOf(EgiPreferences.getMode(context)) }
-    var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context)) }
+    var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context) ?: "") }
     var casualWhitelist by remember { mutableStateOf(EgiPreferences.getCasualWhitelist(context)) }
     var searchQuery by remember { mutableStateOf("") }
     var allowedDomains by remember { mutableStateOf(EgiPreferences.getAllowedDomains(context)) }

@@ -462,10 +462,10 @@ fun TerminalDashboard(
 }
 
 @Composable
-fun StatsTile(label: String, value: String, weight: Float, valueColor: Color) {
+fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color) {
     Box(
         modifier = Modifier
-            .weight(weight)
+            .weight(weightRatio)
             .fillMaxHeight()
             .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
         contentAlignment = Alignment.Center
@@ -478,7 +478,7 @@ fun StatsTile(label: String, value: String, weight: Float, valueColor: Color) {
 }
 
 @Composable
-fun GridButton(text: String, modifier: Modifier, onClick: () -> Unit) {
+fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .fillMaxHeight()

@@ -34,7 +34,7 @@ import org.json.JSONObject
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun RouterAdminScreen(targetMac: String, gatewayIp: String, autoOptimize: Boolean = false, onBack: () -> Unit) {
+fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val (user, pass, brand) = remember { EgiPreferences.getRouterCredentials(context) }
     var scrapedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }

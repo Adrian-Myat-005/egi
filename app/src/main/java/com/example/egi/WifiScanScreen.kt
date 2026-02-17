@@ -10,6 +10,7 @@ import android.net.wifi.WifiManager
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -281,7 +282,7 @@ Action: Open router dashboard for advanced management or use TCP Flood to isolat
                     
                     Button(
                         onClick = {
-                            onNavigateToRouter(device.mac, gatewayIp, false)
+                            onNavigateToRouter(gatewayIp)
                             selectedDevice = null
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -399,85 +400,6 @@ fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold
         )
-    }
-}
-    val icon = when {
-        isGateway -> Icons.Default.Router
-        device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
-        device.name.contains("PC", true) -> Icons.Default.Monitor
-        else -> Icons.Default.Info
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
-    ) {
-        Box(
-            modifier = Modifier
-                .size(if (isGateway) 48.dp else 32.dp)
-                .background(Color.Black, androidx.compose.foundation.shape.CircleShape)
-                .background(
-                    if (isGateway) Color.Green.copy(alpha = 0.2f) else Color.Cyan.copy(alpha = 0.1f),
-                    androidx.compose.foundation.shape.CircleShape
-                )
-                .padding(8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isGateway) Color.Green else Color.Cyan,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Text(
-            text = if (isGateway) "GATEWAY" else device.ip.split(".").last(),
-            color = Color.Green,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-
-@Composable
-fun DeviceRow(device: DeviceInfo, onClick: () -> Unit) {
-    val icon = when {
-        device.status == "Gateway" -> Icons.Default.Router
-        device.name.contains("Android", true) || device.name.contains("Galaxy", true) || device.name.contains("Phone", true) -> Icons.Default.PhoneAndroid
-        device.name.contains("PC", true) || device.name.contains("Desktop", true) || device.name.contains("Windows", true) -> Icons.Default.Monitor
-        else -> Icons.Default.Info
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (device.status == "Gateway") Color.Green else Color.Yellow,
-            modifier = Modifier.size(32.dp).padding(end = 12.dp)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (device.status == "Gateway" && device.name == "Unknown Device") "Gateway (${device.ip})" else device.name,
-                color = Color.Green,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "IP: ${device.ip} | MAC: ${device.mac}",
-                color = Color.Gray,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-        }
     }
 }
 
