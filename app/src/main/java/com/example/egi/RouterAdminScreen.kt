@@ -275,8 +275,8 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                 }
             },
             modifier = Modifier.size(1.dp)
-        )
-
+        // 2. Native Matrix UI
+        Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
             // Header
             Row(Modifier.fillMaxWidth().height(50.dp).border(0.5.dp, Color.Green.copy(alpha = 0.5f))) {
                 Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
