@@ -411,7 +411,7 @@ fun TerminalDashboard(
                 .border(1.dp, Color.Green)
                 .background(if (isSecure) Color.Red.copy(alpha = 0.1f) else Color.Green.copy(alpha = 0.05f))
                 .clickable {
-                    handleExecuteToggle(context, isSecure, isBooting, isStealthMode, onOpenAppSelector, vpnLauncher) { isBooting = it }
+                    handleExecuteToggle(context, isSecure, isBooting, isStealthMode, onOpenAppSelector, onOpenAppPicker, vpnLauncher) { isBooting = it }
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -522,6 +522,7 @@ private fun handleExecuteToggle(
     isBooting: Boolean,
     isStealthMode: Boolean,
     onOpenAppSelector: () -> Unit,
+    onOpenAppPicker: () -> Unit,
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
