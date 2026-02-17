@@ -47,54 +47,73 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
             webViewInstance?.let { view ->
                 val monitorScript = """
                     (function() {
-                        const body = document.body.innerText.toLowerCase();
-                        const html = document.documentElement.innerHTML.toLowerCase();
+                        const allDevices = [];
                         
-                        // 1. Check for Login Failures
-                        if (body.includes('invalid') || body.includes('fail') || body.includes('wrong') || body.includes('incorrect')) {
-                            return 'ERROR_AUTH_FAILED';
-                        }
-                        
-                        // 2. Check if we are still on Login Page
-                        const inputs = document.querySelectorAll('input');
-                        const passFields = Array.from(inputs).filter(i => i.type === 'password');
-                        if (passFields.length > 0 && passFields.some(f => f.offsetWidth > 0)) {
-                            return 'STATUS_WAITING_AUTH';
-                        }
-
-                        // 3. Scrape Devices
-                        const devices = [];
-                        const selectors = 'tr, .device-row, .client-item, li, div.device, .client-list-item';
-                        const rows = Array.from(document.querySelectorAll(selectors));
-                        
-                        rows.forEach(r => {
-                            const text = r.innerText;
-                            const ipMatch = text.match(/\d+\.\d+\.\d+\.\d+/);
-                            const macMatch = text.match(/([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})/);
+                        const scrapeFromDoc = (doc) => {
+                            const body = doc.body.innerText.toLowerCase();
                             
-                            if (ipMatch && ipMatch[0] !== '$gatewayIp' && ipMatch[0] !== '0.0.0.0') {
-                                devices.push({ 
-                                    i: ipMatch[0], 
-                                    m: macMatch ? macMatch[0] : 'MAC_HIDDEN', 
-                                    s: 'Online' 
-                                });
+                            // 1. Check for Login Failures
+                            if (body.includes('invalid') || body.includes('fail') || body.includes('wrong') || body.includes('incorrect')) {
+                                return 'ERROR_AUTH_FAILED';
                             }
-                        });
-                        
-                        if (devices.length === 0) {
-                            const allIps = body.match(/\d+\.\d+\.\d+\.\d+/g);
-                            if (allIps) {
-                                [...new Set(allIps)].forEach(ip => {
-                                    if (ip !== '$gatewayIp' && !ip.startsWith('127.')) {
-                                        devices.push({ i: ip, m: 'AUTO_DETECT', s: 'Active' });
-                                    }
-                                });
+                            
+                            // 2. Check if we are still on Login Page
+                            const inputs = doc.querySelectorAll('input');
+                            const passFields = Array.from(inputs).filter(i => i.type === 'password');
+                            if (passFields.length > 0 && passFields.some(f => f.offsetWidth > 0)) {
+                                return 'STATUS_WAITING_AUTH';
                             }
-                        }
-                        
+
+                            // 3. Scrape Devices
+                            const selectors = 'tr, .device-row, .client-item, li, div.device, .client-list-item';
+                            const rows = Array.from(doc.querySelectorAll(selectors));
+                            
+                            rows.forEach(r => {
+                                const text = r.innerText;
+                                const ipMatch = text.match(/\d+\.\d+\.\d+\.\d+/);
+                                const macMatch = text.match(/([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})/);
+                                
+                                if (ipMatch && ipMatch[0] !== '$gatewayIp' && ipMatch[0] !== '0.0.0.0' && !ipMatch[0].startsWith('127.')) {
+                                    allDevices.push({ 
+                                        i: ipMatch[0], 
+                                        m: macMatch ? macMatch[0] : 'MAC_HIDDEN', 
+                                        s: 'Online' 
+                                    });
+                                }
+                            });
+                            
+                            if (allDevices.length === 0) {
+                                const allIps = body.match(/\d+\.\d+\.\d+\.\d+/g);
+                                if (allIps) {
+                                    [...new Set(allIps)].forEach(ip => {
+                                        if (ip !== '$gatewayIp' && !ip.startsWith('127.')) {
+                                            allDevices.push({ i: ip, m: 'AUTO_DETECT', s: 'Active' });
+                                        }
+                                    });
+                                }
+                            }
+                            return null;
+                        };
+
+                        const runOnAllFrames = (doc) => {
+                            const err = scrapeFromDoc(doc);
+                            if (err) return err;
+                            const frames = doc.querySelectorAll('iframe, frame');
+                            for (let f of frames) {
+                                try {
+                                    const res = runOnAllFrames(f.contentDocument || f.contentWindow.document);
+                                    if (res) return res;
+                                } catch(e) {}
+                            }
+                            return null;
+                        };
+
+                        const globalErr = runOnAllFrames(document);
+                        if (globalErr) return globalErr;
+
                         return JSON.stringify({
                             status: 'SUCCESS',
-                            data: devices
+                            data: allDevices
                         });
                     })()
                 """.trimIndent()
@@ -157,48 +176,90 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
                             val loginScript = """
                                 (function() {
                                     const b = '$brand'; const u = '$user'; const p = '$pass';
-                                    const inputs = document.querySelectorAll('input');
                                     
-                                    const doLogin = () => {
+                                    const tryLogin = (doc) => {
+                                        const inputs = Array.from(doc.querySelectorAll('input'));
+                                        const buttons = Array.from(doc.querySelectorAll('button, input[type="submit"], input[type="button"], a.login-btn, #loginBtn, .button'));
+                                        
+                                        let userField = null;
+                                        let passField = doc.querySelector('input[type="password"]');
+
                                         if (b === 'TP-Link') {
-                                            const userF = document.querySelector('#username') || document.querySelector('#login-username');
-                                            const passF = document.querySelector('#password') || document.querySelector('#login-password');
-                                            if (userF) userF.value = u;
-                                            if (passF) passF.value = p;
-                                            (document.querySelector('.login-btn') || document.querySelector('#login-btn'))?.click();
+                                            userField = doc.querySelector('#username') || doc.querySelector('#login-username');
+                                            passField = doc.querySelector('#password') || doc.querySelector('#login-password');
                                         } else if (b === 'Huawei') {
-                                            if (document.querySelector('#txt_user')) document.querySelector('#txt_user').value = u;
-                                            if (document.querySelector('#txt_pwd')) document.querySelector('#txt_pwd').value = p;
-                                            document.querySelector('#btn_login')?.click();
+                                            userField = doc.querySelector('#txt_user');
+                                            passField = doc.querySelector('#txt_pwd');
                                         } else if (b === 'ASUS') {
-                                            if (document.querySelector('#login_username')) document.querySelector('#login_username').value = u;
-                                            if (document.querySelector('#login_passwd')) document.querySelector('#login_passwd').value = p;
-                                            document.querySelector('.button')?.click();
+                                            userField = doc.querySelector('#login_username');
+                                            passField = doc.querySelector('#login_passwd');
                                         } else if (b === 'ZTE') {
-                                            if (document.querySelector('#username')) document.querySelector('#username').value = u;
-                                            if (document.querySelector('#password')) document.querySelector('#password').value = p;
-                                            document.querySelector('#loginBtn')?.click();
-                                        } else {
-                                            const pField = Array.from(inputs).find(i => i.type==='password');
-                                            if (pField) pField.value = p;
-                                            const uField = Array.from(inputs).find(i => (i.type==='text' || i.id.includes('user')) && i !== pField);
-                                            if (uField) uField.value = u;
-                                            document.querySelector('button[type="submit"], input[type="submit"]')?.click();
+                                            userField = doc.querySelector('#username');
+                                            passField = doc.querySelector('#password');
+                                        }
+
+                                        if (!userField && passField) {
+                                            userField = inputs.find(i => (i.type === 'text' || i.id.toLowerCase().includes('user') || i.name.toLowerCase().includes('user')) && i !== passField);
+                                        }
+
+                                        if (passField) {
+                                            if (userField) { userField.value = u; userField.dispatchEvent(new Event('input', { bubbles: true })); }
+                                            passField.value = p;
+                                            passField.dispatchEvent(new Event('input', { bubbles: true }));
+                                            
+                                            setTimeout(() => {
+                                                const loginBtn = buttons.find(btn => {
+                                                    const t = (btn.innerText || btn.value || '').toLowerCase();
+                                                    return t.includes('log') || t.includes('ok') || t.includes('sign') || t.includes('enter') || btn.id.toLowerCase().includes('login');
+                                                });
+                                                if (loginBtn) loginBtn.click();
+                                                else if (passField.form) passField.form.submit();
+                                            }, 500);
+                                            return true;
+                                        }
+                                        return false;
+                                    };
+
+                                    const runOnAllFrames = (doc) => {
+                                        if (tryLogin(doc)) return;
+                                        const frames = doc.querySelectorAll('iframe, frame');
+                                        for (let f of frames) {
+                                            try { runOnAllFrames(f.contentDocument || f.contentWindow.document); } catch(e) {}
                                         }
                                     };
 
-                                    doLogin();
+                                    // Periodic retry in case of slow JS rendering
+                                    let attempts = 0;
+                                    const interval = setInterval(() => {
+                                        runOnAllFrames(document);
+                                        if (++attempts > 5) clearInterval(interval);
+                                    }, 2000);
 
                                     const seek = () => {
-                                        const navLinks = Array.from(document.querySelectorAll('a, span, li, button'));
-                                        const target = navLinks.find(l => {
-                                            const t = l.innerText.toLowerCase();
-                                            return ['device', 'client', 'attached', 'status', 'host', 'lan', 'wireless'].some(k => t.includes(k)) && 
-                                                   !['log', 'help', 'reboot'].some(k => t.includes(k));
+                                        const allDocs = [document];
+                                        const getAllDocs = (doc) => {
+                                            const frames = doc.querySelectorAll('iframe, frame');
+                                            for (let f of frames) {
+                                                try {
+                                                    const d = f.contentDocument || f.contentWindow.document;
+                                                    allDocs.push(d);
+                                                    getAllDocs(d);
+                                                } catch(e) {}
+                                            }
+                                        };
+                                        getAllDocs(document);
+
+                                        allDocs.forEach(doc => {
+                                            const navLinks = Array.from(doc.querySelectorAll('a, span, li, button, div'));
+                                            const target = navLinks.find(l => {
+                                                const t = (l.innerText || '').toLowerCase();
+                                                return ['device', 'client', 'attached', 'status', 'host', 'lan', 'wireless'].some(k => t.includes(k)) && 
+                                                       !['log', 'help', 'reboot', 'map'].some(k => t.includes(k));
+                                            });
+                                            if (target && !window.location.href.includes('client')) {
+                                                target.click();
+                                            }
                                         });
-                                        if (target && !window.location.href.includes('client')) {
-                                            target.click();
-                                        }
                                     };
                                     setInterval(seek, 5000);
                                 })()
