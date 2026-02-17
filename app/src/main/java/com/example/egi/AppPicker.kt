@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,10 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +33,10 @@ data class AppInfo(
 @Composable
 fun AppPickerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    var currentMode by remember { mutableStateOf(EgiPreferences.getMode(context)) }
     var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context) ?: "") }
+    var casualWhitelist by remember { mutableStateOf(EgiPreferences.getCasualWhitelist(context)) }
+    var searchQuery by remember { mutableStateOf("") }
     
     val installedApps = remember {
         val pm = context.packageManager
@@ -49,6 +50,11 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 )
             }
             .sortedBy { it.name }
+    }
+
+    val filteredApps = remember(installedApps, searchQuery) {
+        if (searchQuery.isEmpty()) installedApps
+        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
     Column(
@@ -91,20 +97,43 @@ fun AppPickerScreen(onBack: () -> Unit) {
             }
         }
 
-        // Sub-Header Tile
+        // Search Tile
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
-                .border(0.5.dp, Color.Green.copy(alpha = 0.3f)),
-            contentAlignment = Alignment.Center
+                .height(60.dp)
+                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                .padding(4.dp)
         ) {
-            Text(
-                "SELECTED APP WILL BE TUNNELED VIA ENCRYPTED LANE",
-                color = Color.Magenta.copy(alpha = 0.6f),
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxSize(),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Magenta, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                placeholder = { Text("SEARCH_FOCUS_APP...", color = Color.Magenta.copy(alpha = 0.3f), fontSize = 12.sp) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    cursorColor = Color.Cyan
+                )
             )
+        }
+
+        // Mode Tabs Grid
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, Modifier.weight(1f), activeColor = Color.Magenta) {
+                currentMode = AppMode.FOCUS
+                casualWhitelist = emptySet()
+            }
+            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, Modifier.weight(1f), activeColor = Color.Magenta) {
+                currentMode = AppMode.CASUAL
+                focusTarget = ""
+            }
         }
 
         // List Grid
@@ -115,19 +144,67 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(installedApps) { app ->
+                items(filteredApps) { app ->
                     MatrixAppRow(
                         app = app,
-                        isSelected = focusTarget == app.packageName,
+                        isSelected = if (currentMode == AppMode.FOCUS) focusTarget == app.packageName else casualWhitelist.contains(app.packageName),
                         onToggle = {
-                            focusTarget = app.packageName
-                            EgiPreferences.saveFocusTarget(context, focusTarget)
-                            EgiPreferences.saveMode(context, AppMode.FOCUS)
+                            if (currentMode == AppMode.FOCUS) {
+                                focusTarget = if (focusTarget == app.packageName) "" else app.packageName
+                            } else {
+                                val newList = casualWhitelist.toMutableSet()
+                                if (newList.contains(app.packageName)) newList.remove(app.packageName) else newList.add(app.packageName)
+                                casualWhitelist = newList
+                            }
                         }
                     )
                 }
             }
         }
+
+        // Confirm Button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(70.dp)
+                .border(1.dp, Color.Magenta)
+                .background(Color.Magenta.copy(alpha = 0.1f))
+                .clickable {
+                    EgiPreferences.saveMode(context, currentMode)
+                    EgiPreferences.saveFocusTarget(context, focusTarget)
+                    EgiPreferences.saveCasualWhitelist(context, casualWhitelist)
+                    Toast.makeText(context, "VIP TARGETS ARMED", Toast.LENGTH_SHORT).show()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "[ CONFIRM SELECTION ]",
+                color = Color.Magenta,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun MatrixTab(label: String, isActive: Boolean, modifier: Modifier, activeColor: Color = Color.Green, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(if (isActive) activeColor.copy(alpha = 0.2f) else Color.Transparent)
+            .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (isActive) activeColor else Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 
@@ -149,7 +226,7 @@ fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
             Text(text = app.packageName, color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
         }
         Text(
-            text = if (isSelected) "[ FOCUS ]" else "[ STANDBY ]",
+            text = if (isSelected) "[ ACTIVE ]" else "[ STANDBY ]",
             color = if (isSelected) Color.Magenta else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
@@ -157,4 +234,3 @@ fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
         )
     }
 }
-

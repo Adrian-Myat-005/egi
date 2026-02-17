@@ -178,18 +178,18 @@ fun AppSelectorScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun MatrixTab(label: String, isActive: Boolean, modifier: Modifier, onClick: () -> Unit) {
+fun MatrixTab(label: String, isActive: Boolean, modifier: Modifier, activeColor: Color = Color.Green, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .background(if (isActive) Color.Green.copy(alpha = 0.2f) else Color.Transparent)
+            .background(if (isActive) activeColor.copy(alpha = 0.2f) else Color.Transparent)
             .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (isActive) Color.Green else Color.Gray,
+            color = if (isActive) activeColor else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
