@@ -576,19 +576,56 @@ fun TacticalManual(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("EGI >> OPERATING MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace) },
+        title = { Text("EGI >> SYSTEM_OPERATING_MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    ManualSection("NUCLEAR MODE", "Blocks all apps except target. Runs locally.")
-                    ManualSection("STEALTH MODE", "Tunnels traffic via SS Key to bypass firewalls.")
-                    ManualSection("NETWORK RADAR", "Scan WiFi for intruders and isolate them.")
-                    ManualSection("STABILITY", "Enable Auto-Boot and Unrestricted Battery.")
+                    ManualSection(
+                        "1. VIP LANE (VPN FOCUS)",
+                        "EN: Only the apps you pick go through the VPN. Others stay on normal internet.\n" +
+                        "MM: သင်ရွေးထားတဲ့ app တွေပဲ VPN ကိုဖြတ်မှာပါ။ ကျန်တာတွေက ရိုးရိုးအင်တာနက်ပဲ သုံးမှာပါ။\n\n" +
+                        "• FOCUS: Pick 1 app (Best for Games/Banking).\n" +
+                        "• CASUAL: Pick many apps.\n" +
+                        "• MM: App တစ်ခုတည်း သို့မဟုတ် အများအပြားကို VPN နဲ့ သီးသန့်သုံးလို့ရပါတယ်။"
+                    )
+                    ManualSection(
+                        "2. NUCLEAR MODE (BYPASS)",
+                        "EN: Shields your WHOLE phone. Only your picked apps bypass the shield.\n" +
+                        "MM: ဖုန်းတစ်ခုလုံးကို Shield နဲ့ ကာကွယ်လိုက်တာပါ။ သင်ရွေးထားတဲ့ app တွေပဲ အပြင်ထွက်ခွင့်ရပါမယ်။\n\n" +
+                        "• USE: When you want total privacy but need 1-2 apps to work locally.\n" +
+                        "• MM: ဖုန်းလုံခြုံရေးအတွက် တစ်ဖုန်းလုံးကို ပိတ်ထားပြီး လိုအပ်တဲ့ app ကိုပဲ ခွင့်ပြုချင်ရင် သုံးပါ။"
+                    )
+                    ManualSection(
+                        "3. CONFIG (ALWAYS-ON VPN)",
+                        "EN: CRITICAL! Click [CONFIG] -> Gear Icon -> Enable 'Always-on' and 'Block non-VPN'.\n" +
+                        "MM: အရေးကြီး! [CONFIG] ကိုနှိပ်၊ ဂီယာပုံလေးကိုနှိပ်ပြီး 'Always-on' နဲ့ 'Block non-VPN' ကို ဖွင့်ထားပါ။\n\n" +
+                        "• WHY: This stops data leaks if the VPN drops.\n" +
+                        "• MM: VPN ပြုတ်သွားရင်တောင် အင်တာနက်မပေါက်အောင် ကာကွယ်ပေးဖို့ပါ။"
+                    )
+                    ManualSection(
+                        "4. BATTERY & BOOT",
+                        "EN: Make sure BATTERY says [OK]. This prevents Android from killing EGI in the background.\n" +
+                        "MM: BATTERY ကို [OK] ဖြစ်အောင်လုပ်ပါ။ ဒါမှ နောက်ကွယ်မှာ EGI အမြဲအလုပ်လုပ်နေမှာပါ။\n\n" +
+                        "• BOOT: If ON, EGI starts automatically when you restart your phone.\n" +
+                        "• MM: BOOT ဖွင့်ထားရင် ဖုန်းပိတ်ပြီးပြန်တက်လာတာနဲ့ EGI က အလိုအလျောက် အလုပ်လုပ်ပေးမှာပါ။"
+                    )
+                    ManualSection(
+                        "5. NETWORK RADAR",
+                        "EN: Scan your WiFi for 'Intruders' (people stealing your net). Use [BLOCK] to kick them.\n" +
+                        "MM: သင့် WiFi ကို ခိုးသုံးနေတဲ့သူတွေကို ရှာပြီး [BLOCK] နဲ့ နှင်ထုတ်နိုင်ပါတယ်။\n\n" +
+                        "• NOTE: Requires your router username/password in Radar Setup.\n" +
+                        "• MM: Radar Setup မှာ သင့် Router ရဲ့ user နဲ့ pass ထည့်ပေးဖို့ လိုပါတယ်။"
+                    )
+                    ManualSection(
+                        "6. STEALTH KEY",
+                        "EN: Paste your Outline or SS Key here to fuel the VIP Lane tunnel.\n" +
+                        "MM: VPN လမ်းကြောင်းအတွက် Outline (သို့) SS Key ကို ဒီမှာ ထည့်ပေးပါ။"
+                    )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("[ UNDERSTOOD ]", color = Color.Green, fontFamily = FontFamily.Monospace) }
+            TextButton(onClick = onDismiss) { Text("[ UNDERSTOOD / နားလည်ပါပြီ ]", color = Color.Green, fontFamily = FontFamily.Monospace) }
         }
     )
 }
