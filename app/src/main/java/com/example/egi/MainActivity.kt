@@ -294,7 +294,7 @@ fun TerminalDashboard(
                     .weight(1f)
                     .fillMaxHeight()
                     .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
-                    .clickable { showKeyDialog = true },
+                    .clickable { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) },
                 contentAlignment = Alignment.Center
             ) {
                 Text("[ CONFIG ]", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
