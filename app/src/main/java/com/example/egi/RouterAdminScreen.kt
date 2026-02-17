@@ -40,6 +40,7 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
     var scrapedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var statusMessage by remember { mutableStateOf("INITIALIZING_SECURE_BRIDGE...") }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var isManualMode by remember { mutableStateOf(false) }
 
     // Real-Time Polling Loop
     LaunchedEffect(webViewInstance) {
@@ -276,25 +277,34 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
             modifier = Modifier.size(1.dp)
         )
 
-        // 2. Native Matrix UI
-        Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
             // Header
             Row(Modifier.fillMaxWidth().height(50.dp).border(0.5.dp, Color.Green.copy(alpha = 0.5f))) {
                 Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
                     Text("ROUTER_BRIDGE >> $brand", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                Box(Modifier.width(80.dp).fillMaxHeight().border(0.5.dp, Color.Green.copy(alpha = 0.5f)).clickable { isManualMode = !isManualMode }, contentAlignment = Alignment.Center) {
+                    Text(if (isManualMode) "[ AUTO ]" else "[ MANUAL ]", color = Color.Yellow, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 }
                 Box(Modifier.width(80.dp).fillMaxHeight().border(0.5.dp, Color.Green.copy(alpha = 0.5f)).clickable { onBack() }, contentAlignment = Alignment.Center) {
                     Text("[ CLOSE ]", color = Color.Red, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
 
-            // Status Console
-            Box(Modifier.fillMaxWidth().height(40.dp).background(Color.DarkGray.copy(alpha = 0.1f)).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                Text(statusMessage, color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            }
+            if (isManualMode) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White)) {
+                    AndroidView(
+                        factory = { webViewInstance!! },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            } else {
+                // Status Console
+                Box(Modifier.fillMaxWidth().height(40.dp).background(Color.DarkGray.copy(alpha = 0.1f)).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(statusMessage, color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                }
 
-            // Scraped Asset List
-            Box(modifier = Modifier.weight(1f).fillMaxWidth().border(0.5.dp, Color.Green.copy(alpha = 0.3f))) {
+                // Scraped Asset List
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().border(0.5.dp, Color.Green.copy(alpha = 0.3f))) {
                 if (scrapedDevices.isEmpty()) {
                     Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = if(statusMessage.contains("FAILED")) Color.Red else Color.Green, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
