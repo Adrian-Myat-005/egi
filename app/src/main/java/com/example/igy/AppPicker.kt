@@ -25,11 +25,13 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 
 @Composable
-fun AppPickerScreen(onBack: () -> Unit) {
+fun AppPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
-    val creamColor = Color(0xFFFDF5E6)
-    val deepGray = Color(0xFF2F4F4F)
-    val wheat = Color(0xFFF5DEB3)
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val darkCream = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     var currentMode by remember { mutableStateOf(IgyPreferences.getMode(context)) }
     var focusTarget by remember { mutableStateOf(IgyPreferences.getFocusTarget(context) ?: "") }
     var casualWhitelist by remember { mutableStateOf(IgyPreferences.getCasualWhitelist(context)) }
@@ -65,7 +67,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .background(Color.White)
+                .background(cardBg)
                 .border(0.5.dp, wheat)
         ) {
             Box(
@@ -100,7 +102,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp)
-                .background(Color.White)
+                .background(cardBg)
                 .border(0.5.dp, wheat)
                 .padding(4.dp)
         ) {
@@ -140,7 +142,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(Color.White)
+                .background(cardBg)
                 .border(0.5.dp, wheat)
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -167,7 +169,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(70.dp)
-                .background(Color.White)
+                .background(cardBg)
                 .border(1.dp, Color(0xFF8B008B))
                 .clickable {
                     IgyPreferences.saveMode(context, currentMode)
@@ -190,8 +192,9 @@ fun AppPickerScreen(onBack: () -> Unit) {
 
 @Composable
 fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
-    val deepGray = Color(0xFF2F4F4F)
-    val wheat = Color(0xFFF5DEB3)
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     Row(
         modifier = Modifier
             .fillMaxWidth()

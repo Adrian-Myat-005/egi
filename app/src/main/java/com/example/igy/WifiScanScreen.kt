@@ -36,7 +36,7 @@ import org.json.JSONArray
 import java.net.InetAddress
 
 @Composable
-fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
+fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
     val context = LocalContext.current
     val wifiManager = remember { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }

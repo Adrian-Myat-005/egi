@@ -33,7 +33,7 @@ val dnsProviders = listOf(
 )
 
 @Composable
-fun DnsPickerScreen(onBack: (String?) -> Unit) {
+fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("igy_prefs", Context.MODE_PRIVATE) }
     var selectedDns by remember { mutableStateOf(sharedPrefs.getString("dns_provider", null)) }

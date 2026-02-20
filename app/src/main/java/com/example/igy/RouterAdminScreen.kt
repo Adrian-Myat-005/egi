@@ -34,7 +34,7 @@ import org.json.JSONObject
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
+fun RouterAdminScreen(isDarkMode: Boolean, gatewayIp: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val (user, pass, brand) = remember { IgyPreferences.getRouterCredentials(context) }
     var scrapedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
@@ -293,7 +293,7 @@ fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
             }
 
             if (isManualMode) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color.White)) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().background(cardBg)) {
                     AndroidView(
                         factory = { webViewInstance!! },
                         modifier = Modifier.fillMaxSize()

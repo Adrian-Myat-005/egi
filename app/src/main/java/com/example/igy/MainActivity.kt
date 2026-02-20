@@ -100,13 +100,13 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
         label = "ScreenTransition"
     ) { screen ->
         when (screen) {
-            Screen.APP_PICKER -> AppPickerScreen(onBack = { currentScreen = Screen.TERMINAL })
-            Screen.DNS_PICKER -> DnsPickerScreen(onBack = { msg ->
+            Screen.APP_PICKER -> AppPickerScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
+            Screen.DNS_PICKER -> DnsPickerScreen(isDarkMode, onBack = { msg ->
                 dnsLogMessage = msg
                 currentScreen = Screen.TERMINAL
             })
-            Screen.APP_SELECTOR -> AppSelectorScreen(onBack = { currentScreen = Screen.TERMINAL })
-            Screen.WIFI_RADAR -> WifiScanScreen(
+            Screen.APP_SELECTOR -> AppSelectorScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
+            Screen.WIFI_RADAR -> WifiScanScreen(isDarkMode,
                 onBack = { currentScreen = Screen.TERMINAL },
                 onNavigateToRouter = { ip ->
                     gatewayIp = ip
@@ -114,12 +114,12 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                 }
             )
             Screen.ROUTER_ADMIN -> {
-                RouterAdminScreen(
+                RouterAdminScreen(isDarkMode,
                     gatewayIp = gatewayIp,
                     onBack = { currentScreen = Screen.WIFI_RADAR }
                 )
             }
-            Screen.TERMINAL -> TerminalDashboard(
+            Screen.TERMINAL -> TerminalDashboard(isDarkMode,
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
@@ -130,7 +130,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                 dnsMsg = dnsLogMessage,
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
-            Screen.ACCOUNT -> TerminalAccountScreen(onBack = { currentScreen = Screen.TERMINAL })
+            Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
             Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL })
         }
     }
@@ -286,9 +286,8 @@ fun SettingsButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun TerminalAccountScreen(onBack: () -> Unit) {
+fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
-    val isDarkMode = IgyPreferences.isDarkMode(context)
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
@@ -325,7 +324,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                 IgyPreferences.saveSyncEndpoint(context, it)
             },
             label = { Text("SERVER_URL", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth().background(Color.White),
+            modifier = Modifier.fillMaxWidth().background(cardBg),
             textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -340,7 +339,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                 value = username,
                 onValueChange = { username = it },
                 label = { Text("USERNAME", color = Color.Gray) },
-                modifier = Modifier.fillMaxWidth().background(Color.White),
+                modifier = Modifier.fillMaxWidth().background(cardBg),
                 textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -349,7 +348,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                 onValueChange = { password = it },
                 label = { Text("PASSWORD", color = Color.Gray) },
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth().background(Color.White),
+                modifier = Modifier.fillMaxWidth().background(cardBg),
                 textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -581,6 +580,7 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 
 @Composable
 fun TerminalDashboard(
+    isDarkMode: Boolean,
     onOpenAppPicker: () -> Unit,
     onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
@@ -592,9 +592,9 @@ fun TerminalDashboard(
     onDnsLogConsumed: () -> Unit
 ) {
     val context = LocalContext.current
-    val creamColor = Color(0xFFFDF5E6)
-    val deepGray = Color(0xFF2F4F4F)
-    val wheat = Color(0xFFF5DEB3)
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
@@ -759,7 +759,7 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(1.8f)
                     .fillMaxHeight()
-                    .background(Color.White)
+                    .background(cardBg)
                     .border(0.5.dp, wheat),
                 contentAlignment = Alignment.Center
             ) {
@@ -776,7 +776,7 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(Color.White)
+                    .background(cardBg)
                     .border(0.5.dp, wheat)
                     .clickable { onOpenSettings() },
                 contentAlignment = Alignment.Center
@@ -787,7 +787,7 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(Color.White)
+                    .background(cardBg)
                     .border(0.5.dp, wheat)
                     .clickable { onOpenAccount() },
                 contentAlignment = Alignment.Center
@@ -798,7 +798,7 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(0.4f)
                     .fillMaxHeight()
-                    .background(Color.White)
+                    .background(cardBg)
                     .border(0.5.dp, wheat)
                     .clickable { showManual = true },
                 contentAlignment = Alignment.Center
@@ -821,7 +821,7 @@ fun TerminalDashboard(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(Color.White)
+                .background(cardBg)
                 .border(0.5.dp, wheat),
             contentAlignment = Alignment.Center
         ) {
@@ -930,7 +930,7 @@ fun TerminalDashboard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp)
-                .background(Color.White)
+                .background(cardBg)
                 .border(1.dp, wheat)
                 .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                 .clickable {
@@ -958,12 +958,13 @@ fun TerminalDashboard(
 
 @Composable
 fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color) {
-    val wheat = Color(0xFFF5DEB3)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     Box(
         modifier = Modifier
             .weight(weightRatio)
             .fillMaxHeight()
-            .background(Color.White)
+            .background(cardBg)
             .border(0.5.dp, wheat),
         contentAlignment = Alignment.Center
     ) {
@@ -976,7 +977,8 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
 
 @Composable
 fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
-    val wheat = Color(0xFFF5DEB3)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "ButtonScale")
@@ -985,7 +987,7 @@ fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Colo
         modifier = modifier
             .fillMaxHeight()
             .graphicsLayer(scaleX = scale, scaleY = scale)
-            .background(Color.White)
+            .background(cardBg)
             .border(0.5.dp, wheat)
             .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { onClick() },
         contentAlignment = Alignment.Center
@@ -1127,9 +1129,10 @@ fun ManualSection(title: String, desc: String) {
 
 @Composable
 fun IgyTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
-    val creamColor = Color(0xFFFDF5E6)
-    val wheat = Color(0xFFF5DEB3)
-    val deepGray = Color(0xFF2F4F4F)
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     
     val colorScheme = if (isDarkMode) {
         darkColorScheme(
