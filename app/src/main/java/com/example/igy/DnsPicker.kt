@@ -37,11 +37,13 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("igy_prefs", Context.MODE_PRIVATE) }
     var selectedDns by remember { mutableStateOf(sharedPrefs.getString("dns_provider", null)) }
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(creamColor)
             .padding(8.dp)
     ) {
         // --- MATRIX HEADER ---
@@ -49,6 +51,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
+                .background(cardBg)
                 .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
         ) {
             Box(
@@ -90,6 +93,8 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(dnsProviders) { provider ->
                     MatrixDnsRow(
+                        isDarkMode = isDarkMode,
+                        cardBg = cardBg,
                         provider = provider,
                         isSelected = selectedDns == provider.primary,
                         onSelect = {
@@ -106,6 +111,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(40.dp)
+                .background(cardBg)
                 .border(0.5.dp, Color.Yellow.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
@@ -120,13 +126,14 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
 }
 
 @Composable
-fun MatrixDnsRow(provider: DnsProvider, isSelected: Boolean, onSelect: () -> Unit) {
+fun MatrixDnsRow(isDarkMode: Boolean, cardBg: Color, provider: DnsProvider, isSelected: Boolean, onSelect: () -> Unit) {
+    val textColor = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp)
             .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
-            .background(if (isSelected) Color.Cyan.copy(alpha = 0.05f) else Color.Transparent)
+            .background(if (isSelected) Color.Cyan.copy(alpha = 0.05f) else cardBg)
             .clickable { onSelect() }
             .padding(horizontal = 12.dp),
         verticalArrangement = Arrangement.Center
@@ -138,7 +145,7 @@ fun MatrixDnsRow(provider: DnsProvider, isSelected: Boolean, onSelect: () -> Uni
         ) {
             Text(
                 text = provider.name,
-                color = if (isSelected) Color.Cyan else Color.Green,
+                color = if (isSelected) Color.Cyan else if (isDarkMode) Color.Green else Color(0xFF2E8B57),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal

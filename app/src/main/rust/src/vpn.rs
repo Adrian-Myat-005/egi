@@ -190,9 +190,10 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::OverTcp; // Use TCP to bypass UDP dropping on remote SS servers
+                    args.dns = ArgDns::OverTcp; // Bypass UDP restrictions
                     args.verbosity = ArgVerbosity::Off;
                     args.dns_addr = "8.8.8.8".parse().unwrap();
+                    args.allow_direct_dns = true; // Fallback to direct DNS if tunnel fails
                     
                     crate::log_to_java("VPN >> ENGINE_READY (MTU: 1280)");
 
