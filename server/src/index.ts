@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'EgiAdmin2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'IgyAdmin2026';
 
 const authenticateAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const adminAuth = req.headers['x-admin-auth'];
@@ -23,7 +23,7 @@ const authenticateAdmin = (req: express.Request, res: express.Response, next: ex
     }
 };
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/rigyster', async (req, res) => {
   const { username, password } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -61,7 +61,7 @@ app.get('/api/vpn/regions', authenticateToken, async (req, res) => {
         if (!user || !user.isPremium) return res.status(403).json({ error: 'PREMIUM_REQUIRED' });
         const nodes = await Node.findAll({ attributes: ['id', 'regionName'] });
         res.json(nodes);
-    } catch (e) { res.status(500).json({ error: 'FAILED_TO_LOAD_REGIONS' }); }
+    } catch (e) { res.status(500).json({ error: 'FAILED_TO_LOAD_RIGYONS' }); }
 });
 
 // Admin: Manage Regions (Nodes)
@@ -85,7 +85,7 @@ app.post('/api/admin/nodes/delete', authenticateAdmin, async (req, res) => {
 // Public test key for users who haven't bought a VPS yet
 app.get('/api/vpn/test-key', (req, res) => {
   const testKey = "ss://YWVzLTEyOC1nY206RWdpU2VjcmV0UGFzc3dvcmQyMDI2@159.223.1.1:8388";
-  res.json({ config: testKey, message: "SAMPLE_TEST_KEY_FOR_EGI_SHIELD" });
+  res.json({ config: testKey, message: "SAMPLE_TEST_KEY_FOR_IGY_SHIELD" });
 });
 
 // Admin-only: List all users for the control panel
@@ -159,6 +159,6 @@ app.post('/api/admin/delete', authenticateAdmin, async (req, res) => {
 
 sequelize.sync().then(() => {
   app.listen(PORT, async () => {
-    console.log(`EGI_CORE_API_RUNNING_ON_PORT_${PORT}`);
+    console.log(`IGY_CORE_API_RUNNING_ON_PORT_${PORT}`);
   });
 });

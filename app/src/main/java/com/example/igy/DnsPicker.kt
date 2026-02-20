@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.Context
 import androidx.compose.foundation.background
@@ -35,7 +35,7 @@ val dnsProviders = listOf(
 @Composable
 fun DnsPickerScreen(onBack: (String?) -> Unit) {
     val context = LocalContext.current
-    val sharedPrefs = remember { context.getSharedPreferences("egi_prefs", Context.MODE_PRIVATE) }
+    val sharedPrefs = remember { context.getSharedPreferences("igy_prefs", Context.MODE_PRIVATE) }
     var selectedDns by remember { mutableStateOf(sharedPrefs.getString("dns_provider", null)) }
 
     Column(
@@ -59,7 +59,7 @@ fun DnsPickerScreen(onBack: (String?) -> Unit) {
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
-                    text = "EGI >> DNS_CONFIG",
+                    text = "IGY >> DNS_CONFIG",
                     color = Color.Green,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,

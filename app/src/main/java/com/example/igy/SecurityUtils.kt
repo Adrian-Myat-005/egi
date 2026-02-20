@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -10,7 +10,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 object SecurityUtils {
-    private const val KEY_ALIAS = "egi_secure_key"
+    private const val KEY_ALIAS = "igy_secure_key"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
 

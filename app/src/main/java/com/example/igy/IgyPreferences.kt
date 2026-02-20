@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.Context
 
@@ -6,8 +6,8 @@ enum class AppMode {
     FOCUS, CASUAL
 }
 
-object EgiPreferences {
-    private const val PREFS_NAME = "egi_prefs"
+object IgyPreferences {
+    private const val PREFS_NAME = "igy_prefs"
     private const val KEY_MODE = "app_mode"
     private const val KEY_FOCUS_TARGET = "focus_target"
     private const val KEY_CASUAL_WHITELIST = "casual_whitelist"

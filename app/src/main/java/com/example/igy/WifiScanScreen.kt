@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -53,7 +53,7 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
 
     // Load saved credentials
     LaunchedEffect(Unit) {
-        val (u, p, b) = EgiPreferences.getRouterCredentials(context)
+        val (u, p, b) = IgyPreferences.getRouterCredentials(context)
         routerUser = u
         routerPass = p
         routerBrand = b
@@ -71,10 +71,10 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
 
     // Initial Subnet Scan
     LaunchedEffect(Unit) {
-        if (EgiNetwork.isAvailable()) {
+        if (IgyNetwork.isAvailable()) {
             try {
                 val jsonStr = withContext(Dispatchers.IO) {
-                    EgiNetwork.scanSubnet(subnetPrefix)
+                    IgyNetwork.scanSubnet(subnetPrefix)
                 }
                 val array = JSONArray(jsonStr)
                 val list = mutableListOf<DeviceInfo>()
@@ -231,7 +231,7 @@ fun WifiScanScreen(onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    EgiPreferences.saveRouterCredentials(context, routerUser, routerPass, routerBrand)
+                    IgyPreferences.saveRouterCredentials(context, routerUser, routerPass, routerBrand)
                     showRouterCreds = false
                     onNavigateToRouter(gatewayIp)
                 }) {
@@ -264,8 +264,8 @@ Action: Open router dashboard for advanced management or use TCP Flood to isolat
                 Column {
                     Button(
                         onClick = {
-                            if (EgiNetwork.isAvailable()) {
-                                EgiNetwork.kickDevice(device.ip, device.mac)
+                            if (IgyNetwork.isAvailable()) {
+                                IgyNetwork.kickDevice(device.ip, device.mac)
                                 Toast.makeText(context, "TCP FLOOD INITIATED", Toast.LENGTH_SHORT).show()
                             }
                             selectedDevice = null

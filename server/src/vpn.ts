@@ -29,7 +29,7 @@ export const getVpnConfig = async (req: Request, res: Response) => {
     // If the user has a specific Outline key assigned, use that as default!
     if (user.assignedKey && user.assignedKey.startsWith('ss://')) {
       return res.json({
-        node_name: "EGI_PRIVATE_GATEWAY",
+        node_name: "IGY_PRIVATE_GATEWAY",
         config: user.assignedKey,
         expiry: user.subscriptionExpiry,
       });

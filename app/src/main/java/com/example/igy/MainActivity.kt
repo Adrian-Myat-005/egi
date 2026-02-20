@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.ClipboardManager
 import android.content.Context
@@ -55,11 +55,11 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
 
         setContent {
-            var isDarkMode by remember { mutableStateOf(EgiPreferences.isDarkMode(this)) }
-            EgiTerminalTheme(isDarkMode) {
+            var isDarkMode by remember { mutableStateOf(IgyPreferences.isDarkMode(this)) }
+            IgyTerminalTheme(isDarkMode) {
                 MainContent(isDarkMode, onThemeChange = { 
                     isDarkMode = it
-                    EgiPreferences.setDarkMode(this, it)
+                    IgyPreferences.setDarkMode(this, it)
                 })
             }
         }
@@ -166,7 +166,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         modifier = Modifier.fillMaxSize().background(creamColor).padding(16.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("EGI >> SYSTEM_SETTINGS", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("IGY >> SYSTEM_SETTINGS", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(24.dp))
 
         // --- SECTION 1: VPN & NETWORK ---
@@ -174,10 +174,10 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         SettingsToggle("DARK_MODE", isDarkMode) {
             onThemeChange(it)
         }
-        var localBypass by remember { mutableStateOf(EgiPreferences.getLocalBypass(context)) }
+        var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
         SettingsToggle("LOCAL_BYPASS", localBypass) {
             localBypass = it
-            EgiPreferences.setLocalBypass(context, it)
+            IgyPreferences.setLocalBypass(context, it)
         }
         SettingsButton("[ SYSTEM_VPN_CONFIG ]") {
             context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
@@ -203,7 +203,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
                     if (latestVersion != null) {
                         updateStatus = "UPDATE_FOUND: V$latestVersion"
                         Toast.makeText(context, "NEW_VERSION_AVAILABLE", Toast.LENGTH_LONG).show()
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Amyat604/Egi-Shield/releases/latest"))
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Amyat604/Igy-Shield/releases/latest"))
                         context.startActivity(intent)
                     } else {
                         updateStatus = "YOU_ARE_ON_LATEST"
@@ -236,12 +236,12 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 private suspend fun checkForGithubUpdate(currentVersion: String): String? = withContext(Dispatchers.IO) {
     try {
         // Connect to GitHub API
-        val url = java.net.URL("https://api.github.com/repos/Amyat604/Egi-Shield/releases/latest")
+        val url = java.net.URL("https://api.github.com/repos/Amyat604/Igy-Shield/releases/latest")
         val conn = url.openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 5000
         conn.readTimeout = 5000
         conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-        conn.setRequestProperty("User-Agent", "Egi-Shield-App")
+        conn.setRequestProperty("User-Agent", "Igy-Shield-App")
 
         if (conn.responseCode == 200) {
             val res = JSONObject(conn.inputStream.bufferedReader().readText())
@@ -288,20 +288,20 @@ fun SettingsButton(label: String, onClick: () -> Unit) {
 @Composable
 fun TerminalAccountScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val isDarkMode = EgiPreferences.isDarkMode(context)
+    val isDarkMode = IgyPreferences.isDarkMode(context)
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(EgiPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
-    val (savedToken, savedUser, isPremium) = EgiPreferences.getAuth(context)
+    var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
+    val (savedToken, savedUser, isPremium) = IgyPreferences.getAuth(context)
     var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
     val scope = rememberCoroutineScope()
 
     // Region Selector State
     var regions by remember { mutableStateOf(listOf<JSONObject>()) }
-    var selectedNodeId by remember { mutableStateOf(EgiPreferences.getSelectedNodeId(context)) }
+    var selectedNodeId by remember { mutableStateOf(IgyPreferences.getSelectedNodeId(context)) }
 
     LaunchedEffect(savedToken) {
         if (savedToken.isNotEmpty() && isPremium) {
@@ -315,14 +315,14 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("EGI >> SYSTEM_AUTHENTICATION", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("IGY >> SYSTEM_AUTHENTICATION", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
         
         OutlinedTextField(
             value = serverUrl,
             onValueChange = { 
                 serverUrl = it
-                EgiPreferences.saveSyncEndpoint(context, it)
+                IgyPreferences.saveSyncEndpoint(context, it)
             },
             label = { Text("SERVER_URL", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth().background(Color.White),
@@ -362,7 +362,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                                 status = "WAKING_UP_SERVER (30s)..."
                                 val result = performAuth(serverUrl, username, password, true)
                                 if (result != null) {
-                                    EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
                                     status = "AUTH_FAILED: RECHECK_DATA"
@@ -378,7 +378,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                     modifier = Modifier.border(1.dp, wheat),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                 ) {
-                    Text("REGISTER", fontFamily = FontFamily.Monospace)
+                    Text("RIGYSTER", fontFamily = FontFamily.Monospace)
                 }
                 Button(
                     onClick = {
@@ -387,7 +387,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                                 status = "WAKING_UP_SERVER (30s)..."
                                 val result = performAuth(serverUrl, username, password, false)
                                 if (result != null) {
-                                    EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
                                     status = "LOGIN_FAILED: RECHECK_DATA"
@@ -408,7 +408,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
             }
         } else {
             if (isPremium && regions.isNotEmpty()) {
-                Text("VPN_REGION_SELECTOR", color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Text("VPN_RIGYON_SELECTOR", color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 regions.forEach { region ->
@@ -422,7 +422,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                             .border(0.5.dp, if (selectedNodeId == id) deepGray else wheat)
                             .clickable {
                                 selectedNodeId = id
-                                EgiPreferences.setSelectedNodeId(context, id)
+                                IgyPreferences.setSelectedNodeId(context, id)
                             }
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -440,7 +440,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                         .border(0.5.dp, if (selectedNodeId == -1) deepGray else wheat)
                         .clickable {
                             selectedNodeId = -1
-                            EgiPreferences.setSelectedNodeId(context, -1)
+                            IgyPreferences.setSelectedNodeId(context, -1)
                         }
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -453,7 +453,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
 
             Button(
                 onClick = {
-                    EgiPreferences.clearAuth(context)
+                    IgyPreferences.clearAuth(context)
                     status = "GUEST_MODE"
                 },
                 modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
@@ -470,7 +470,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                 scope.launch {
                     val key = fetchTestKey(serverUrl)
                     if (key != null) {
-                        EgiPreferences.saveOutlineKey(context, key)
+                        IgyPreferences.saveOutlineKey(context, key)
                         Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -533,9 +533,9 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
 
 data class AuthResult(val token: String, val username: String, val isPremium: Boolean, val expiry: Long)
 
-private suspend fun performAuth(serverUrl: String, user: String, pass: String, isRegister: Boolean): AuthResult? = withContext(Dispatchers.IO) {
+private suspend fun performAuth(serverUrl: String, user: String, pass: String, isRigyster: Boolean): AuthResult? = withContext(Dispatchers.IO) {
     try {
-        val url = java.net.URL("$serverUrl/api/auth/${if (isRegister) "register" else "login"}")
+        val url = java.net.URL("$serverUrl/api/auth/${if (isRigyster) "rigyster" else "login"}")
         val conn = url.openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 30000 // 30s wakeup allowance
         conn.readTimeout = 30000
@@ -599,10 +599,10 @@ fun TerminalDashboard(
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
     var isBooting by remember { mutableStateOf(false) }
-    var isStealthMode by remember { mutableStateOf(EgiPreferences.isStealthMode(context)) }
-    var isVpnTunnelGlobal by remember { mutableStateOf(EgiPreferences.isVpnTunnelGlobal(context)) }
-    var isLocalBypass by remember { mutableStateOf(EgiPreferences.getLocalBypass(context)) }
-    var isAutoStart by remember { mutableStateOf(EgiPreferences.getAutoStart(context)) }
+    var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
+    var isVpnTunnelGlobal by remember { mutableStateOf(IgyPreferences.isVpnTunnelGlobal(context)) }
+    var isLocalBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
+    var isAutoStart by remember { mutableStateOf(IgyPreferences.getAutoStart(context)) }
 
     // Connecting Pulse Animation
     val connectingTransition = rememberInfiniteTransition(label = "ConnectingPulse")
@@ -678,10 +678,10 @@ fun TerminalDashboard(
     LaunchedEffect(Unit) {
         while (true) {
             delay(5000)
-            if (EgiNetwork.isAvailable()) {
+            if (IgyNetwork.isAvailable()) {
                 try {
                     val statsJson = withContext(Dispatchers.IO) {
-                        EgiNetwork.measureNetworkStats("1.1.1.1")
+                        IgyNetwork.measureNetworkStats("1.1.1.1")
                     }
                     val json = JSONObject(statsJson)
                     currentPing = json.optInt("ping", -1)
@@ -706,7 +706,7 @@ fun TerminalDashboard(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             TrafficEvent.log("USER >> PERMISSION_GRANTED")
-            ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
+            ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
             isBooting = false
         } else {
             TrafficEvent.log("USER >> PERMISSION_DENIED")
@@ -722,7 +722,7 @@ fun TerminalDashboard(
             val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
             if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
                 currentSsid = ssid
-                isCurrentSsidTrusted = EgiPreferences.getTrustedSSIDs(context).contains(ssid)
+                isCurrentSsidTrusted = IgyPreferences.getTrustedSSIDs(context).contains(ssid)
             } else {
                 currentSsid = null
                 isCurrentSsidTrusted = false
@@ -860,7 +860,7 @@ fun TerminalDashboard(
                     color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
                 ) {
                     isStealthMode = false
-                    EgiPreferences.setStealthMode(context, false)
+                    IgyPreferences.setStealthMode(context, false)
                     onOpenAppSelector()
                 }
                 GridButton("[ NETWORK_RADAR ]", Modifier.weight(1f)) {
@@ -881,8 +881,8 @@ fun TerminalDashboard(
                 ) {
                     isStealthMode = true
                     isVpnTunnelGlobal = true
-                    EgiPreferences.setStealthMode(context, true)
-                    EgiPreferences.setVpnTunnelMode(context, true)
+                    IgyPreferences.setStealthMode(context, true)
+                    IgyPreferences.setVpnTunnelMode(context, true)
                     TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
                 }
             }
@@ -914,8 +914,8 @@ fun TerminalDashboard(
                 ) {
                     isStealthMode = true
                     isVpnTunnelGlobal = false
-                    EgiPreferences.setStealthMode(context, true)
-                    EgiPreferences.setVpnTunnelMode(context, false)
+                    IgyPreferences.setStealthMode(context, true)
+                    IgyPreferences.setVpnTunnelMode(context, false)
                     onOpenAppPicker()
                 }
                 GridButton("[ REFRESH_HUB ]", Modifier.weight(0.8f)) { 
@@ -1020,7 +1020,7 @@ private fun handleExecuteToggle(
         }
         if (isSecure) {
             TrafficEvent.log("USER >> SHUTTING_DOWN")
-            val stopIntent = Intent(context, EgiVpnService::class.java).apply { action = EgiVpnService.ACTION_STOP }
+            val stopIntent = Intent(context, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             context.startService(stopIntent)
             
             // Auto-Redirect to System VPN Settings to disable Always-on/Lockdown
@@ -1030,7 +1030,7 @@ private fun handleExecuteToggle(
             context.startActivity(settingsIntent)
             Toast.makeText(context, "DISABLE ALWAYS-ON / LOCKDOWN IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
-            val vipList = EgiPreferences.getVipList(context)
+            val vipList = IgyPreferences.getVipList(context)
             if (!isGlobal && vipList.isEmpty() && isStealthMode) {
                 Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
                 onOpenAppPicker()
@@ -1046,15 +1046,15 @@ private fun handleExecuteToggle(
             TrafficEvent.log("USER >> BOOTING_SHIELD")
 
             // ONE-CLICK SYNC: Fetch key before starting if logged in
-            val (token, _, _) = EgiPreferences.getAuth(context)
-            val serverUrl = EgiPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
-            val nodeId = EgiPreferences.getSelectedNodeId(context)
+            val (token, _, _) = IgyPreferences.getAuth(context)
+            val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
+            val nodeId = IgyPreferences.getSelectedNodeId(context)
             if (token.isNotEmpty() && isStealthMode) {
                 scope.launch {
                     TrafficEvent.log("CORE >> SYNCING_PREMIUM_KEY...")
                     val config = fetchVpnConfig(serverUrl, token, nodeId)
                     if (config != null) {
-                        EgiPreferences.saveOutlineKey(context, config)
+                        IgyPreferences.saveOutlineKey(context, config)
                         TrafficEvent.log("CORE >> KEY_SYNC_SUCCESS")
                     } else {
                         TrafficEvent.log("CORE >> SYNC_FAILED_USING_CACHE")
@@ -1062,12 +1062,12 @@ private fun handleExecuteToggle(
                     
                     val intent = VpnService.prepare(context)
                     if (intent != null) { vpnLauncher.launch(intent) } 
-                    else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+                    else { ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java)) }
                 }
             } else {
                 val intent = VpnService.prepare(context)
                 if (intent != null) { vpnLauncher.launch(intent) } 
-                else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+                else { ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java)) }
             }
         }
     } catch (e: Exception) {
@@ -1081,7 +1081,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("EGI >> QUICK_START_GUIDE", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+        title = { Text("IGY >> QUICK_START_GUIDE", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
@@ -1126,7 +1126,7 @@ fun ManualSection(title: String, desc: String) {
 }
 
 @Composable
-fun EgiTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
+fun IgyTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     val creamColor = Color(0xFFFDF5E6)
     val wheat = Color(0xFFF5DEB3)
     val deepGray = Color(0xFF2F4F4F)
@@ -1187,7 +1187,7 @@ fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
     }
     Column(modifier = Modifier.fillMaxSize().background(creamColor).padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("EGI_CONSOLE_V1.0", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("IGY_CONSOLE_V1.0", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Row {
                 Text(
                     "[ CLEAR ]", 

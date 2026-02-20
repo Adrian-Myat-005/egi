@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow

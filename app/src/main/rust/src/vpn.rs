@@ -190,7 +190,7 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::OverUdp; // Faster for Facebook/Media
+                    args.dns = ArgDns::OverTcp; // Use TCP for maximum compatibility
                     args.verbosity = ArgVerbosity::Off;
                     args.dns_addr = "8.8.8.8".parse().unwrap();
 

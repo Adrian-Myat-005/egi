@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.Context
 import android.net.wifi.WifiManager

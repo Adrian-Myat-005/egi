@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.egi'
+    namespace 'com.example.igy'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.egi"
+        applicationId "com.example.igy"
         minSdk 24
         targetSdk 34
         versionCode 1

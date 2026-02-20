@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

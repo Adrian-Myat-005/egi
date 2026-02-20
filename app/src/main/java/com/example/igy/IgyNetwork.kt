@@ -1,11 +1,11 @@
-package com.example.egi
+package com.example.igy
 
-object EgiNetwork {
+object IgyNetwork {
     private var isLibLoaded = false
 
     init {
         try {
-            System.loadLibrary("egi_core")
+            System.loadLibrary("igy_core")
             isLibLoaded = true
         } catch (t: Throwable) {
             // Native library failed to load

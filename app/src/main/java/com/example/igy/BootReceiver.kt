@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,8 +13,8 @@ import org.json.JSONObject
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            val (token, _, _) = EgiPreferences.getAuth(context)
-            val serverUrl = EgiPreferences.getSyncEndpoint(context) ?: "http://10.0.2.2:3000"
+            val (token, _, _) = IgyPreferences.getAuth(context)
+            val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "http://10.0.2.2:3000"
 
             if (token.isNotEmpty()) {
                 // Background sync before starting service
@@ -29,7 +29,7 @@ class BootReceiver : BroadcastReceiver() {
                         if (conn.responseCode == 200) {
                             val res = JSONObject(conn.inputStream.bufferedReader().readText())
                             val config = res.getString("config")
-                            EgiPreferences.saveOutlineKey(context, config)
+                            IgyPreferences.saveOutlineKey(context, config)
                             TrafficEvent.log("BOOT >> KEY_SYNC_SUCCESS")
                         }
                     } catch (e: Exception) {
@@ -45,10 +45,10 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun startVpnIfEnabled(context: Context) {
-        if (EgiPreferences.getAutoStart(context)) {
+        if (IgyPreferences.getAutoStart(context)) {
             val vpnIntent = VpnService.prepare(context)
             if (vpnIntent == null) {
-                ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java))
+                ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
             }
         }
     }

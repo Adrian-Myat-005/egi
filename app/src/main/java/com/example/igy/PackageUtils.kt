@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import kotlin.collections.ArrayDeque
 

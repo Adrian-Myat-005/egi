@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -13,9 +13,9 @@ import android.content.pm.ServiceInfo
 import kotlinx.coroutines.*
 import java.io.IOException
 
-class EgiVpnService : VpnService(), Runnable {
+class IgyVpnService : VpnService(), Runnable {
     companion object {
-        const val ACTION_STOP = "com.example.egi.STOP"
+        const val ACTION_STOP = "com.example.igy.STOP"
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -56,7 +56,7 @@ class EgiVpnService : VpnService(), Runnable {
         }
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
-            vpnThread = Thread(this, "EgiVpnThread")
+            vpnThread = Thread(this, "IgyVpnThread")
             vpnThread?.start()
             
             serviceScope.launch {
@@ -67,15 +67,15 @@ class EgiVpnService : VpnService(), Runnable {
                     val now = System.currentTimeMillis()
                     
                     // 1. Update Traffic Stats (Every 3s)
-                    if (EgiNetwork.isAvailable()) {
-                        TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
+                    if (IgyNetwork.isAvailable()) {
+                        TrafficEvent.updateCount(IgyNetwork.getNativeBlockedCount())
                     }
 
                     // 2. Periodic Subscription Check (Every 4h)
                     if (now - lastSubCheck >= CHECK_INTERVAL) {
                         lastSubCheck = now
-                        val (token, _, _) = EgiPreferences.getAuth(this@EgiVpnService)
-                        val serverUrl = EgiPreferences.getSyncEndpoint(this@EgiVpnService) ?: "http://10.0.2.2:3000"
+                        val (token, _, _) = IgyPreferences.getAuth(this@IgyVpnService)
+                        val serverUrl = IgyPreferences.getSyncEndpoint(this@IgyVpnService) ?: "http://10.0.2.2:3000"
                         
                         if (token.isNotEmpty()) {
                             val config = fetchVpnConfigSync(serverUrl, token)
@@ -125,11 +125,11 @@ class EgiVpnService : VpnService(), Runnable {
     }
 
     override fun run() {
-        val vipList = EgiPreferences.getVipList(this)
-        val isStealth = EgiPreferences.isStealthMode(this)
-        val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
-        val ssKey = EgiPreferences.getOutlineKey(this)
-        val allowLocal = EgiPreferences.getLocalBypass(this)
+        val vipList = IgyPreferences.getVipList(this)
+        val isStealth = IgyPreferences.isStealthMode(this)
+        val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
+        val ssKey = IgyPreferences.getOutlineKey(this)
+        val allowLocal = IgyPreferences.getLocalBypass(this)
 
         try {
             // Optimized for maximum throughput like Outline
@@ -137,7 +137,7 @@ class EgiVpnService : VpnService(), Runnable {
             
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
-                .setSession("EgiShield")
+                .setSession("IgyShield")
                 .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
                 .setMtu(mtu)
@@ -203,16 +203,16 @@ class EgiVpnService : VpnService(), Runnable {
             TrafficEvent.log("CORE >> SHIELD_UP (KEY_SIGN_SHOULD_BE_VISIBLE)")
 
             val fd = vpnInterface!!.fd
-            if (EgiNetwork.isAvailable()) {
-                val allowedDomains = EgiPreferences.getAllowedDomains(this)
-                EgiNetwork.setAllowedDomains(allowedDomains)
+            if (IgyNetwork.isAvailable()) {
+                val allowedDomains = IgyPreferences.getAllowedDomains(this)
+                IgyNetwork.setAllowedDomains(allowedDomains)
                 
                 if (isStealth && ssKey.isNotEmpty()) {
                     TrafficEvent.log("SHIELD >> STARTING_STEALTH_CORE")
-                    EgiNetwork.runVpnLoop(fd)
+                    IgyNetwork.runVpnLoop(fd)
                 } else {
                     TrafficEvent.log("SHIELD >> STARTING_OFFLINE_SHIELD")
-                    EgiNetwork.runPassiveShield(fd)
+                    IgyNetwork.runPassiveShield(fd)
                 }
             } else {
                 TrafficEvent.log("CORE >> NATIVE_LIB_LOAD_FAILED")
@@ -232,25 +232,25 @@ class EgiVpnService : VpnService(), Runnable {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("egi_vpn", "Egi VPN", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel("igy_vpn", "Igy VPN", NotificationManager.IMPORTANCE_LOW)
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
     }
 
     private fun createNotification(): Notification {
-        val stopIntent = Intent(this, EgiVpnService::class.java).apply { action = ACTION_STOP }
+        val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, "egi_vpn")
+            Notification.Builder(this, "igy_vpn")
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
 
         return builder
-            .setContentTitle("Egi Shield Active")
+            .setContentTitle("Igy Shield Active")
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)

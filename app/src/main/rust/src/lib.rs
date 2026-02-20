@@ -25,7 +25,7 @@ pub fn log_to_java(msg: &str) {
     unsafe {
         if let Some(ref vm) = JVM {
             if let Ok(mut env) = vm.attach_current_thread() {
-                if let Ok(class) = env.find_class("com/example/egi/EgiNetwork") {
+                if let Ok(class) = env.find_class("com/example/igy/IgyNetwork") {
                     if let Ok(msg_jstring) = env.new_string(msg) {
                         let _ = env.call_static_method(
                             class,
@@ -41,7 +41,7 @@ pub fn log_to_java(msg: &str) {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_toggleStealthMode(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_toggleStealthMode(
     _env: JNIEnv,
     _class: JClass,
     enabled: jboolean,
@@ -50,7 +50,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_toggleStealthMode(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_setOutlineKey(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_setOutlineKey(
     mut env: JNIEnv,
     _class: JClass,
     key: JString,
@@ -63,7 +63,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_setOutlineKey(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_setAllowedDomains(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedDomains(
     mut env: JNIEnv,
     _class: JClass,
     domains: JString,
@@ -83,7 +83,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_setAllowedDomains(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_getCoreHealth(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_getCoreHealth(
     env: JNIEnv,
     _class: JClass,
 ) -> jstring {
@@ -110,7 +110,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_getCoreHealth(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_runVpnLoop(
     _env: JNIEnv,
     _class: JClass,
     fd: jint,
@@ -121,7 +121,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runVpnLoop(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_runPassiveShield(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_runPassiveShield(
     _env: JNIEnv,
     _class: JClass,
     fd: jint,
@@ -132,7 +132,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_runPassiveShield(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_setBandwidthLimit(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_setBandwidthLimit(
     _env: JNIEnv,
     _class: JClass,
     limit_mbps: jint,
@@ -142,7 +142,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_setBandwidthLimit(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_getNativeBlockedCount(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_getNativeBlockedCount(
     _env: JNIEnv,
     _class: JClass,
 ) -> jlong {
@@ -152,7 +152,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_getNativeBlockedCount(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_getEnergySavings(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_getEnergySavings(
     env: JNIEnv,
     _class: JClass,
 ) -> jstring {
@@ -164,7 +164,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_getEnergySavings(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_kickDevice(
     mut env: JNIEnv,
     _class: JClass,
     target_ip: JString,
@@ -186,7 +186,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_kickDevice(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_measureNetworkStats(
     mut env: JNIEnv,
     _class: JClass,
     target_ip: JString,
@@ -197,7 +197,7 @@ pub extern "system" fn Java_com_example_egi_EgiNetwork_measureNetworkStats(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_example_egi_EgiNetwork_scanSubnet(
+pub extern "system" fn Java_com_example_igy_IgyNetwork_scanSubnet(
     mut env: JNIEnv,
     _class: JClass,
     base_ip: JString,

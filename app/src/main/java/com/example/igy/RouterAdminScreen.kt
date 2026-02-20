@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.annotation.SuppressLint
 import android.content.ClipData
@@ -36,7 +36,7 @@ import org.json.JSONObject
 @Composable
 fun RouterAdminScreen(gatewayIp: String, onBack: () -> Unit) {
     val context = LocalContext.current
-    val (user, pass, brand) = remember { EgiPreferences.getRouterCredentials(context) }
+    val (user, pass, brand) = remember { IgyPreferences.getRouterCredentials(context) }
     var scrapedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var statusMessage by remember { mutableStateOf("INITIALIZING_SECURE_BRIDGE...") }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }

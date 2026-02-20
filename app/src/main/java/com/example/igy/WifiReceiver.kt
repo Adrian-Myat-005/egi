@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,19 +13,19 @@ class WifiReceiver : BroadcastReceiver() {
             @Suppress("DEPRECATION")
             val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiManager.EXTRA_NETWORK_INFO)
             if (networkInfo != null && networkInfo.isConnected) {
-                if (EgiPreferences.isGeofencingEnabled(context)) {
+                if (IgyPreferences.isGeofencingEnabled(context)) {
                     val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
                     val info = wifiManager.connectionInfo
                     val ssid = info?.ssid?.replace("\"", "") ?: ""
                     
                     if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
-                        val trustedSsids = EgiPreferences.getTrustedSSIDs(context)
+                        val trustedSsids = IgyPreferences.getTrustedSSIDs(context)
                         if (!trustedSsids.contains(ssid)) {
-                            Log.d("EgiGeofence", "Untrusted SSID detected: $ssid. Activating Silent Shield.")
-                            val vpnIntent = Intent(context, EgiVpnService::class.java)
+                            Log.d("IgyGeofence", "Untrusted SSID detected: $ssid. Activating Silent Shield.")
+                            val vpnIntent = Intent(context, IgyVpnService::class.java)
                             context.startService(vpnIntent)
                         } else {
-                            Log.d("EgiGeofence", "Trusted SSID detected: $ssid. Shield remains in standby.")
+                            Log.d("IgyGeofence", "Trusted SSID detected: $ssid. Shield remains in standby.")
                         }
                     }
                 }

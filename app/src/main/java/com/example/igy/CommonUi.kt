@@ -1,4 +1,4 @@
-package com.example.egi
+package com.example.igy
 
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.background
