@@ -1,11 +1,25 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
 import path from 'path';
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: path.join(__dirname, '../database.sqlite'),
-  logging: false,
-});
+const isProduction = process.env.NODE_ENV === 'production';
+const databaseUrl = process.env.DATABASE_URL;
+
+const sequelize = databaseUrl 
+  ? new Sequelize(databaseUrl, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      }
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: path.join(__dirname, '../database.sqlite'),
+      logging: false,
+    });
 
 export class User extends Model {
   declare id: number;
