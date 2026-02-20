@@ -132,8 +132,8 @@ class IgyVpnService : VpnService(), Runnable {
         val allowLocal = IgyPreferences.getLocalBypass(this)
 
         try {
-            // Optimized for maximum throughput like Outline
-            val mtu = 1500
+            // 1280 is the safest MTU for all carriers (Outline default)
+            val mtu = 1280
             
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
@@ -141,15 +141,7 @@ class IgyVpnService : VpnService(), Runnable {
                 .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
                 .setMtu(mtu)
-                .setBlocking(false) // Use non-blocking for better high-speed handling
-
-            // IPv6 Leak Protection
-            try {
-                builder.addAddress("fd00::1", 128)
-                builder.addRoute("::", 0)
-            } catch (e: Exception) {
-                TrafficEvent.log("CORE >> IPV6_STRICT_MODE_ERR")
-            }
+                .setBlocking(true) // Must be true for Rust tun-async to wrap correctly
 
             val configIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 

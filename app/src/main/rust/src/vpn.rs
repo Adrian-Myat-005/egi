@@ -190,26 +190,25 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::OverTcp; // Use TCP for maximum compatibility
+                    args.dns = ArgDns::Virtual; // Let tun2proxy handle virtual DNS internally
                     args.verbosity = ArgVerbosity::Off;
-                    args.dns_addr = "8.8.8.8".parse().unwrap();
+                    
+                    crate::log_to_java("VPN >> ENGINE_READY (MTU: 1280)");
 
-                    // Monitor proxy health in background
+                    // Simple heartbeat monitor
                     let monitor_token = token.clone();
-                    let proxy_addr = local_addr_str.clone();
                     tokio::spawn(async move {
                         loop {
-                            tokio::time::sleep(Duration::from_secs(30)).await;
-                            if tokio::net::TcpStream::connect(&proxy_addr).await.is_err() {
-                                crate::log_to_java("VPN >> KEEP_ALIVE_FAILED: RECONNECTING...");
+                            tokio::time::sleep(Duration::from_secs(60)).await;
+                            if CORE_STATUS.load(Ordering::SeqCst) == 0 {
                                 monitor_token.cancel();
                                 break;
                             }
                         }
                     });
 
-                    if let Err(e) = run_tun2proxy(tun_device, 1400, args, token).await {
-                        crate::log_to_java(&format!("VPN >> TUN2PROXY_EXIT: {}", e));
+                    if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {
+                        crate::log_to_java(&format!("VPN >> EXIT: {}", e));
                     }
                 } else {
                     crate::log_to_java("VPN >> ERR: INVALID_PROXY_URL");
