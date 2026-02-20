@@ -13,6 +13,7 @@ export class User extends Model {
   declare password: string;
   declare isPremium: boolean;
   declare subscriptionExpiry: Date | null;
+  declare assignedKey: string | null;
 }
 
 User.init({
@@ -21,24 +22,7 @@ User.init({
   password: { type: DataTypes.STRING, allowNull: false },
   isPremium: { type: DataTypes.BOOLEAN, defaultValue: false },
   subscriptionExpiry: { type: DataTypes.DATE, allowNull: true },
+  assignedKey: { type: DataTypes.TEXT, allowNull: true },
 }, { sequelize, modelName: 'user' });
-
-export class VpnNode extends Model {
-  declare id: number;
-  declare name: string;
-  declare ip: string;
-  declare port: number;
-  declare ssPassword: string;
-  declare method: string;
-}
-
-VpnNode.init({
-  id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  name: { type: DataTypes.STRING, allowNull: false },
-  ip: { type: DataTypes.STRING, allowNull: false },
-  port: { type: DataTypes.INTEGER, allowNull: false },
-  ssPassword: { type: DataTypes.STRING, allowNull: false },
-  method: { type: DataTypes.STRING, defaultValue: 'aes-128-gcm' },
-}, { sequelize, modelName: 'vpn_node' });
 
 export { sequelize };

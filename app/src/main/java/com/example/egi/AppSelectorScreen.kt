@@ -215,33 +215,3 @@ fun MatrixSelectorRow(app: AppInfo, mode: AppMode, isSelected: Boolean, onSelect
     }
 }
 
-@Composable
-fun MatrixSelectorRow(app: AppInfo, mode: AppMode, isSelected: Boolean, onSelect: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(60.dp)
-            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
-            .clickable { onSelect() }
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painter = rememberDrawablePainter(drawable = app.icon),
-            contentDescription = null,
-            modifier = Modifier.size(32.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = app.name, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
-            Text(text = app.packageName, color = Color.Green.copy(alpha = 0.5f), fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
-        }
-        Text(
-            text = if (isSelected) "[X]" else "[ ]",
-            color = if (isSelected) Color.Cyan else Color.Green.copy(alpha = 0.5f),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 16.sp
-        )
-    }
-}
-

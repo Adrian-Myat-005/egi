@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EGI_CORE_ADMIN</title>
+    <style>
+        :root {
+            --cream: #FDF5E6;
+            --wheat: #F5DEB3;
+            --deep-gray: #2F4F4F;
+            --gold: #B8860B;
+            --green: #2E8B57;
+            --red: #8B0000;
+        }
+
+        body {
+            background-color: var(--cream);
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--deep-gray);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            border: 2px solid var(--gold);
+            padding: 20px;
+            background: white;
+            box-shadow: 10px 10px 0px var(--wheat);
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 10px;
+            color: var(--gold);
+            font-size: 24px;
+        }
+
+        .user-card {
+            border: 1px solid var(--wheat);
+            margin-bottom: 15px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .user-card:hover {
+            border-color: var(--gold);
+            background-color: #fffaf0;
+        }
+
+        .user-info b { color: var(--gold); }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid var(--wheat);
+            font-family: 'Courier New', Courier, monospace;
+            outline: none;
+        }
+
+        button {
+            background-color: white;
+            border: 2px solid var(--deep-gray);
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 3px 3px 0px var(--wheat);
+        }
+
+        button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px var(--wheat);
+        }
+
+        .btn-promote { color: var(--green); border-color: var(--green); }
+        .btn-reset { color: var(--red); border-color: var(--red); }
+
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px dashed var(--gold);
+            font-size: 12px;
+        }
+
+        .assigned-key {
+            font-size: 10px;
+            color: #888;
+            word-break: break-all;
+            margin-top: 5px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EGI >> ADMIN_SUBSCRIPTION_CONTROL</h1>
+        
+        <div id="user-list">
+            <!-- Users will be loaded here -->
+            <p>Scanning for targets...</p>
+        </div>
+
+        <div id="status">STATUS: READY_FOR_COMMANDS</div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        async function fetchUsers() {
+            const res = await fetch(`${API_BASE}/api/admin/users`);
+            const users = await res.json();
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+
+            users.forEach(user => {
+                const card = document.createElement('div');
+                card.className = 'user-card';
+                card.innerHTML = `
+                    <div class="user-info">
+                        <b>@${user.username}</b> 
+                        [${user.isPremium ? 'PREMIUM' : 'FREE'}]<br>
+                        <small>EXPIRY: ${user.subscriptionExpiry || 'N/A'}</small>
+                        <span class="assigned-key">${user.assignedKey ? 'KEY_ACTIVE: ' + user.assignedKey.substring(0, 30) + '...' : 'NO_KEY_ASSIGNED'}</span>
+                    </div>
+                    <div class="controls">
+                        <input type="text" id="key-${user.username}" placeholder="ss://..." title="Enter Shadowsocks Key">
+                        <select id="months-${user.username}">
+                            <option value="1">1 Month</option>
+                            <option value="3">3 Months</option>
+                            <option value="12">1 Year</option>
+                        </select>
+                        <button class="btn-promote" onclick="promote('${user.username}')">PROMOTE</button>
+                        <button class="btn-reset" onclick="reset('${user.username}')">RESET</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        async function promote(username) {
+            const months = document.getElementById(`months-${username}`).value;
+            const ssKey = document.getElementById(`key-${username}`).value;
+            
+            const res = await fetch(`${API_BASE}/api/admin/promote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, months: parseInt(months), ssKey })
+            });
+
+            if (res.ok) {
+                log(`USER ${username} PROMOTED SUCCESSFULLY`);
+                fetchUsers();
+            } else {
+                log(`ERROR PROMOTING ${username}`);
+            }
+        }
+
+        async function reset(username) {
+            if (!confirm(`RESET ALL DATA FOR ${username}?`)) return;
+
+            const res = await fetch(`${API_BASE}/api/admin/reset`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+
+            if (res.ok) {
+                log(`USER ${username} RESET TO STANDBY`);
+                fetchUsers();
+            }
+        }
+
+        function log(msg) {
+            document.getElementById('status').innerText = `STATUS: ${msg}`;
+        }
+
+        fetchUsers();
+    </script>
+</body>
+</html>

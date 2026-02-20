@@ -215,25 +215,6 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
         } else {
             Button(
                 onClick = {
-                    scope.launch {
-                        val config = fetchVpnConfig(savedToken)
-                        if (config != null) {
-                            EgiPreferences.saveOutlineKey(context, config)
-                            Toast.makeText(context, "SYNCED: ${config.take(20)}...", Toast.LENGTH_LONG).show()
-                        } else {
-                            Toast.makeText(context, "PREMIUM_KEY_SYNC_FAILED", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF8B008B)),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-            ) {
-                Text("[ SYNC PREMIUM KEY ]", fontFamily = FontFamily.Monospace)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
                     EgiPreferences.clearAuth(context)
                     status = "GUEST_MODE"
                 },
@@ -752,6 +733,7 @@ private fun handleExecuteToggle(
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
+    val scope = CoroutineScope(Dispatchers.Main + Job())
     try {
         if (isBooting) {
             setBooting(false)
@@ -781,11 +763,32 @@ private fun handleExecuteToggle(
                 }
                 return
             }
+
             setBooting(true)
             TrafficEvent.log("USER >> BOOTING_SHIELD")
-            val intent = VpnService.prepare(context)
-            if (intent != null) { vpnLauncher.launch(intent) } 
-            else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+
+            // ONE-CLICK SYNC: Fetch key before starting if logged in
+            val (token, _, _) = EgiPreferences.getAuth(context)
+            if (token.isNotEmpty() && isStealthMode) {
+                scope.launch {
+                    TrafficEvent.log("CORE >> SYNCING_PREMIUM_KEY...")
+                    val config = fetchVpnConfig(token)
+                    if (config != null) {
+                        EgiPreferences.saveOutlineKey(context, config)
+                        TrafficEvent.log("CORE >> KEY_SYNC_SUCCESS")
+                    } else {
+                        TrafficEvent.log("CORE >> SYNC_FAILED_USING_CACHE")
+                    }
+                    
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) { vpnLauncher.launch(intent) } 
+                    else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+                }
+            } else {
+                val intent = VpnService.prepare(context)
+                if (intent != null) { vpnLauncher.launch(intent) } 
+                else { ContextCompat.startForegroundService(context, Intent(context, EgiVpnService::class.java)) }
+            }
         }
     } catch (e: Exception) {
         TrafficEvent.log("CRITICAL >> ${e.message}")

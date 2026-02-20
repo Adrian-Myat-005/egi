@@ -1,4 +1,4 @@
-import { VpnNode, User } from './models';
+import { User } from './models';
 import { Request, Response } from 'express';
 
 export const getVpnConfig = async (req: Request, res: Response) => {
@@ -12,22 +12,17 @@ export const getVpnConfig = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'PREMIUM_REQUIRED', message: 'YOUR_SUBSCRIPTION_HAS_EXPIRED' });
     }
 
-    const nodes = await VpnNode.findAll();
-    if (nodes.length === 0) return res.status(503).json({ error: 'NO_NODES_AVAILABLE' });
+    // If the user has a specific Outline key assigned, use that!
+    if (user.assignedKey && user.assignedKey.startsWith('ss://')) {
+      return res.json({
+        node_name: "EGI_ONE_CLICK_VPN",
+        config: user.assignedKey,
+        expiry: user.subscriptionExpiry,
+      });
+    }
 
-    // Simple load balancing: pick a random node
-    const node = nodes[Math.floor(Math.random() * nodes.length)];
+    return res.status(503).json({ error: 'NO_KEY_ASSIGNED', message: 'PLEASE_CONTACT_SUPPORT' });
 
-    // Construct SIP002 Shadowsocks URL (Standard)
-    // ss://method:password@host:port
-    const userInfo = Buffer.from(`${node.method}:${node.ssPassword}`).toString('base64');
-    const ssUrl = `ss://${userInfo}@${node.ip}:${node.port}`;
-
-    res.json({
-      node_name: node.name,
-      config: ssUrl,
-      expiry: user.subscriptionExpiry,
-    });
   } catch (error) {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
