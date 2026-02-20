@@ -359,14 +359,17 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             try {
+                                status = "WAKING_UP_SERVER (30s)..."
                                 val result = performAuth(serverUrl, username, password, true)
                                 if (result != null) {
                                     EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
+                                    status = "AUTH_FAILED: RECHECK_DATA"
                                     Toast.makeText(context, "AUTH_FAILED", Toast.LENGTH_SHORT).show()
                                 }
                             } catch (e: Exception) {
+                                status = "ERROR: SERVER_TIMEOUT"
                                 Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -381,14 +384,17 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             try {
+                                status = "WAKING_UP_SERVER (30s)..."
                                 val result = performAuth(serverUrl, username, password, false)
                                 if (result != null) {
                                     EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
+                                    status = "LOGIN_FAILED: RECHECK_DATA"
                                     Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()
                                 }
                             } catch (e: Exception) {
+                                status = "ERROR: SERVER_TIMEOUT"
                                 Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -512,6 +518,8 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
     try {
         val url = java.net.URL("$serverUrl/api/vpn/regions")
         val conn = url.openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 30000
+        conn.readTimeout = 30000
         conn.setRequestProperty("Authorization", "Bearer $token")
         if (conn.responseCode == 200) {
             val res = JSONArray(conn.inputStream.bufferedReader().readText())
@@ -529,8 +537,8 @@ private suspend fun performAuth(serverUrl: String, user: String, pass: String, i
     try {
         val url = java.net.URL("$serverUrl/api/auth/${if (isRegister) "register" else "login"}")
         val conn = url.openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
+        conn.connectTimeout = 30000 // 30s wakeup allowance
+        conn.readTimeout = 30000
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
         conn.doOutput = true
@@ -559,8 +567,8 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
     try {
         val url = java.net.URL("$serverUrl/api/vpn/config${if (nodeId != -1) "?nodeId=$nodeId" else ""}")
         val conn = url.openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
+        conn.connectTimeout = 30000
+        conn.readTimeout = 30000
         conn.setRequestProperty("Authorization", "Bearer $token")
         
         if (conn.responseCode == 200) {

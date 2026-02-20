@@ -190,9 +190,9 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::OverTcp; // Better stability for Facebook/High-traffic apps
+                    args.dns = ArgDns::OverUdp; // Faster for Facebook/Media
                     args.verbosity = ArgVerbosity::Off;
-                    args.dns_addr = "10.0.0.1".parse().unwrap();
+                    args.dns_addr = "8.8.8.8".parse().unwrap();
 
                     // Monitor proxy health in background
                     let monitor_token = token.clone();

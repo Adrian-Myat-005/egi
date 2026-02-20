@@ -21,7 +21,11 @@ pub struct SecureKey {
 lazy_static::lazy_static! {
     pub static ref OUTLINE_KEY: RwLock<SecureKey> = RwLock::new(SecureKey::default());
     pub static ref ALLOWED_DOMAINS: RwLock<Vec<String>> = RwLock::new(Vec::new());
-    pub static ref TOKIO_RT: Runtime = Runtime::new().expect("Failed to create Tokio runtime");
+    pub static ref TOKIO_RT: Runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .expect("Failed to create Tokio runtime");
 }
 
 pub static BANDWIDTH_LIMIT: AtomicU64 = AtomicU64::new(0);

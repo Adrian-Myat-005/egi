@@ -132,8 +132,8 @@ class EgiVpnService : VpnService(), Runnable {
         val allowLocal = EgiPreferences.getLocalBypass(this)
 
         try {
-            // Balanced MTU: 1400 is the sweet spot for mobile stability
-            val mtu = 1400
+            // Optimized for maximum throughput like Outline
+            val mtu = 1500
             
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
@@ -141,9 +141,9 @@ class EgiVpnService : VpnService(), Runnable {
                 .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
                 .setMtu(mtu)
-                .setBlocking(true) 
+                .setBlocking(false) // Use non-blocking for better high-speed handling
 
-            // IPv6 Leak Protection: Force all IPv6 traffic to be handled (and dropped by core)
+            // IPv6 Leak Protection
             try {
                 builder.addAddress("fd00::1", 128)
                 builder.addRoute("::", 0)
@@ -158,11 +158,9 @@ class EgiVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // Optimized DNS: 10.0.0.1 is the virtual DNS handled by tun2proxy
-            builder.addDnsServer("10.0.0.1")
+            // High-performance DNS
             builder.addDnsServer("8.8.8.8")
             builder.addDnsServer("1.1.1.1")
-            builder.addRoute("10.0.0.1", 32)
 
             // VPN_TUNNEL_LOGIC:
             if (isStealth) {
