@@ -13,22 +13,36 @@
             --green: #2E8B57;
             --red: #8B0000;
             --blue: #4682B4;
+            --bg-color: var(--cream);
+            --text-color: var(--deep-gray);
+            --card-bg: white;
+            --input-bg: white;
+        }
+
+        body.dark-mode {
+            --bg-color: #1A1A1A;
+            --text-color: #FFFFFF;
+            --card-bg: #2D2D2D;
+            --input-bg: #3D3D3D;
+            --wheat: #333333;
+            --cream: #1A1A1A;
         }
 
         body {
-            background-color: var(--cream);
+            background-color: var(--bg-color);
             font-family: 'Courier New', Courier, monospace;
-            color: var(--deep-gray);
+            color: var(--text-color);
             margin: 0;
             padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
             max-width: 1000px;
             margin: 0 auto;
-            border: 2px solid var(--deep-gray);
+            border: 2px solid var(--gold);
             padding: 20px;
-            background: white;
+            background: var(--card-bg);
             box-shadow: 12px 12px 0px var(--wheat);
         }
 
@@ -46,7 +60,7 @@
         .auth-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--cream);
+            background: var(--bg-color);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -54,9 +68,9 @@
         }
 
         .auth-box {
-            background: white;
+            background: var(--card-bg);
             padding: 30px;
-            border: 2px solid var(--deep-gray);
+            border: 2px solid var(--gold);
             box-shadow: 10px 10px 0px var(--gold);
             text-align: center;
         }
@@ -73,6 +87,7 @@
             padding: 5px 10px;
             font-weight: bold;
             font-size: 14px;
+            color: var(--text-color);
         }
 
         .user-grid {
@@ -88,9 +103,10 @@
             flex-direction: column;
             gap: 10px;
             transition: all 0.2s;
+            background: var(--card-bg);
         }
 
-        .user-card:hover { border-color: var(--gold); background: #fffaf0; }
+        .user-card:hover { border-color: var(--gold); background: var(--wheat); }
 
         .user-header {
             display: flex;
@@ -111,39 +127,43 @@
             outline: none;
             width: 100%;
             box-sizing: border-box;
+            background: var(--input-bg);
+            color: var(--text-color);
         }
 
         button {
-            background-color: white;
-            border: 2px solid var(--deep-gray);
+            background-color: var(--card-bg);
+            border: 2px solid var(--gold);
             padding: 10px 15px;
             cursor: pointer;
             font-family: 'Courier New', Courier, monospace;
             font-weight: bold;
             transition: all 0.1s;
             box-shadow: 4px 4px 0px var(--wheat);
+            color: var(--text-color);
         }
 
         button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--wheat); }
-        button:hover { background: #f0f0f0; }
+        button:hover { background: var(--wheat); }
 
         .btn-promote { color: var(--green); border-color: var(--green); }
         .btn-reset { color: var(--red); border-color: var(--red); }
-        .btn-primary { background: var(--deep-gray); color: white; }
+        .btn-primary { background: var(--gold); color: white; border-color: var(--gold); }
 
         .status-bar {
             margin-top: 20px;
             padding: 10px;
             border: 1px dashed var(--gold);
             font-size: 12px;
-            background: #fdfaf0;
+            background: var(--wheat);
         }
 
         .assigned-key {
             font-size: 11px;
-            color: #666;
+            color: var(--text-color);
+            opacity: 0.8;
             word-break: break-all;
-            background: #f9f9f9;
+            background: var(--wheat);
             padding: 5px;
             border-left: 3px solid var(--gold);
         }
@@ -156,9 +176,20 @@
         }
 
         .hidden { display: none !important; }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            box-shadow: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            margin-right: 15px;
+        }
+        .theme-toggle:active { transform: none; box-shadow: none; }
     </style>
 </head>
-<body>
+<body class="dark-mode">
     <div id="auth-overlay" class="auth-overlay">
         <div class="auth-box">
             <h2>EGI_SYSTEM_ACCESS</h2>
@@ -172,7 +203,10 @@
     <div class="container">
         <header>
             <h1>EGI >> CORE_CONTROL_PANEL</h1>
-            <button onclick="logout()">LOGOUT</button>
+            <div>
+                <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+                <button onclick="logout()">LOGOUT</button>
+            </div>
         </header>
 
         <div class="section">
@@ -233,6 +267,16 @@
     <script>
         let adminSecret = localStorage.getItem('egi_admin_key') || '';
         let allUsers = [];
+
+        // Theme Initialization
+        if (localStorage.getItem('egi_theme') === 'light') {
+            document.body.classList.remove('dark-mode');
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('egi_theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
 
         if (adminSecret) {
             document.getElementById('auth-overlay').classList.add('hidden');

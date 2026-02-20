@@ -33,7 +33,7 @@ object EgiPreferences {
 
     fun isDarkMode(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_DARK_MODE, false)
+        return prefs.getBoolean(KEY_DARK_MODE, true)
     }
 
     fun setDarkMode(context: Context, enabled: Boolean) {
