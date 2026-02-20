@@ -532,9 +532,9 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
 
 data class AuthResult(val token: String, val username: String, val isPremium: Boolean, val expiry: Long)
 
-private suspend fun performAuth(serverUrl: String, user: String, pass: String, isRigyster: Boolean): AuthResult? = withContext(Dispatchers.IO) {
+private suspend fun performAuth(serverUrl: String, user: String, pass: String, isRegister: Boolean): AuthResult? = withContext(Dispatchers.IO) {
     try {
-        val url = java.net.URL("$serverUrl/api/auth/${if (isRigyster) "rigyster" else "login"}")
+        val url = java.net.URL("$serverUrl/api/auth/${if (isRegister) "register" else "login"}")
         val conn = url.openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 30000 // 30s wakeup allowance
         conn.readTimeout = 30000

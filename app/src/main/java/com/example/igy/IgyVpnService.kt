@@ -219,11 +219,13 @@ class IgyVpnService : VpnService(), Runnable {
                 val allowedDomains = IgyPreferences.getAllowedDomains(this)
                 IgyNetwork.setAllowedDomains(allowedDomains)
                 
-                if (isStealth && ssKey.isNotEmpty()) {
-                    TrafficEvent.log("SHIELD >> STARTING_STEALTH_CORE")
+                // CRITICAL FIX: Always run the tunnel if we have a key!
+                // Bypass/Focus logic is handled by the Builder above, not by choosing different engines.
+                if (ssKey.isNotEmpty()) {
+                    TrafficEvent.log("SHIELD >> STARTING_VPN_CORE")
                     IgyNetwork.runVpnLoop(fd)
                 } else {
-                    TrafficEvent.log("SHIELD >> STARTING_OFFLINE_SHIELD")
+                    TrafficEvent.log("SHIELD >> NO_KEY: STARTING_PASSIVE_SHIELD")
                     IgyNetwork.runPassiveShield(fd)
                 }
             } else {
