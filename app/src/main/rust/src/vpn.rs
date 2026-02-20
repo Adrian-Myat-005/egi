@@ -30,7 +30,8 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
             Ok(mut guard) => {
                 match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
                     n if n > 0 => {
-                        let packet = &buf[..n];
+                        let n_usize = n as usize;
+                        let packet = &buf[..n_usize];
                         
                         // Only log if a whitelist is actually configured
                         let has_whitelist = match ALLOWED_DOMAINS.read() {
@@ -47,7 +48,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                             }
                         }
                         
-                        BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
+                        BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
                         guard.clear_ready();
                     }
