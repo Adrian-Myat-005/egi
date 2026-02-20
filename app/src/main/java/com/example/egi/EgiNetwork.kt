@@ -26,4 +26,9 @@ object EgiNetwork {
     external fun setAllowedDomains(domains: String)
 
     fun isAvailable() = isLibLoaded
+
+    @JvmStatic
+    fun nativeLog(msg: String) {
+        TrafficEvent.log("NATIVE >> $msg")
+    }
 }

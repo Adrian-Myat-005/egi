@@ -58,13 +58,13 @@ class EgiVpnService : VpnService(), Runnable {
         if (vpnThread == null || !vpnThread!!.isAlive) {
             vpnThread = Thread(this, "EgiVpnThread")
             vpnThread?.start()
-        }
-
-        serviceScope.launch {
-            while (isActive) {
-                delay(3000)
-                if (EgiNetwork.isAvailable()) {
-                    TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
+            
+            serviceScope.launch {
+                while (isActive) {
+                    delay(3000)
+                    if (EgiNetwork.isAvailable()) {
+                        TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
+                    }
                 }
             }
         }

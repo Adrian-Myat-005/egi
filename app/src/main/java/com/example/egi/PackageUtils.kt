@@ -1,5 +1,7 @@
 package com.example.egi
 
+import kotlin.collections.ArrayDeque
+
 object PackageUtils {
     private val PACKAGE_GROUPS = mapOf(
         "com.facebook.katana" to listOf(
@@ -32,14 +34,25 @@ object PackageUtils {
     )
 
     fun expandPackageList(basePackages: Set<String>): Set<String> {
-        val expanded = basePackages.toMutableSet()
-        basePackages.forEach { pkg ->
-            PACKAGE_GROUPS[pkg]?.let { expanded.addAll(it) }
-            
-            // Generic rule: If it's a major google app, always include GMS
-            if (pkg.startsWith("com.google.android.apps.") || pkg.startsWith("com.google.android.youtube")) {
-                expanded.add("com.google.android.gms")
-                expanded.add("com.google.android.gsf")
+        val expanded = mutableSetOf<String>()
+        val queue = ArrayDeque<String>(basePackages)
+
+        while (queue.isNotEmpty()) {
+            val pkg = queue.removeFirst()
+            if (expanded.add(pkg)) {
+                // Add dependencies from the map
+                PACKAGE_GROUPS[pkg]?.forEach { dep ->
+                    if (!expanded.contains(dep)) {
+                        queue.add(dep)
+                    }
+                }
+                
+                // Generic rule: If it's a major google app, always include GMS/GSF
+                if (pkg.startsWith("com.google.android.apps.") || pkg.startsWith("com.google.android.youtube")) {
+                    queue.add("com.google.android.gms")
+                    queue.add("com.google.android.gsf")
+                    queue.add("com.android.vending")
+                }
             }
         }
         return expanded

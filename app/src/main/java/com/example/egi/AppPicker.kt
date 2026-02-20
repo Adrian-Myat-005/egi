@@ -27,6 +27,9 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 @Composable
 fun AppPickerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val creamColor = Color(0xFFFDF5E6)
+    val deepGray = Color(0xFF2F4F4F)
+    val wheat = Color(0xFFF5DEB3)
     var currentMode by remember { mutableStateOf(EgiPreferences.getMode(context)) }
     var focusTarget by remember { mutableStateOf(EgiPreferences.getFocusTarget(context) ?: "") }
     var casualWhitelist by remember { mutableStateOf(EgiPreferences.getCasualWhitelist(context)) }
@@ -54,7 +57,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(creamColor)
             .padding(8.dp)
     ) {
         // --- MATRIX HEADER ---
@@ -62,7 +65,8 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                .background(Color.White)
+                .border(0.5.dp, wheat)
         ) {
             Box(
                 modifier = Modifier
@@ -73,7 +77,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
             ) {
                 Text(
                     text = "EGI >> VPN_FOCUS",
-                    color = Color.Magenta,
+                    color = Color(0xFF8B008B),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -83,11 +87,11 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .width(80.dp)
                     .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .border(0.5.dp, wheat)
                     .clickable { onBack() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ BACK ]", color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                Text("[ BACK ]", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             }
         }
 
@@ -96,15 +100,16 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp)
-                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                .background(Color.White)
+                .border(0.5.dp, wheat)
                 .padding(4.dp)
         ) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxSize(),
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Magenta, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                placeholder = { Text("SEARCH_FOCUS_APP...", color = Color.Magenta.copy(alpha = 0.3f), fontSize = 12.sp) },
+                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                placeholder = { Text("SEARCH_FOCUS_APP...", color = deepGray.copy(alpha = 0.3f), fontSize = 12.sp) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Transparent,
@@ -120,11 +125,11 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, Modifier.weight(1f), activeColor = Color.Magenta) {
+            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
                 currentMode = AppMode.FOCUS
                 casualWhitelist = emptySet()
             }
-            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, Modifier.weight(1f), activeColor = Color.Magenta) {
+            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
                 currentMode = AppMode.CASUAL
                 focusTarget = ""
             }
@@ -135,7 +140,8 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
+                .background(Color.White)
+                .border(0.5.dp, wheat)
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(filteredApps) { app ->
@@ -161,8 +167,8 @@ fun AppPickerScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(70.dp)
-                .border(1.dp, Color.Magenta)
-                .background(Color.Magenta.copy(alpha = 0.1f))
+                .background(Color.White)
+                .border(1.dp, Color(0xFF8B008B))
                 .clickable {
                     EgiPreferences.saveMode(context, currentMode)
                     EgiPreferences.saveFocusTarget(context, focusTarget)
@@ -173,7 +179,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
         ) {
             Text(
                 "[ CONFIRM SELECTION ]",
-                color = Color.Magenta,
+                color = Color(0xFF8B008B),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
@@ -184,11 +190,13 @@ fun AppPickerScreen(onBack: () -> Unit) {
 
 @Composable
 fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
+    val deepGray = Color(0xFF2F4F4F)
+    val wheat = Color(0xFFF5DEB3)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(65.dp)
-            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
+            .border(0.2.dp, wheat)
             .clickable { onToggle() }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -196,12 +204,12 @@ fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
         Image(painter = rememberDrawablePainter(drawable = app.icon), contentDescription = null, modifier = Modifier.size(32.dp))
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = app.name, color = Color.Green, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
+            Text(text = app.name, color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
             Text(text = app.packageName, color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
         }
         Text(
             text = if (isSelected) "[ ACTIVE ]" else "[ STANDBY ]",
-            color = if (isSelected) Color.Magenta else Color.Gray,
+            color = if (isSelected) Color(0xFF8B008B) else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold

@@ -5,11 +5,40 @@ mod scanner;
 #[cfg(test)]
 mod tests;
 
-use jni::objects::{JClass, JString};
-use jni::JNIEnv;
+use jni::objects::{JClass, JString, JValue};
+use jni::{JNIEnv, JavaVM};
 use jni::sys::{jstring, jlong, jint, jboolean};
 use std::sync::atomic::Ordering;
 use crate::common::*;
+
+static mut JVM: Option<JavaVM> = None;
+
+#[no_mangle]
+pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> jint {
+    unsafe {
+        JVM = Some(vm);
+    }
+    jni::sys::JNI_VERSION_1_6
+}
+
+pub fn log_to_java(msg: &str) {
+    unsafe {
+        if let Some(ref vm) = JVM {
+            if let Ok(mut env) = vm.attach_current_thread() {
+                if let Ok(class) = env.find_class("com/example/egi/EgiNetwork") {
+                    if let Ok(msg_jstring) = env.new_string(msg) {
+                        let _ = env.call_static_method(
+                            class,
+                            "nativeLog",
+                            "(Ljava/lang/String;)V",
+                            &[JValue::from(&msg_jstring)],
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_egi_EgiNetwork_toggleStealthMode(

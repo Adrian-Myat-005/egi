@@ -24,6 +24,39 @@ object EgiPreferences {
     private const val KEY_ROUTER_USER = "router_user"
     private const val KEY_ROUTER_PASS = "router_pass"
     private const val KEY_ROUTER_BRAND = "router_brand"
+    private const val KEY_AUTH_TOKEN = "auth_token"
+    private const val KEY_USERNAME = "username"
+    private const val KEY_IS_PREMIUM = "is_premium"
+    private const val KEY_PREMIUM_EXPIRY = "premium_expiry"
+
+    fun saveAuth(context: Context, token: String, username: String, isPremium: Boolean, expiry: Long) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putString(KEY_AUTH_TOKEN, token)
+            putString(KEY_USERNAME, username)
+            putBoolean(KEY_IS_PREMIUM, isPremium)
+            putLong(KEY_PREMIUM_EXPIRY, expiry)
+        }.apply()
+    }
+
+    fun getAuth(context: Context): Triple<String, String, Boolean> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return Triple(
+            prefs.getString(KEY_AUTH_TOKEN, "") ?: "",
+            prefs.getString(KEY_USERNAME, "Guest") ?: "Guest",
+            prefs.getBoolean(KEY_IS_PREMIUM, false)
+        )
+    }
+
+    fun clearAuth(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            remove(KEY_AUTH_TOKEN)
+            remove(KEY_USERNAME)
+            remove(KEY_IS_PREMIUM)
+            remove(KEY_PREMIUM_EXPIRY)
+        }.apply()
+    }
 
     fun saveRouterCredentials(context: Context, user: String, pass: String, brand: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

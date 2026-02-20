@@ -47,7 +47,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN, ACCOUNT
 }
 
 class MainActivity : ComponentActivity() {
@@ -75,7 +75,7 @@ fun MainContent() {
     if (showLogs) {
         AlertDialog(
             onDismissRequest = { showLogs = false },
-            containerColor = Color.Black,
+            containerColor = Color(0xFFFDF5E6),
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxSize().padding(8.dp),
             text = { TerminalLog(onClose = { showLogs = false }) },
@@ -113,23 +113,215 @@ fun MainContent() {
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
                 onOpenWifiRadar = { currentScreen = Screen.WIFI_RADAR },
+                onOpenAccount = { currentScreen = Screen.ACCOUNT },
                 onShowLogs = { showLogs = true },
                 dnsMsg = dnsLogMessage,
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
+            Screen.ACCOUNT -> TerminalAccountScreen(onBack = { currentScreen = Screen.TERMINAL })
         }
     }
 }
 
 @Composable
-fun EgiTerminalTheme(content: @Composable () -> Unit) {
-    MaterialTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.Black,
-            content = content
-        )
+fun TerminalAccountScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val creamColor = Color(0xFFFDF5E6)
+    val deepGray = Color(0xFF2F4F4F)
+    val wheat = Color(0xFFF5DEB3)
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val (savedToken, savedUser, isPremium) = EgiPreferences.getAuth(context)
+    var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(creamColor).padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("EGI >> SYSTEM_AUTHENTICATION", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("STATUS: $status", color = if (isPremium) Color(0xFF2E8B57) else Color.Gray, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        if (isPremium) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (savedToken.isEmpty()) {
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("USERNAME", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth().background(Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("PASSWORD", color = Color.Gray) },
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth().background(Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val result = performAuth(username, password, true)
+                                if (result != null) {
+                                    EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    status = "LOGGED_IN: ${result.username}"
+                                } else {
+                                    Toast.makeText(context, "AUTH_FAILED", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = deepGray),
+                    modifier = Modifier.border(1.dp, wheat),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    Text("REGISTER", fontFamily = FontFamily.Monospace)
+                }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val result = performAuth(username, password, false)
+                                if (result != null) {
+                                    EgiPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    status = "LOGGED_IN: ${result.username}"
+                                } else {
+                                    Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF2E8B57)),
+                    modifier = Modifier.border(1.dp, wheat),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    Text("LOGIN", fontFamily = FontFamily.Monospace)
+                }
+            }
+        } else {
+            Button(
+                onClick = {
+                    scope.launch {
+                        val config = fetchVpnConfig(savedToken)
+                        if (config != null) {
+                            EgiPreferences.saveOutlineKey(context, config)
+                            Toast.makeText(context, "SYNCED: ${config.take(20)}...", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "PREMIUM_KEY_SYNC_FAILED", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF8B008B)),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            ) {
+                Text("[ SYNC PREMIUM KEY ]", fontFamily = FontFamily.Monospace)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    EgiPreferences.clearAuth(context)
+                    status = "GUEST_MODE"
+                },
+                modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Red),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            ) {
+                Text("LOGOUT", fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                scope.launch {
+                    val key = fetchTestKey()
+                    if (key != null) {
+                        EgiPreferences.saveOutlineKey(context, key)
+                        Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF20B2AA)),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+        ) {
+            Text("[ GET TEST KEY ]", fontFamily = FontFamily.Monospace)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+        Text("[ BACK TO TERMINAL ]", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
+}
+
+private suspend fun fetchTestKey(): String? = withContext(Dispatchers.IO) {
+    try {
+        val url = java.net.URL("http://10.0.2.2:3000/api/vpn/test-key")
+        val conn = url.openConnection() as java.net.HttpURLConnection
+        if (conn.responseCode == 200) {
+            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            return@withContext res.getString("config")
+        }
+    } catch (e: Exception) {}
+    null
+}
+
+data class AuthResult(val token: String, val username: String, val isPremium: Boolean, val expiry: Long)
+
+private suspend fun performAuth(user: String, pass: String, isRegister: Boolean): AuthResult? = withContext(Dispatchers.IO) {
+    try {
+        val url = java.net.URL("http://10.0.2.2:3000/api/auth/${if (isRegister) "register" else "login"}")
+        val conn = url.openConnection() as java.net.HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.doOutput = true
+        
+        val body = JSONObject().apply {
+            put("username", user)
+            put("password", pass)
+        }
+        conn.outputStream.write(body.toString().toByteArray())
+        
+        if (conn.responseCode == 200) {
+            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            val userObj = res.getJSONObject("user")
+            return@withContext AuthResult(
+                res.getString("token"),
+                userObj.getString("username"),
+                userObj.optBoolean("isPremium", false),
+                userObj.optLong("expiry", 0L)
+            )
+        }
+    } catch (e: Exception) {}
+    null
+}
+
+private suspend fun fetchVpnConfig(token: String): String? = withContext(Dispatchers.IO) {
+    try {
+        val url = java.net.URL("http://10.0.2.2:3000/api/vpn/config")
+        val conn = url.openConnection() as java.net.HttpURLConnection
+        conn.setRequestProperty("Authorization", "Bearer $token")
+        
+        if (conn.responseCode == 200) {
+            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            return@withContext res.getString("config")
+        }
+    } catch (e: Exception) {}
+    null
 }
 
 @Composable
@@ -138,11 +330,15 @@ fun TerminalDashboard(
     onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
     onOpenWifiRadar: () -> Unit,
+    onOpenAccount: () -> Unit,
     onShowLogs: () -> Unit,
     dnsMsg: String?,
     onDnsLogConsumed: () -> Unit
 ) {
     val context = LocalContext.current
+    val creamColor = Color(0xFFFDF5E6)
+    val deepGray = Color(0xFF2F4F4F)
+    val wheat = Color(0xFFF5DEB3)
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
@@ -264,7 +460,7 @@ fun TerminalDashboard(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(creamColor)
             .padding(8.dp)
     ) {
         // --- TOP SECTION: THE MATRIX HEADER ---
@@ -277,12 +473,13 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(1.8f)
                     .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
+                    .background(Color.White)
+                    .border(0.5.dp, wheat),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (currentSsid != null) "[ WIFI: $currentSsid ]" else "[ NO_WIFI ]",
-                    color = if (isCurrentSsidTrusted) Color.Green else Color.Yellow,
+                    color = if (isCurrentSsidTrusted) Color(0xFF2E8B57) else Color(0xFFB8860B),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -293,21 +490,34 @@ fun TerminalDashboard(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .background(Color.White)
+                    .border(0.5.dp, wheat)
                     .clickable { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ CONFIG ]", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                Text("[ CONFIG ]", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(Color.White)
+                    .border(0.5.dp, wheat)
+                    .clickable { onOpenAccount() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("[ ACCOUNT ]", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
             }
             Box(
                 modifier = Modifier
                     .weight(0.4f)
                     .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .background(Color.White)
+                    .border(0.5.dp, wheat)
                     .clickable { showManual = true },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ ? ]", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                Text("[ ? ]", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             }
         }
 
@@ -316,29 +526,30 @@ fun TerminalDashboard(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color.Green else Color.Red)
-            StatsTile("JITTER", "$currentJitter ms", 1f, Color.Cyan)
-            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color.Green else Color.Gray)
+            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2E8B57) else Color.Red)
+            StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA))
+            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray)
         }
 
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .border(0.5.dp, Color.Green.copy(alpha = 0.3f)),
+                .background(Color.White)
+                .border(0.5.dp, wheat),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "THREATS BLOCKED",
-                    color = Color.Green.copy(alpha = 0.7f),
+                    color = deepGray.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = String.format("%,d", blockedCount),
-                    color = if (isSecure) Color.Green else Color.DarkGray,
+                    color = if (isSecure) Color(0xFF2E8B57) else deepGray.copy(alpha = 0.3f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 64.sp,
                     fontWeight = FontWeight.ExtraBold
@@ -360,7 +571,7 @@ fun TerminalDashboard(
                 GridButton(
                     text = if (!isStealthMode) "[ NUCLEAR: ACTIVE ]" else "[ NUCLEAR MODE ]",
                     modifier = Modifier.weight(1f),
-                    color = if (!isStealthMode) Color.Yellow else Color.Green
+                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
                 ) {
                     isStealthMode = false
                     EgiPreferences.setStealthMode(context, false)
@@ -383,7 +594,7 @@ fun TerminalDashboard(
                 GridButton(
                     text = if (isBatteryOptimized) "[ BATTERY: OK ]" else "[ BATTERY: FIX ]",
                     modifier = Modifier.weight(0.8f),
-                    color = if (isBatteryOptimized) Color.Green else Color.Red
+                    color = if (isBatteryOptimized) Color(0xFF2E8B57) else Color.Red
                 ) {
                     val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
@@ -397,7 +608,7 @@ fun TerminalDashboard(
                 GridButton(
                     text = if (isAutoStart) "[ BOOT: ON ]" else "[ BOOT: OFF ]",
                     modifier = Modifier.weight(0.8f),
-                    color = if (isAutoStart) Color.Cyan else Color.Gray
+                    color = if (isAutoStart) Color(0xFF4682B4) else Color.Gray
                 ) {
                     isAutoStart = !isAutoStart
                     EgiPreferences.setAutoStart(context, isAutoStart)
@@ -406,7 +617,7 @@ fun TerminalDashboard(
                 GridButton(
                     text = if (isStealthMode) "[ VIP LANE: ACTIVE ]" else "[ VIP LANE ]",
                     modifier = Modifier.weight(1.4f),
-                    color = if (isStealthMode) Color.Magenta else Color.Green
+                    color = if (isStealthMode) Color(0xFF8B008B) else Color(0xFF2E8B57)
                 ) {
                     isStealthMode = true
                     EgiPreferences.setStealthMode(context, true)
@@ -419,8 +630,8 @@ fun TerminalDashboard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp)
-                .border(1.dp, Color.Green)
-                .background(if (isSecure) Color.Red.copy(alpha = 0.1f) else Color.Green.copy(alpha = 0.05f))
+                .background(Color.White)
+                .border(1.dp, wheat)
                 .clickable {
                     handleExecuteToggle(context, isSecure, isBooting, isStealthMode, onOpenAppSelector, onOpenAppPicker, vpnLauncher) { isBooting = it }
                 },
@@ -433,7 +644,7 @@ fun TerminalDashboard(
                     isStrictBlocking && !isStealthMode -> "> [ LOCKED: CONFIG_VPN ] <"
                     else -> "> [ EXECUTE ] <"
                 },
-                color = if (isSecure) Color.Red else Color.Green,
+                color = if (isSecure) Color.Red else Color(0xFF2E8B57),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp
@@ -445,21 +656,21 @@ fun TerminalDashboard(
         var tempKey by remember { mutableStateOf(outlineKey) }
         AlertDialog(
             onDismissRequest = { showKeyDialog = false },
-            containerColor = Color.Black,
-            title = { Text("STEALTH TUNNEL CONFIG", color = Color.Green, fontFamily = FontFamily.Monospace) },
+            containerColor = creamColor,
+            title = { Text("STEALTH TUNNEL CONFIG", color = deepGray, fontFamily = FontFamily.Monospace) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = tempKey,
                         onValueChange = { tempKey = it },
                         label = { Text("OUTLINE / SS KEY", color = Color.Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Green, fontFamily = FontFamily.Monospace)
+                        modifier = Modifier.fillMaxWidth().background(Color.White),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "[ PASTE FROM CLIPBOARD ]",
-                        color = Color.Yellow,
+                        color = Color(0xFFB8860B),
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.clickable { 
@@ -478,7 +689,7 @@ fun TerminalDashboard(
                     EgiPreferences.saveOutlineKey(context, outlineKey)
                     showKeyDialog = false
                 }) {
-                    Text("SAVE", color = Color.Green, fontFamily = FontFamily.Monospace)
+                    Text("SAVE", color = Color(0xFF2E8B57), fontFamily = FontFamily.Monospace)
                 }
             },
             dismissButton = {
@@ -494,11 +705,13 @@ fun TerminalDashboard(
 
 @Composable
 fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color) {
+    val wheat = Color(0xFFF5DEB3)
     Box(
         modifier = Modifier
             .weight(weightRatio)
             .fillMaxHeight()
-            .border(0.5.dp, Color.Green.copy(alpha = 0.5f)),
+            .background(Color.White)
+            .border(0.5.dp, wheat),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -509,11 +722,13 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
 }
 
 @Composable
-fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Color = Color.Green, onClick: () -> Unit) {
+fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
+    val wheat = Color(0xFFF5DEB3)
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+            .background(Color.White)
+            .border(0.5.dp, wheat)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -647,10 +862,44 @@ fun ManualSection(title: String, desc: String) {
 }
 
 @Composable
+fun EgiTerminalTheme(content: @Composable () -> Unit) {
+    val creamColor = Color(0xFFFDF5E6) // OldLace / Cream
+    val darkCream = Color(0xFFF5DEB3) // Wheat
+    val deepGray = Color(0xFF2F4F4F)
+    
+    val colorScheme = darkColorScheme(
+        primary = Color.White,
+        onPrimary = deepGray,
+        surface = creamColor,
+        onSurface = deepGray,
+        background = creamColor,
+        onBackground = deepGray,
+        secondary = Color.Gray,
+        outline = darkCream
+    )
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography(
+            bodyLarge = androidx.compose.ui.text.TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                color = deepGray
+            )
+        ),
+        content = content
+    )
+}
+
+@Composable
 fun TerminalLog(onClose: () -> Unit) {
     val events = TrafficEvent.events.collectAsState(initial = "INITIALIZING...")
     val logHistory = remember { mutableStateListOf<String>() }
     val listState = rememberLazyListState()
+    val creamColor = Color(0xFFFDF5E6)
+    val deepGray = Color(0xFF2F4F4F)
+    
     LaunchedEffect(events.value) {
         if (events.value == "CONSOLE_CLEARED") { logHistory.clear() } 
         else {
@@ -659,15 +908,15 @@ fun TerminalLog(onClose: () -> Unit) {
             listState.animateScrollToItem(logHistory.size)
         }
     }
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(creamColor).padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("EGI_CONSOLE_V1.0", color = Color.Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("EGI_CONSOLE_V1.0", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() })
         }
-        Divider(color = Color.Cyan, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+        Divider(color = deepGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(logHistory) { log ->
-                Text(text = log, color = if (log.contains("ERROR")) Color.Red else Color.Green, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(text = log, color = if (log.contains("ERROR")) Color.Red else deepGray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
         }
     }
