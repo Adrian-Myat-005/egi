@@ -24,7 +24,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
         }
     };
 
-    let mut buf = vec![0u8; 65536]; // 64KB buffer for high-speed throughput
+    let mut buf = vec![0u8; 16384]; // 16KB is more efficient for typical MTU
     loop {
         match async_fd.readable().await {
             Ok(mut guard) => {
@@ -33,22 +33,24 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                         let n_usize = n as usize;
                         let packet = &buf[..n_usize];
                         
-                        // Only log if a whitelist is actually configured
-                        let has_whitelist = match ALLOWED_DOMAINS.read() {
-                            Ok(guard) => !guard.is_empty(),
-                            Err(_) => false,
+                        let is_allowed = match ALLOWED_DOMAINS.read() {
+                            Ok(guard) => {
+                                if guard.is_empty() {
+                                    true
+                                } else {
+                                    check_focus_whitelist(packet)
+                                }
+                            },
+                            Err(_) => true,
                         };
 
-                        if has_whitelist {
-                            let is_allowed = check_focus_whitelist(packet);
-                            if is_allowed {
-                                crate::log_to_java("SHIELD >> ALLOWED_DOMAIN_CAPTURED (DROP)");
-                            } else {
-                                crate::log_to_java("SHIELD >> BLOCKED_DOMAIN (DROP)");
-                            }
+                        if is_allowed {
+                            // In passive mode, we just count but don't re-inject (OS blocks everything anyway)
+                            BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
+                        } else {
+                            crate::log_to_java("SHIELD >> BLOCKED_DOMAIN_DETACHED");
                         }
                         
-                        BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
                         guard.clear_ready();
                     }
@@ -188,8 +190,9 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::Virtual;
+                    args.dns = ArgDns::DnsOverTcp; // Better stability for Facebook/High-traffic apps
                     args.verbosity = ArgVerbosity::Off;
+                    args.virtual_dns = Some("10.0.0.1".parse().unwrap());
 
                     // Monitor proxy health in background
                     let monitor_token = token.clone();

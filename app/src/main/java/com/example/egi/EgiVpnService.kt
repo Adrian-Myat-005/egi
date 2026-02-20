@@ -132,18 +132,24 @@ class EgiVpnService : VpnService(), Runnable {
         val allowLocal = EgiPreferences.getLocalBypass(this)
 
         try {
-            // Adaptive MTU: Low for Focus/Shield, standard for Bypass
-            val mtu = if (isStealth) 1350 else 1500
+            // Balanced MTU: 1400 is the sweet spot for mobile stability
+            val mtu = 1400
             
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
                 .setSession("EgiShield")
                 .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
-                .addRoute("1.1.1.1", 32)
-                .addRoute("8.8.8.8", 32)
                 .setMtu(mtu)
                 .setBlocking(true) 
+
+            // IPv6 Leak Protection: Force all IPv6 traffic to be handled (and dropped by core)
+            try {
+                builder.addAddress("fd00::1", 128)
+                builder.addRoute("::", 0)
+            } catch (e: Exception) {
+                TrafficEvent.log("CORE >> IPV6_STRICT_MODE_ERR")
+            }
 
             val configIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
@@ -152,9 +158,11 @@ class EgiVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // Strict DNS
-            builder.addDnsServer("1.1.1.1")
+            // Optimized DNS: 10.0.0.1 is the virtual DNS handled by tun2proxy
+            builder.addDnsServer("10.0.0.1")
             builder.addDnsServer("8.8.8.8")
+            builder.addDnsServer("1.1.1.1")
+            builder.addRoute("10.0.0.1", 32)
 
             // VPN_TUNNEL_LOGIC:
             if (isStealth) {
