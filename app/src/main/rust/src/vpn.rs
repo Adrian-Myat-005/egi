@@ -190,8 +190,36 @@ pub fn start_vpn_loop(fd: i32) {
                     args.verbosity = ArgVerbosity::Off;
                     
                     crate::log_to_java("VPN >> STARTING_TUN2PROXY");
-                    if let Err(e) = run_tun2proxy(tun_device, 1400, args, token).await {
-                        crate::log_to_java(&format!("VPN >> TUN2PROXY_EXIT: {}", e));
+                    
+                    let mut retry_count = 0;
+                    while retry_count < 3 {
+                        let token = CancellationToken::new();
+                        let mut args = Args::default();
+                        args.proxy = proxy.clone();
+                        args.dns = ArgDns::Virtual;
+                        args.verbosity = ArgVerbosity::Off;
+
+                        // Monitor proxy health in background
+                        let monitor_token = token.clone();
+                        let proxy_addr = local_addr_str.clone();
+                        tokio::spawn(async move {
+                            loop {
+                                tokio::time::sleep(Duration::from_secs(30)).await;
+                                if tokio::net::TcpStream::connect(&proxy_addr).await.is_err() {
+                                    crate::log_to_java("VPN >> KEEP_ALIVE_FAILED: RECONNECTING...");
+                                    monitor_token.cancel();
+                                    break;
+                                }
+                            }
+                        });
+
+                        if let Err(e) = run_tun2proxy(tun_device.clone(), 1400, args, token).await {
+                            crate::log_to_java(&format!("VPN >> TUN2PROXY_EXIT: {}. RETRYING...", e));
+                            retry_count += 1;
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                        } else {
+                            break; // Normal exit
+                        }
                     }
                 } else {
                     crate::log_to_java("VPN >> ERR: INVALID_PROXY_URL");

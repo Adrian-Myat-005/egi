@@ -60,15 +60,58 @@ class EgiVpnService : VpnService(), Runnable {
             vpnThread?.start()
             
             serviceScope.launch {
+                var lastSubCheck = 0L
+                val CHECK_INTERVAL = 4 * 60 * 60 * 1000L // 4 Hours
+
                 while (isActive) {
-                    delay(3000)
+                    val now = System.currentTimeMillis()
+                    
+                    // 1. Update Traffic Stats (Every 3s)
                     if (EgiNetwork.isAvailable()) {
                         TrafficEvent.updateCount(EgiNetwork.getNativeBlockedCount())
                     }
+
+                    // 2. Periodic Subscription Check (Every 4h)
+                    if (now - lastSubCheck >= CHECK_INTERVAL) {
+                        lastSubCheck = now
+                        val (token, _, _) = EgiPreferences.getAuth(this@EgiVpnService)
+                        val serverUrl = EgiPreferences.getSyncEndpoint(this@EgiVpnService) ?: "http://10.0.2.2:3000"
+                        
+                        if (token.isNotEmpty()) {
+                            val config = fetchVpnConfigSync(serverUrl, token)
+                            if (config == "EXPIRED" || config == "UNAUTHORIZED") {
+                                TrafficEvent.log("CORE >> SUBSCRIPTION_EXPIRED: SHUTTING_DOWN")
+                                stopVpn()
+                                break
+                            }
+                        }
+                    }
+                    delay(3000)
                 }
             }
         }
         return START_STICKY
+    }
+
+    // Synchronous version for internal service check
+    private fun fetchVpnConfigSync(serverUrl: String, token: String): String? {
+        try {
+            val url = java.net.URL("$serverUrl/api/vpn/config")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            
+            if (conn.responseCode == 200) {
+                val res = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                return res.getString("config")
+            } else if (conn.responseCode == 403) {
+                return "EXPIRED"
+            } else if (conn.responseCode == 401) {
+                return "UNAUTHORIZED"
+            }
+        } catch (e: Exception) {}
+        return null
     }
 
     private fun stopVpn() {
@@ -84,17 +127,23 @@ class EgiVpnService : VpnService(), Runnable {
     override fun run() {
         val vipList = EgiPreferences.getVipList(this)
         val isStealth = EgiPreferences.isStealthMode(this)
+        val isGlobal = EgiPreferences.isVpnTunnelGlobal(this)
         val ssKey = EgiPreferences.getOutlineKey(this)
         val allowLocal = EgiPreferences.getLocalBypass(this)
 
         try {
-            TrafficEvent.log("CORE >> INITIALIZING_BUILDER")
+            // Adaptive MTU: Low for Focus/Shield, standard for Bypass
+            val mtu = if (isStealth) 1350 else 1500
+            
+            TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
                 .setSession("EgiShield")
-                .addAddress("192.168.254.1", 30) // Use a less common private range
+                .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
-                .setMtu(if (isStealth) 1400 else 1500) // Adaptive MTU
-                .setBlocking(false)
+                .addRoute("1.1.1.1", 32)
+                .addRoute("8.8.8.8", 32)
+                .setMtu(mtu)
+                .setBlocking(true) 
 
             val configIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
@@ -103,39 +152,37 @@ class EgiVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // Use system DNS if not in stealth to avoid 1.1.1.1 bottlenecks
-            if (!isStealth) {
-                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                cm.getLinkProperties(cm.activeNetwork)?.dnsServers?.forEach { 
-                    builder.addDnsServer(it.hostAddress)
-                }
-            } else {
-                builder.addDnsServer("1.1.1.1")
-            }
+            // Strict DNS
+            builder.addDnsServer("1.1.1.1")
+            builder.addDnsServer("8.8.8.8")
 
-            // NUCLEAR LOGIC:
-            // Offline Mode: VIP apps bypass VPN (direct internet). Others go to VPN (blackhole).
-            // Stealth Mode: All apps go to VPN (tunneled via SS).
-            // Stealth Mode + Focus: Only VIP apps go to VPN. Others bypass (blocked by system if configured).
-            if (isStealth && vipList.isNotEmpty()) {
-                TrafficEvent.log("SHIELD >> STEALTH_FOCUS: TUNNELING_${vipList.size}_APPS")
-                vipList.forEach { pkg ->
-                    try { builder.addAllowedApplication(pkg) } catch (e: Exception) {
-                        TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
-                    }
-                }
-                // Note: builder.addDisallowedApplication(packageName) is NOT needed here 
-                // because addAllowedApplication automatically excludes all others.
-            } else {
-                if (!isStealth && vipList.isNotEmpty()) {
-                    TrafficEvent.log("SHIELD >> NUCLEAR_ACTIVE: BYPASSING_${vipList.size}_APPS")
-                    vipList.forEach { pkg ->
-                        try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {
-                            TrafficEvent.log("SHIELD >> PKG_NOT_FOUND: $pkg")
+            // VPN_TUNNEL_LOGIC:
+            if (isStealth) {
+                if (isGlobal) {
+                    // VPN Shield: Full encryption
+                    TrafficEvent.log("SHIELD >> MODE: VPN_SHIELD [GLOBAL_ENCRYPTION]")
+                    builder.addDisallowedApplication(packageName)
+                } else {
+                    // Focus Mode: Only target apps
+                    if (vipList.isNotEmpty()) {
+                        TrafficEvent.log("SHIELD >> MODE: FOCUS_MODE [TUNNELING_${vipList.size}_APPS]")
+                        vipList.forEach { pkg ->
+                            try { builder.addAllowedApplication(pkg) } catch (e: Exception) {}
                         }
+                    } else {
+                        TrafficEvent.log("SHIELD >> FOCUS_MODE_EMPTY: FALLING_BACK_TO_GLOBAL")
+                        builder.addDisallowedApplication(packageName)
                     }
                 }
-                try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
+            } else {
+                // Bypass List: Everything protected except targets
+                TrafficEvent.log("SHIELD >> MODE: BYPASS_LIST [PROTECTING_ALL_EXCEPT_TARGETS]")
+                if (vipList.isNotEmpty()) {
+                    vipList.forEach { pkg ->
+                        try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {}
+                    }
+                }
+                builder.addDisallowedApplication(packageName)
             }
 
             TrafficEvent.log("CORE >> ESTABLISHING_INTERFACE")

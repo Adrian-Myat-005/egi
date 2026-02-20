@@ -28,6 +28,18 @@ object EgiPreferences {
     private const val KEY_USERNAME = "username"
     private const val KEY_IS_PREMIUM = "is_premium"
     private const val KEY_PREMIUM_EXPIRY = "premium_expiry"
+    private const val KEY_DARK_MODE = "dark_mode"
+    private const val KEY_SELECTED_NODE_ID = "selected_node_id"
+
+    fun isDarkMode(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_DARK_MODE, false)
+    }
+
+    fun setDarkMode(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_DARK_MODE, enabled).apply()
+    }
 
     fun saveAuth(context: Context, token: String, username: String, isPremium: Boolean, expiry: Long) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -241,5 +253,15 @@ object EgiPreferences {
     fun getAllowedDomains(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_ALLOWED_DOMAINS, "") ?: ""
+    }
+
+    fun setSelectedNodeId(context: Context, id: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_SELECTED_NODE_ID, id).apply()
+    }
+
+    fun getSelectedNodeId(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_SELECTED_NODE_ID, -1)
     }
 }

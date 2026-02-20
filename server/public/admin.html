@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EGI_CORE_ADMIN</title>
+    <title>EGI_CORE_ADMIN_CENTER</title>
     <style>
         :root {
             --cream: #FDF5E6;
@@ -12,6 +12,7 @@
             --gold: #B8860B;
             --green: #2E8B57;
             --red: #8B0000;
+            --blue: #4682B4;
         }
 
         body {
@@ -23,103 +24,259 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
-            border: 2px solid var(--gold);
+            border: 2px solid var(--deep-gray);
             padding: 20px;
             background: white;
-            box-shadow: 10px 10px 0px var(--wheat);
+            box-shadow: 12px 12px 0px var(--wheat);
         }
 
-        h1 {
+        header {
             border-bottom: 2px solid var(--gold);
-            padding-bottom: 10px;
-            color: var(--gold);
-            font-size: 24px;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 20px; color: var(--gold); }
+
+        .auth-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--cream);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .auth-box {
+            background: white;
+            padding: 30px;
+            border: 2px solid var(--deep-gray);
+            box-shadow: 10px 10px 0px var(--gold);
+            text-align: center;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            border: 1px solid var(--wheat);
+            padding: 15px;
+        }
+
+        .section-title {
+            background: var(--wheat);
+            margin: -15px -15px 15px -15px;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            gap: 15px;
         }
 
         .user-card {
             border: 1px solid var(--wheat);
-            margin-bottom: 15px;
             padding: 15px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 10px;
             transition: all 0.2s;
         }
 
-        .user-card:hover {
-            border-color: var(--gold);
-            background-color: #fffaf0;
+        .user-card:hover { border-color: var(--gold); background: #fffaf0; }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
         }
 
-        .user-info b { color: var(--gold); }
-
         .controls {
-            display: flex;
-            gap: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 8px;
         }
 
         input, select {
-            padding: 8px;
+            padding: 10px;
             border: 1px solid var(--wheat);
             font-family: 'Courier New', Courier, monospace;
             outline: none;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         button {
             background-color: white;
             border: 2px solid var(--deep-gray);
-            padding: 8px 16px;
+            padding: 10px 15px;
             cursor: pointer;
             font-family: 'Courier New', Courier, monospace;
             font-weight: bold;
-            transition: transform 0.1s, box-shadow 0.1s;
-            box-shadow: 3px 3px 0px var(--wheat);
+            transition: all 0.1s;
+            box-shadow: 4px 4px 0px var(--wheat);
         }
 
-        button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 1px 1px 0px var(--wheat);
-        }
+        button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--wheat); }
+        button:hover { background: #f0f0f0; }
 
         .btn-promote { color: var(--green); border-color: var(--green); }
         .btn-reset { color: var(--red); border-color: var(--red); }
+        .btn-primary { background: var(--deep-gray); color: white; }
 
-        #status {
+        .status-bar {
             margin-top: 20px;
             padding: 10px;
             border: 1px dashed var(--gold);
             font-size: 12px;
+            background: #fdfaf0;
         }
 
         .assigned-key {
-            font-size: 10px;
-            color: #888;
+            font-size: 11px;
+            color: #666;
             word-break: break-all;
-            margin-top: 5px;
-            display: block;
+            background: #f9f9f9;
+            padding: 5px;
+            border-left: 3px solid var(--gold);
         }
+
+        .register-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-box">
+            <h2>EGI_SYSTEM_ACCESS</h2>
+            <p>ENTER ADMIN MASTER KEY</p>
+            <input type="password" id="admin-pass" autocomplete="new-password">
+            <br><br>
+            <button class="btn-primary" onclick="tryLogin()">AUTHENTICATE</button>
+        </div>
+    </div>
+
     <div class="container">
-        <h1>EGI >> ADMIN_SUBSCRIPTION_CONTROL</h1>
-        
-        <div id="user-list">
-            <!-- Users will be loaded here -->
-            <p>Scanning for targets...</p>
+        <header>
+            <h1>EGI >> CORE_CONTROL_PANEL</h1>
+            <button onclick="logout()">LOGOUT</button>
+        </header>
+
+        <div class="section">
+            <div class="section-title">COMMAND >> REGISTER_NEW_USER</div>
+            <div class="register-form">
+                <div>
+                    <label><small>USERNAME</small></label>
+                    <input type="text" id="reg-user" autocomplete="off">
+                </div>
+                <div>
+                    <label><small>PASSWORD</small></label>
+                    <input type="password" id="reg-pass" autocomplete="new-password">
+                </div>
+                <button class="btn-primary" onclick="registerUser()">REGISTER</button>
+            </div>
         </div>
 
-        <div id="status">STATUS: READY_FOR_COMMANDS</div>
+        <div class="section">
+            <div class="section-title">COMMAND >> MANAGE_VPN_REGIONS</div>
+            <div class="register-form">
+                <div>
+                    <label><small>REGION_NAME</small></label>
+                    <input type="text" id="node-name" placeholder="e.g. Singapore_Node_1">
+                </div>
+                <div>
+                    <label><small>SS_KEY</small></label>
+                    <input type="text" id="node-key" placeholder="ss://...">
+                </div>
+                <button class="btn-primary" onclick="addNode()">ADD_NODE</button>
+            </div>
+            <div id="node-list" style="margin-top: 15px;">
+                <!-- Nodes loaded here -->
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">COMMAND >> MANAGE_TARGET_USERS</div>
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="user-search" placeholder="SEARCH_BY_USERNAME..." oninput="filterUsers()" style="border-color: var(--gold); border-width: 2px;">
+            </div>
+            <div id="user-list" class="user-grid">
+                <!-- Users loaded here -->
+                <p>SCANNING_ENCRYPTION_LAYERS...</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>SYSTEM_OPERATIONAL_LOG</span>
+                <button onclick="clearLog()" style="padding: 2px 10px; font-size: 10px; box-shadow: 2px 2px 0px var(--wheat);">CLEAR_LOG</button>
+            </div>
+            <div id="status" class="status-bar" style="height: 100px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+                <div>SYSTEM_READY: WAITING_FOR_INPUT</div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const API_BASE = '';
+        let adminSecret = localStorage.getItem('egi_admin_key') || '';
+        let allUsers = [];
 
-        async function fetchUsers() {
-            const res = await fetch(`${API_BASE}/api/admin/users`);
-            const users = await res.json();
+        if (adminSecret) {
+            document.getElementById('auth-overlay').classList.add('hidden');
+            fetchUsers();
+            fetchNodes();
+        }
+
+        function tryLogin() {
+            const pass = document.getElementById('admin-pass').value;
+            if (!pass) return alert("KEY_REQUIRED");
+            adminSecret = pass;
+            localStorage.setItem('egi_admin_key', pass);
+            document.getElementById('auth-overlay').classList.add('hidden');
+            fetchUsers();
+            fetchNodes();
+        }
+
+        function logout() {
+            localStorage.removeItem('egi_admin_key');
+            location.reload();
+        }
+
+        function clearLog() {
+            document.getElementById('status').innerHTML = '<div>LOG_CLEARED</div>';
+        }
+
+        function getExpiryStatus(expiryDate) {
+            if (!expiryDate) return "NEVER_EXPIRES";
+            const now = new Date();
+            const expiry = new Date(expiryDate);
+            const diffMs = expiry - now;
+            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffMs < 0) return `<span style="color: var(--red)">EXPIRED (${Math.abs(diffDays)} days ago)</span>`;
+            if (diffDays === 0) return `<span style="color: var(--gold)">EXPIRES_TODAY</span>`;
+            return `<span style="color: var(--green)">${diffDays} DAYS REMAINING</span>`;
+        }
+
+        function filterUsers() {
+            const query = document.getElementById('user-search').value.toLowerCase();
+            renderUserList(allUsers.filter(u => u.username.toLowerCase().includes(query)));
+        }
+
+        function renderUserList(users) {
             const list = document.getElementById('user-list');
             list.innerHTML = '';
 
@@ -127,34 +284,84 @@
                 const card = document.createElement('div');
                 card.className = 'user-card';
                 card.innerHTML = `
-                    <div class="user-info">
-                        <b>@${user.username}</b> 
-                        [${user.isPremium ? 'PREMIUM' : 'FREE'}]<br>
-                        <small>EXPIRY: ${user.subscriptionExpiry || 'N/A'}</small>
-                        <span class="assigned-key">${user.assignedKey ? 'KEY_ACTIVE: ' + user.assignedKey.substring(0, 30) + '...' : 'NO_KEY_ASSIGNED'}</span>
+                    <div class="user-header">
+                        <span>@${user.username}</span>
+                        <span style="color: ${user.isPremium ? 'var(--green)' : 'var(--blue)'}">
+                            [${user.isPremium ? 'PREMIUM' : 'GUEST'}]
+                        </span>
+                    </div>
+                    <small>STATUS: ${getExpiryStatus(user.subscriptionExpiry)}</small>
+                    <small style="color: #999">EXPIRY: ${user.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleString() : 'N/A'}</small>
+                    <div class="assigned-key">
+                        ${user.assignedKey ? '<b>ACTIVE_KEY:</b> ' + user.assignedKey : 'NO_KEY_ASSIGNED'}
                     </div>
                     <div class="controls">
-                        <input type="text" id="key-${user.username}" placeholder="ss://..." title="Enter Shadowsocks Key">
+                        <input type="text" id="key-${user.username}" autocomplete="off" title="Paste SS Key">
                         <select id="months-${user.username}">
                             <option value="1">1 Month</option>
                             <option value="3">3 Months</option>
+                            <option value="6">6 Months</option>
                             <option value="12">1 Year</option>
                         </select>
                         <button class="btn-promote" onclick="promote('${user.username}')">PROMOTE</button>
-                        <button class="btn-reset" onclick="reset('${user.username}')">RESET</button>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-reset" style="flex: 1" onclick="reset('${user.username}')">CLEAR_SUBSCRIPTION</button>
+                        <button class="btn-reset" style="flex: 1; border-color: var(--red); color: var(--red);" onclick="deleteUser('${user.username}')">CLEAR_PROFILE</button>
                     </div>
                 `;
                 list.appendChild(card);
             });
         }
 
+        async function fetchUsers() {
+            try {
+                const res = await fetch(`/api/admin/users`, {
+                    headers: { 'x-admin-auth': adminSecret }
+                });
+                if (res.status === 401) return logout();
+                
+                allUsers = await res.json();
+                filterUsers();
+            } catch (e) {
+                log("ERROR: CONNECTION_FAILED");
+            }
+        }
+
+        async function registerUser() {
+            const username = document.getElementById('reg-user').value;
+            const password = document.getElementById('reg-pass').value;
+            if (!username || !password) return alert("MISSING_DATA");
+
+            log(`REGISTERING ${username}...`);
+            const res = await fetch(`/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (res.ok) {
+                log(`USER ${username} CREATED`);
+                document.getElementById('reg-user').value = '';
+                document.getElementById('reg-pass').value = '';
+                fetchUsers();
+            } else {
+                const data = await res.json();
+                log(`ERROR: ${data.error || 'FAILED'}`);
+            }
+        }
+
         async function promote(username) {
             const months = document.getElementById(`months-${username}`).value;
             const ssKey = document.getElementById(`key-${username}`).value;
             
-            const res = await fetch(`${API_BASE}/api/admin/promote`, {
+            log(`PROMOTING ${username}...`);
+            const res = await fetch(`/api/admin/promote`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-admin-auth': adminSecret
+                },
                 body: JSON.stringify({ username, months: parseInt(months), ssKey })
             });
 
@@ -167,25 +374,99 @@
         }
 
         async function reset(username) {
-            if (!confirm(`RESET ALL DATA FOR ${username}?`)) return;
+            if (!confirm(`RESET ALL SUBSCRIPTION DATA FOR ${username}?`)) return;
 
-            const res = await fetch(`${API_BASE}/api/admin/reset`, {
+            log(`RESETTING ${username}...`);
+            const res = await fetch(`/api/admin/reset`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-admin-auth': adminSecret
+                },
                 body: JSON.stringify({ username })
             });
 
             if (res.ok) {
-                log(`USER ${username} RESET TO STANDBY`);
+                log(`USER ${username} RESET TO GUEST`);
                 fetchUsers();
             }
         }
 
-        function log(msg) {
-            document.getElementById('status').innerText = `STATUS: ${msg}`;
+        async function deleteUser(username) {
+            if (!confirm(`PERMANENTLY DELETE USER ${username}?`)) return;
+
+            log(`DELETING ${username}...`);
+            const res = await fetch(`/api/admin/delete`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-admin-auth': adminSecret
+                },
+                body: JSON.stringify({ username })
+            });
+
+            if (res.ok) {
+                log(`USER ${username} DELETED`);
+                fetchUsers();
+            }
         }
 
-        fetchUsers();
+        async function fetchNodes() {
+            try {
+                const res = await fetch(`/api/admin/nodes`, {
+                    headers: { 'x-admin-auth': adminSecret }
+                });
+                if (res.status === 401) return logout();
+                const nodes = await res.json();
+                const list = document.getElementById('node-list');
+                list.innerHTML = '';
+                nodes.forEach(node => {
+                    const entry = document.createElement('div');
+                    entry.style = "padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 12px;";
+                    entry.innerHTML = `
+                        <span><b>${node.regionName}</b> | <small>${node.ssKey.substring(0, 30)}...</small></span>
+                        <button onclick="deleteNode(${node.id})" style="padding: 2px 10px; color: var(--red); border-color: var(--red); box-shadow: 2px 2px 0px var(--wheat);">REMOVE</button>
+                    `;
+                    list.appendChild(entry);
+                });
+            } catch (e) {}
+        }
+
+        async function addNode() {
+            const regionName = document.getElementById('node-name').value;
+            const ssKey = document.getElementById('node-key').value;
+            if (!regionName || !ssKey) return alert("MISSING_DATA");
+
+            log(`ADDING_NODE: ${regionName}...`);
+            const res = await fetch(`/api/admin/nodes/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-auth': adminSecret },
+                body: JSON.stringify({ regionName, ssKey })
+            });
+
+            if (res.ok) {
+                document.getElementById('node-name').value = '';
+                document.getElementById('node-key').value = '';
+                fetchNodes();
+            }
+        }
+
+        async function deleteNode(id) {
+            if (!confirm(`DELETE THIS REGION?`)) return;
+            await fetch(`/api/admin/nodes/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-auth': adminSecret },
+                body: JSON.stringify({ id })
+            });
+            fetchNodes();
+        }
+
+        function log(msg) {
+            const status = document.getElementById('status');
+            const entry = document.createElement('div');
+            entry.innerText = `${new Date().toLocaleTimeString()} >> ${msg}`;
+            status.prepend(entry);
+        }
     </script>
 </body>
 </html>

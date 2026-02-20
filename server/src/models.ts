@@ -25,4 +25,16 @@ User.init({
   assignedKey: { type: DataTypes.TEXT, allowNull: true },
 }, { sequelize, modelName: 'user' });
 
+export class Node extends Model {
+    declare id: number;
+    declare regionName: string;
+    declare ssKey: string;
+}
+
+Node.init({
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    regionName: { type: DataTypes.STRING, allowNull: false },
+    ssKey: { type: DataTypes.TEXT, allowNull: false },
+}, { sequelize, modelName: 'node' });
+
 export { sequelize };

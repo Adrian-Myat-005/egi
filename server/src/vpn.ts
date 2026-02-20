@@ -1,4 +1,4 @@
-import { User } from './models';
+import { User, Node } from './models';
 import { Request, Response } from 'express';
 
 export const getVpnConfig = async (req: Request, res: Response) => {
@@ -12,10 +12,24 @@ export const getVpnConfig = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'PREMIUM_REQUIRED', message: 'YOUR_SUBSCRIPTION_HAS_EXPIRED' });
     }
 
-    // If the user has a specific Outline key assigned, use that!
+    const { nodeId } = req.query;
+
+    // Region Switch Logic: If user picked a specific node, use that node's key!
+    if (nodeId) {
+        const node = await Node.findByPk(nodeId as string);
+        if (node) {
+            return res.json({
+                node_name: node.regionName,
+                config: node.ssKey,
+                expiry: user.subscriptionExpiry,
+            });
+        }
+    }
+
+    // If the user has a specific Outline key assigned, use that as default!
     if (user.assignedKey && user.assignedKey.startsWith('ss://')) {
       return res.json({
-        node_name: "EGI_ONE_CLICK_VPN",
+        node_name: "EGI_PRIVATE_GATEWAY",
         config: user.assignedKey,
         expiry: user.subscriptionExpiry,
       });

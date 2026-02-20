@@ -76,7 +76,7 @@ fun AppPickerScreen(onBack: () -> Unit) {
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
-                    text = "EGI >> VPN_FOCUS",
+                    text = "EGI >> FOCUS_MODE",
                     color = Color(0xFF8B008B),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
