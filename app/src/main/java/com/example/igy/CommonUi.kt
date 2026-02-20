@@ -23,14 +23,14 @@ data class AppInfo(
 )
 
 @Composable
-fun MatrixTab(label: String, isActive: Boolean, modifier: Modifier, activeColor: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
+fun MatrixTab(label: String, isActive: Boolean, isDarkMode: Boolean, modifier: Modifier, activeColor: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .background(if (isActive) Color.White else Color.Transparent)
+            .background(if (isActive) cardBg else Color.Transparent)
             .border(0.5.dp, wheat)
             .clickable { onClick() },
         contentAlignment = Alignment.Center

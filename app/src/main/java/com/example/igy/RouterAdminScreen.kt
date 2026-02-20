@@ -36,6 +36,8 @@ import org.json.JSONObject
 @Composable
 fun RouterAdminScreen(isDarkMode: Boolean, gatewayIp: String, onBack: () -> Unit) {
     val context = LocalContext.current
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val (user, pass, brand) = remember { IgyPreferences.getRouterCredentials(context) }
     var scrapedDevices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
     var statusMessage by remember { mutableStateOf("INITIALIZING_SECURE_BRIDGE...") }
@@ -165,7 +167,7 @@ fun RouterAdminScreen(isDarkMode: Boolean, gatewayIp: String, onBack: () -> Unit
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().background(creamColor)) {
         // 1. Hidden Scraper WebView (Headless)
         AndroidView(
             factory = {

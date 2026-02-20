@@ -168,7 +168,7 @@
             border-left: 3px solid var(--gold);
         }
 
-        .rigyster-form {
+        .register-form {
             display: grid;
             grid-template-columns: 1fr 1fr auto;
             gap: 10px;
@@ -211,7 +211,7 @@
 
         <div class="section">
             <div class="section-title">COMMAND >> RIGYSTER_NEW_USER</div>
-            <div class="rigyster-form">
+            <div class="register-form">
                 <div>
                     <label><small>USERNAME</small></label>
                     <input type="text" id="reg-user" autocomplete="off">
@@ -220,13 +220,13 @@
                     <label><small>PASSWORD</small></label>
                     <input type="password" id="reg-pass" autocomplete="new-password">
                 </div>
-                <button class="btn-primary" onclick="rigysterUser()">RIGYSTER</button>
+                <button class="btn-primary" onclick="registerUser()">RIGYSTER</button>
             </div>
         </div>
 
         <div class="section">
             <div class="section-title">COMMAND >> MANAGE_VPN_RIGYONS</div>
-            <div class="rigyster-form">
+            <div class="register-form">
                 <div>
                     <label><small>RIGYON_NAME</small></label>
                     <input type="text" id="node-name" placeholder="e.g. Singapore_Node_1">
@@ -372,13 +372,13 @@
             }
         }
 
-        async function rigysterUser() {
+        async function registerUser() {
             const username = document.getElementById('reg-user').value;
             const password = document.getElementById('reg-pass').value;
             if (!username || !password) return alert("MISSING_DATA");
 
             log(`RIGYSTERING ${username}...`);
-            const res = await fetch(`/api/auth/rigyster`, {
+            const res = await fetch(`/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })

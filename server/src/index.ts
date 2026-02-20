@@ -23,7 +23,7 @@ const authenticateAdmin = (req: express.Request, res: express.Response, next: ex
     }
 };
 
-app.post('/api/auth/rigyster', async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { username, password } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);

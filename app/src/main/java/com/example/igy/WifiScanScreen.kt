@@ -38,6 +38,10 @@ import java.net.InetAddress
 @Composable
 fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: (String) -> Unit) {
     val context = LocalContext.current
+    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val wifiManager = remember { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager }
     val gatewayIp = remember { WifiUtils.getGatewayIp(context) }
     val subnetPrefix = remember { WifiUtils.getSubnetPrefix(context) }
@@ -106,7 +110,7 @@ fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(creamColor)
             .padding(8.dp)
     ) {
         // --- MATRIX HEADER ---
@@ -195,7 +199,7 @@ fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: 
     if (showRouterCreds) {
         AlertDialog(
             onDismissRequest = { showRouterCreds = false },
-            containerColor = Color.Black,
+            containerColor = cardBg,
             title = { Text("ROUTER ACCESS CONTROL", color = Color.Cyan, fontFamily = FontFamily.Monospace) },
             text = {
                 Column {
@@ -247,7 +251,7 @@ fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: 
     selectedDevice?.let { device ->
         AlertDialog(
             onDismissRequest = { selectedDevice = null },
-            containerColor = Color.Black,
+            containerColor = cardBg,
             title = {
                 Text("DEVICE DETAILS", color = Color.Cyan, fontFamily = FontFamily.Monospace)
             },
@@ -381,7 +385,7 @@ fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(if (isGateway) 40.dp else 28.dp)
-                .background(Color.Black, androidx.compose.foundation.shape.CircleShape)
+                .background(cardBg, androidx.compose.foundation.shape.CircleShape)
                 .border(1.dp, if(isGateway) Color.Green else Color.Cyan, androidx.compose.foundation.shape.CircleShape)
                 .padding(4.dp),
             contentAlignment = Alignment.Center

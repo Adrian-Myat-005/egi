@@ -127,11 +127,11 @@ fun AppPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
+            MatrixTab("FOCUS MODE", currentMode == AppMode.FOCUS, isDarkMode, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
                 currentMode = AppMode.FOCUS
                 casualWhitelist = emptySet()
             }
-            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
+            MatrixTab("CASUAL MODE", currentMode == AppMode.CASUAL, isDarkMode, Modifier.weight(1f), activeColor = Color(0xFF8B008B)) {
                 currentMode = AppMode.CASUAL
                 focusTarget = ""
             }
@@ -149,6 +149,7 @@ fun AppPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 items(filteredApps) { app ->
                     MatrixAppRow(
                         app = app,
+                        isDarkMode = isDarkMode,
                         isSelected = if (currentMode == AppMode.FOCUS) focusTarget == app.packageName else casualWhitelist.contains(app.packageName),
                         onToggle = {
                             if (currentMode == AppMode.FOCUS) {
@@ -191,7 +192,7 @@ fun AppPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
+fun MatrixAppRow(app: AppInfo, isDarkMode: Boolean, isSelected: Boolean, onToggle: () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
@@ -199,6 +200,7 @@ fun MatrixAppRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(65.dp)
+            .background(cardBg)
             .border(0.2.dp, wheat)
             .clickable { onToggle() }
             .padding(horizontal = 12.dp),

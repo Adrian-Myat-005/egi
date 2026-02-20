@@ -142,6 +142,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val scope = rememberCoroutineScope()
     
     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -291,6 +292,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
@@ -595,6 +598,7 @@ fun TerminalDashboard(
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
@@ -918,10 +922,15 @@ fun TerminalDashboard(
                     IgyPreferences.setVpnTunnelMode(context, false)
                     onOpenAppPicker()
                 }
-                GridButton("[ REFRESH_HUB ]", Modifier.weight(0.8f)) { 
-                    TrafficEvent.log("CORE >> RESETTING_NETWORK_STACK...")
+                GridButton("[ REPAIR ]", Modifier.weight(0.8f)) { 
+                    TrafficEvent.log("CORE >> INITIATING_DEEP_REPAIR...")
                     TrafficEvent.updateCount(0)
-                    Toast.makeText(context, "SYSTEM_REPAIRED", Toast.LENGTH_SHORT).show()
+                    // Deep repair: Clear any stuck states
+                    scope.launch {
+                        IgyPreferences.setSelectedNodeId(context, -1) // Reset to private gateway
+                        TrafficEvent.log("CORE >> NETWORK_STACK_RESET_SUCCESS")
+                        Toast.makeText(context, "SYSTEM_REPAIRED: TRY_CONNECTING_NOW", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -1051,9 +1060,9 @@ private fun handleExecuteToggle(
             val (token, _, _) = IgyPreferences.getAuth(context)
             val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
             val nodeId = IgyPreferences.getSelectedNodeId(context)
-            if (token.isNotEmpty() && isStealthMode) {
+            if (token.isNotEmpty()) {
                 scope.launch {
-                    TrafficEvent.log("CORE >> SYNCING_PREMIUM_KEY...")
+                    TrafficEvent.log("CORE >> SYNCING_SECURE_KEY...")
                     val config = fetchVpnConfig(serverUrl, token, nodeId)
                     if (config != null) {
                         IgyPreferences.saveOutlineKey(context, config)
