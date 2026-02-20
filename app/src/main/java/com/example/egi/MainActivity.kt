@@ -14,16 +14,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,9 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.*
 import org.json.JSONArray
@@ -217,7 +213,7 @@ fun TerminalSettingsScreen(onBack: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isChecking) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Sync,
+                        imageVector = Icons.Default.Sync,
                         contentDescription = null,
                         modifier = androidx.compose.ui.Modifier.size(16.dp).graphicsLayer(rotationZ = rotation),
                         tint = Color(0xFFB8860B)
@@ -597,15 +593,15 @@ fun TerminalDashboard(
     var isAutoStart by remember { mutableStateOf(EgiPreferences.getAutoStart(context)) }
 
     // Connecting Pulse Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
-    val pulseScale by infiniteTransition.animateFloat(
+    val connectingTransition = rememberInfiniteTransition(label = "ConnectingPulse")
+    val connectingPulseScale by connectingTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "PulseScale"
+        label = "ConnectingPulseScale"
     )
 
     var showManual by remember { mutableStateOf(false) }
@@ -724,15 +720,15 @@ fun TerminalDashboard(
     }
 
     // Heartbeat Pulse Animation for Active State
-    val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
-    val pulseScale by infiniteTransition.animateFloat(
+    val activeTransition = rememberInfiniteTransition(label = "ActivePulse")
+    val activePulseScale by activeTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (isSecure) 1.1f else 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "PulseScale"
+        label = "ActivePulseScale"
     )
 
     Column(
@@ -817,7 +813,7 @@ fun TerminalDashboard(
                 .border(0.5.dp, wheat),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(scaleX = activePulseScale, scaleY = activePulseScale)) {
                 Text(
                     text = "THREATS_DEFLECTED",
                     color = deepGray.copy(alpha = 0.7f),
@@ -924,7 +920,7 @@ fun TerminalDashboard(
                 .height(80.dp)
                 .background(Color.White)
                 .border(1.dp, wheat)
-                .graphicsLayer(scaleX = if (isBooting || isSecure) pulseScale else 1f, scaleY = if (isBooting || isSecure) pulseScale else 1f)
+                .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                 .clickable {
                     handleExecuteToggle(context, isSecure, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppSelector, onOpenAppPicker, vpnLauncher) { isBooting = it }
                 },
