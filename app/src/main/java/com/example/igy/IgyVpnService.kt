@@ -128,8 +128,28 @@ class IgyVpnService : VpnService(), Runnable {
         val vipList = IgyPreferences.getVipList(this)
         val isStealth = IgyPreferences.isStealthMode(this)
         val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
-        val ssKey = IgyPreferences.getOutlineKey(this)
+        var ssKey = IgyPreferences.getOutlineKey(this)
         val allowLocal = IgyPreferences.getLocalBypass(this)
+
+        // DEADLOCK PREVENTION: Resolve SS Host to IP before starting VPN
+        try {
+            if (ssKey.startsWith("ss://")) {
+                val uri = java.net.URI(ssKey.split("#")[0])
+                val host = uri.host
+                if (host != null && !host.matches(Regex("^[0-9.]+$"))) {
+                    TrafficEvent.log("CORE >> RESOLVING_HOST: $host")
+                    val address = java.net.InetAddress.getByName(host)
+                    val ip = address.hostAddress
+                    if (ip != null) {
+                        ssKey = ssKey.replace(host, ip)
+                        IgyNetwork.setOutlineKey(ssKey) // Update native key with IP
+                        TrafficEvent.log("CORE >> HOST_RESOLVED: $ip")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            TrafficEvent.log("CORE >> DNS_PRE_RESOLVE_ERR: ${e.message}")
+        }
 
         try {
             // 1280 is the safest MTU for all carriers (Outline default)
@@ -141,7 +161,7 @@ class IgyVpnService : VpnService(), Runnable {
                 .addAddress("172.19.0.1", 30) 
                 .addRoute("0.0.0.0", 0)
                 .setMtu(mtu)
-                .setBlocking(true) // Must be true for Rust tun-async to wrap correctly
+                .setBlocking(true) 
 
             val configIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
@@ -150,16 +170,18 @@ class IgyVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // High-performance DNS
+            // Optimized DNS
             builder.addDnsServer("8.8.8.8")
             builder.addDnsServer("1.1.1.1")
+
+            // IMPORTANT: Exclude the app itself from the tunnel
+            builder.addDisallowedApplication(packageName)
 
             // VPN_TUNNEL_LOGIC:
             if (isStealth) {
                 if (isGlobal) {
                     // VPN Shield: Full encryption
                     TrafficEvent.log("SHIELD >> MODE: VPN_SHIELD [GLOBAL_ENCRYPTION]")
-                    builder.addDisallowedApplication(packageName)
                 } else {
                     // Focus Mode: Only target apps
                     if (vipList.isNotEmpty()) {
@@ -169,7 +191,6 @@ class IgyVpnService : VpnService(), Runnable {
                         }
                     } else {
                         TrafficEvent.log("SHIELD >> FOCUS_MODE_EMPTY: FALLING_BACK_TO_GLOBAL")
-                        builder.addDisallowedApplication(packageName)
                     }
                 }
             } else {
@@ -180,7 +201,6 @@ class IgyVpnService : VpnService(), Runnable {
                         try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {}
                     }
                 }
-                builder.addDisallowedApplication(packageName)
             }
 
             TrafficEvent.log("CORE >> ESTABLISHING_INTERFACE")
