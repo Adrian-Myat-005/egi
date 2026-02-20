@@ -290,7 +290,7 @@ fun TerminalAccountScreen(onBack: () -> Unit) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(EgiPreferences.getSyncEndpoint(context) ?: "http://10.0.2.2:3000") }
+    var serverUrl by remember { mutableStateOf(EgiPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
     val (savedToken, savedUser, isPremium) = EgiPreferences.getAuth(context)
     var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
     val scope = rememberCoroutineScope()
@@ -1035,7 +1035,7 @@ private fun handleExecuteToggle(
 
             // ONE-CLICK SYNC: Fetch key before starting if logged in
             val (token, _, _) = EgiPreferences.getAuth(context)
-            val serverUrl = EgiPreferences.getSyncEndpoint(context) ?: "http://10.0.2.2:3000"
+            val serverUrl = EgiPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
             val nodeId = EgiPreferences.getSelectedNodeId(context)
             if (token.isNotEmpty() && isStealthMode) {
                 scope.launch {
