@@ -183,12 +183,6 @@ pub fn start_vpn_loop(fd: i32) {
                 CORE_STATUS.store(2, Ordering::SeqCst);
                 crate::log_to_java("VPN >> TUN_DEVICE_READY");
                 if let Ok(proxy) = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()) {
-                    let token = CancellationToken::new();
-                    let mut args = Args::default();
-                    args.proxy = proxy;
-                    args.dns = ArgDns::Virtual;
-                    args.verbosity = ArgVerbosity::Off;
-                    
                     crate::log_to_java("VPN >> STARTING_TUN2PROXY");
                     
                     let token = CancellationToken::new();
