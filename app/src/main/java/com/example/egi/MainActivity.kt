@@ -55,15 +55,19 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
 
         setContent {
-            EgiTerminalTheme {
-                MainContent()
+            var isDarkMode by remember { mutableStateOf(EgiPreferences.isDarkMode(this)) }
+            EgiTerminalTheme(isDarkMode) {
+                MainContent(isDarkMode, onThemeChange = { 
+                    isDarkMode = it
+                    EgiPreferences.setDarkMode(this, it)
+                })
             }
         }
     }
 }
 
 @Composable
-fun MainContent() {
+fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
     var gatewayIp by remember { mutableStateOf("") }
@@ -72,10 +76,10 @@ fun MainContent() {
     if (showLogs) {
         AlertDialog(
             onDismissRequest = { showLogs = false },
-            containerColor = Color(0xFFFDF5E6),
+            containerColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6),
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxSize().padding(8.dp),
-            text = { TerminalLog(onClose = { showLogs = false }) },
+            text = { TerminalLog(isDarkMode, onClose = { showLogs = false }) },
             confirmButton = {
                 TextButton(onClick = { showLogs = false }) {
                     Text("[ CLOSE_LOGS ]", color = Color.Red, fontFamily = FontFamily.Monospace)
@@ -127,15 +131,14 @@ fun MainContent() {
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
             Screen.ACCOUNT -> TerminalAccountScreen(onBack = { currentScreen = Screen.TERMINAL })
-            Screen.SETTINGS -> TerminalSettingsScreen(onBack = { currentScreen = Screen.TERMINAL })
+            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL })
         }
     }
 }
 
 @Composable
-fun TerminalSettingsScreen(onBack: () -> Unit) {
+fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
-    val isDarkMode = EgiPreferences.isDarkMode(context)
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
@@ -148,8 +151,8 @@ fun TerminalSettingsScreen(onBack: () -> Unit) {
     var isChecking by remember { mutableStateOf(false) }
 
     // Rotation Animation for Sync Icon
-    val infiniteTransition = rememberInfiniteTransition(label = "Sync")
-    val rotation by infiniteTransition.animateFloat(
+    val syncTransition = rememberInfiniteTransition(label = "Sync")
+    val rotation by syncTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
@@ -169,10 +172,11 @@ fun TerminalSettingsScreen(onBack: () -> Unit) {
         // --- SECTION 1: VPN & NETWORK ---
         SettingsHeader("1. VPN & NETWORK CONTROL")
         SettingsToggle("DARK_MODE", isDarkMode) {
-            EgiPreferences.setDarkMode(context, it)
-            Toast.makeText(context, "THEME_UPDATED: RESTART_REQUIRED", Toast.LENGTH_SHORT).show()
+            onThemeChange(it)
         }
-        SettingsToggle("LOCAL_BYPASS", EgiPreferences.getLocalBypass(context)) {
+        var localBypass by remember { mutableStateOf(EgiPreferences.getLocalBypass(context)) }
+        SettingsToggle("LOCAL_BYPASS", localBypass) {
+            localBypass = it
             EgiPreferences.setLocalBypass(context, it)
         }
         SettingsButton("[ SYSTEM_VPN_CONFIG ]") {
@@ -1069,57 +1073,31 @@ fun TacticalManual(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("EGI >> SYSTEM_OPERATING_MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+        title = { Text("EGI >> QUICK_START_GUIDE", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
                     ManualSection(
-                        "1. FOCUS MODE (VIP APPS)",
-                        "EN: Only the apps you pick go through the VPN. Others stay on normal internet.\n" +
-                        "MM: သင်ရွေးထားတဲ့ app တွေပဲ VPN ကိုဖြတ်မှာပါ။ ကျန်တာတွေက ရိုးရိုးအင်တာနက်ပဲ သုံးမှာပါ။\n\n" +
-                        "• FOCUS: Pick 1 app (Best for Games/Banking).\n" +
-                        "• CASUAL: Pick many apps.\n" +
-                        "• MM: App တစ်ခုတည်း သို့မဟုတ် အများအပြားကို VPN နဲ့ သီးသန့်သုံးလို့ရပါတယ်။"
+                        "1. HOW TO CONNECT",
+                        "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\n" +
+                        "MM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။"
                     )
                     ManualSection(
-                        "2. VPN SHIELD (FULL ENCRYPT)",
-                        "EN: Encrypts ALL device traffic through your assigned key.\n" +
-                        "MM: ဖုန်းတစ်ခုလုံးရဲ့ အင်တာနက်အသုံးပြုမှုအားလုံးကို VPN နဲ့ ချိတ်ဆက်ပေးမှာပါ။\n\n" +
-                        "• USE: For maximum privacy on public WiFi.\n" +
-                        "• MM: အများသုံး WiFi တွေမှာ အင်တာနက်ကို လုံလုံခြုံခြုံသုံးချင်ရင် သုံးပါ။"
+                        "2. THREE MODES EXPLAINED",
+                        "• VPN SHIELD: Protects everything on your phone.\n" +
+                        "• FOCUS MODE: Only protects the apps you choose.\n" +
+                        "• BYPASS MODE: Protects everything EXCEPT your chosen apps.\n" +
+                        "MM: ဖုန်းတစ်ခုလုံးသုံးမလား၊ app တစ်ခုချင်းသုံးမလား စိတ်ကြိုက်ရွေးပါ။"
                     )
                     ManualSection(
-                        "3. BYPASS LIST (EXCLUDE)",
-                        "EN: Shields your phone, but lets selected apps bypass the VPN.\n" +
-                        "MM: ဖုန်းတစ်ခုလုံးကို VPN နဲ့ ကာကွယ်ထားပြီး သင်ရွေးထားတဲ့ app တွေပဲ အပြင်ထွက်ခွင့်ပေးမှာပါ။\n\n" +
-                        "• USE: When you want VPN for everything except 1-2 local apps.\n" +
-                        "• MM: App တစ်ခု၊ နှစ်ခုကလွဲပြီး ကျန်တာအားလုံးကို VPN နဲ့ သုံးချင်ရင် သုံးပါ။"
+                        "3. FOR BEST PERFORMANCE",
+                        "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\n" +
+                        "MM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။"
                     )
                     ManualSection(
-                        "4. CONFIG (ALWAYS-ON VPN)",
-                        "EN: CRITICAL! Click [CONFIG] -> Gear Icon -> Enable 'Always-on' and 'Block non-VPN'.\n" +
-                        "MM: အရေးကြီး! [CONFIG] ကိုနှိပ်၊ ဂီယာပုံလေးကိုနှိပ်ပြီး 'Always-on' နဲ့ 'Block non-VPN' ကို ဖွင့်ထားပါ။\n\n" +
-                        "• WHY: This stops data leaks if the VPN drops.\n" +
-                        "• MM: VPN ပြုတ်သွားရင်တောင် အင်တာနက်မပေါက်အောင် ကာကွယ်ပေးဖို့ပါ။"
-                    )
-                    ManualSection(
-                        "4. BATTERY & BOOT",
-                        "EN: Make sure BATTERY says [OK]. This prevents Android from killing EGI in the background.\n" +
-                        "MM: BATTERY ကို [OK] ဖြစ်အောင်လုပ်ပါ။ ဒါမှ နောက်ကွယ်မှာ EGI အမြဲအလုပ်လုပ်နေမှာပါ။\n\n" +
-                        "• BOOT: If ON, EGI starts automatically when you restart your phone.\n" +
-                        "• MM: BOOT ဖွင့်ထားရင် ဖုန်းပိတ်ပြီးပြန်တက်လာတာနဲ့ EGI က အလိုအလျောက် အလုပ်လုပ်ပေးမှာပါ။"
-                    )
-                    ManualSection(
-                        "5. NETWORK RADAR",
-                        "EN: Scan your WiFi for 'Intruders' (people stealing your net). Use [BLOCK] to kick them.\n" +
-                        "MM: သင့် WiFi ကို ခိုးသုံးနေတဲ့သူတွေကို ရှာပြီး [BLOCK] နဲ့ နှင်ထုတ်နိုင်ပါတယ်။\n\n" +
-                        "• NOTE: Requires your router username/password in Radar Setup.\n" +
-                        "• MM: Radar Setup မှာ သင့် Router ရဲ့ user နဲ့ pass ထည့်ပေးဖို့ လိုပါတယ်။"
-                    )
-                    ManualSection(
-                        "6. SHIELD KEY",
-                        "EN: Paste your Outline or SS Key here to fuel the VPN Shield tunnel.\n" +
-                        "MM: VPN လမ်းကြောင်းအတွက် Outline (သို့) SS Key ကို ဒီမှာ ထည့်ပေးပါ။"
+                        "4. NEED HELP?",
+                        "EN: If the internet stops working, click the [REPAIR] button on the main screen.\n" +
+                        "MM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။"
                     )
                 }
             }
@@ -1140,23 +1118,34 @@ fun ManualSection(title: String, desc: String) {
 }
 
 @Composable
-fun EgiTerminalTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val isDarkMode = EgiPreferences.isDarkMode(context)
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val darkCream = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+fun EgiTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
+    val creamColor = Color(0xFFFDF5E6)
+    val wheat = Color(0xFFF5DEB3)
+    val deepGray = Color(0xFF2F4F4F)
     
-    val colorScheme = darkColorScheme(
-        primary = Color.White,
-        onPrimary = deepGray,
-        surface = creamColor,
-        onSurface = deepGray,
-        background = creamColor,
-        onBackground = deepGray,
-        secondary = Color.Gray,
-        outline = darkCream
-    )
+    val colorScheme = if (isDarkMode) {
+        darkColorScheme(
+            primary = Color.White,
+            onPrimary = Color.Black,
+            surface = Color(0xFF1A1A1A),
+            onSurface = Color.White,
+            background = Color(0xFF1A1A1A),
+            onBackground = Color.White,
+            secondary = Color.Gray,
+            outline = Color(0xFF333333)
+        )
+    } else {
+        lightColorScheme(
+            primary = Color.White,
+            onPrimary = deepGray,
+            surface = creamColor,
+            onSurface = deepGray,
+            background = creamColor,
+            onBackground = deepGray,
+            secondary = Color.Gray,
+            outline = wheat
+        )
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -1165,7 +1154,7 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Normal,
                 fontSize = 14.sp,
-                color = deepGray
+                color = if (isDarkMode) Color.White else deepGray
             )
         ),
         content = content
@@ -1173,11 +1162,10 @@ fun EgiTerminalTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun TerminalLog(onClose: () -> Unit) {
+fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
     val events = TrafficEvent.events.collectAsState(initial = "INITIALIZING...")
     val logHistory = remember { mutableStateListOf<String>() }
     val listState = rememberLazyListState()
-    val isDarkMode = EgiPreferences.isDarkMode(LocalContext.current)
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     
