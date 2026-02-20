@@ -192,7 +192,7 @@ pub fn start_vpn_loop(fd: i32) {
                     args.proxy = proxy;
                     args.dns = ArgDns::OverTcp; // Better stability for Facebook/High-traffic apps
                     args.verbosity = ArgVerbosity::Off;
-                    args.dns_addr = Some("10.0.0.1".parse().unwrap());
+                    args.dns_addr = "10.0.0.1".parse().unwrap();
 
                     // Monitor proxy health in background
                     let monitor_token = token.clone();
