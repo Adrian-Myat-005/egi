@@ -192,7 +192,6 @@ pub fn start_vpn_loop(fd: i32) {
                     args.proxy = proxy;
                     args.dns = ArgDns::Virtual; // Absolute stability: handle DNS internally
                     args.verbosity = ArgVerbosity::Off;
-                    args.allow_direct_dns = true; 
                     
                     crate::log_to_java("VPN >> ENGINE_READY (MTU: 1280)");
 
