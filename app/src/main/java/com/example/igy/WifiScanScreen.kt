@@ -77,27 +77,40 @@ fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: 
     LaunchedEffect(Unit) {
         if (IgyNetwork.isAvailable()) {
             try {
+                TrafficEvent.log("RADAR >> SCAN_INITIATED: $subnetPrefix")
                 val jsonStr = withContext(Dispatchers.IO) {
                     IgyNetwork.scanSubnet(subnetPrefix)
                 }
-                val array = JSONArray(jsonStr)
-                val list = mutableListOf<DeviceInfo>()
-                for (i in 0 until array.length()) {
-                    val obj = array.getJSONObject(i)
-                    list.add(DeviceInfo(
-                        ip = obj.getString("i"), 
-                        mac = obj.getString("m"),
-                        status = obj.getString("s")
-                    ))
+                
+                if (!jsonStr.isNullOrEmpty()) {
+                    val array = JSONArray(jsonStr)
+                    val list = mutableListOf<DeviceInfo>()
+                    for (i in 0 until array.length()) {
+                        try {
+                            val obj = array.getJSONObject(i)
+                            list.add(DeviceInfo(
+                                ip = obj.getString("i"), 
+                                mac = obj.getString("m"),
+                                status = obj.getString("s")
+                            ))
+                        } catch (e: Exception) {
+                            TrafficEvent.log("RADAR >> ERR: DEVICE_PARSE_FAIL")
+                        }
+                    }
+                    // Ensure Gateway is always present
+                    if (list.none { it.status == "Gateway" }) {
+                        list.add(0, DeviceInfo(ip = gatewayIp, status = "Gateway", mac = "FF:FF:FF:FF:FF:FF", name = "SYSTEM_GATEWAY"))
+                    }
+                    rawDevices = list
+                    resolvedDevices = list
+                    TrafficEvent.log("RADAR >> SCAN_COMPLETED: ${list.size}_DEVICES")
+                } else {
+                    TrafficEvent.log("RADAR >> WARN: NO_RESPONSE")
+                    rawDevices = listOf(DeviceInfo(ip = gatewayIp, status = "Gateway", mac = "FF:FF:FF:FF:FF:FF", name = "SYSTEM_GATEWAY"))
+                    resolvedDevices = rawDevices
                 }
-                // Ensure Gateway is always present
-                if (list.none { it.status == "Gateway" }) {
-                    list.add(0, DeviceInfo(ip = gatewayIp, status = "Gateway", mac = "FF:FF:FF:FF:FF:FF", name = "SYSTEM_GATEWAY"))
-                }
-                rawDevices = list
-                resolvedDevices = list 
             } catch (t: Throwable) {
-                // Fallback
+                TrafficEvent.log("RADAR >> ERR: SCAN_PANIC_${t.message}")
                 rawDevices = listOf(DeviceInfo(ip = gatewayIp, status = "Gateway", mac = "FF:FF:FF:FF:FF:FF", name = "SYSTEM_GATEWAY"))
                 resolvedDevices = rawDevices
             }

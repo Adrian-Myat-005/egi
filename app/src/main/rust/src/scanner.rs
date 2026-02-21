@@ -18,7 +18,11 @@ pub fn scan_subnet(base_ip_str: String) -> String {
     let devices = TOKIO_RT.block_on(async move {
         let mut tasks = Vec::with_capacity(254);
         for i in 1..255 {
-            let ip = format!("{}{}", base_ip_str, i);
+            let mut prefix = base_ip_str.clone();
+            if !prefix.ends_with('.') {
+                prefix.push('.');
+            }
+            let ip = format!("{}{}", prefix, i);
             tasks.push(tokio::spawn(async move {
                 // TCP Scan
                 let ports = [80, 443, 62078];
