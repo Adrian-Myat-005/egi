@@ -17,7 +17,6 @@ static mut CLASS_REF: Option<GlobalRef> = None;
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> jint {
     unsafe {
-        JVM = Some(vm.clone());
         if let Ok(mut env) = vm.get_env() {
             if let Ok(class) = env.find_class("com/example/igy/IgyNetwork") {
                 if let Ok(global_ref) = env.new_global_ref(class) {
@@ -25,6 +24,7 @@ pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> ji
                 }
             }
         }
+        JVM = Some(vm);
     }
     jni::sys::JNI_VERSION_1_6
 }

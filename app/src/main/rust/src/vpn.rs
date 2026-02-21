@@ -15,6 +15,10 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
     CORE_STATUS.store(2, Ordering::SeqCst);
     crate::log_to_java("VPN >> PASSIVE_SHIELD_UP");
     
+    if let Err(e) = set_nonblocking(fd) {
+        crate::log_to_java(&format!("VPN >> ERR_NONBLOCK: {}", e));
+    }
+
     let async_fd = match AsyncFd::new(fd) {
         Ok(afd) => afd,
         Err(e) => {
@@ -24,8 +28,9 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
         }
     };
 
-    let mut buf = vec![0u8; 16384]; // 16KB is more efficient for typical MTU
+    let mut buf = vec![0u8; 16384];
     loop {
+        if CORE_STATUS.load(Ordering::SeqCst) == 0 { break; }
         match async_fd.readable().await {
             Ok(mut guard) => {
                 match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
@@ -45,7 +50,6 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                         };
 
                         if is_allowed {
-                            // In passive mode, we just count but don't re-inject (OS blocks everything anyway)
                             BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
                         } else {
                             crate::log_to_java("SHIELD >> BLOCKED_DOMAIN_DETACHED");
@@ -54,7 +58,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
                         guard.clear_ready();
                     }
-                    0 => break, // EOF
+                    0 => break,
                     _ => {
                         let err = std::io::Error::last_os_error();
                         if err.kind() != std::io::ErrorKind::WouldBlock {
@@ -66,6 +70,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
             Err(_) => break,
         }
     }
+    crate::log_to_java("VPN >> PASSIVE_SHIELD_DOWN");
     CORE_STATUS.store(0, Ordering::SeqCst);
 }
 
