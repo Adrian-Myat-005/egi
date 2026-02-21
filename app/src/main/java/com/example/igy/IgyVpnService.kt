@@ -233,6 +233,7 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     override fun onDestroy() {
+        isRunning = false
         stopVpn()
         serviceScope.cancel()
         super.onDestroy()
