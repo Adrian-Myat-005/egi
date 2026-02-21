@@ -1,6 +1,5 @@
 package com.example.igy
 
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
@@ -28,8 +28,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -37,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.graphicsLayer
@@ -97,7 +94,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     if (showLogs) {
         AlertDialog(
             onDismissRequest = { showLogs = false },
-            containerColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6),
+            containerColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6) ,
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxSize().padding(8.dp),
             text = { TerminalLog(isDarkMode, onClose = { showLogs = false }) },
@@ -172,18 +169,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
     var updateStatus by remember { mutableStateOf("V$currentVersion (LATEST)") }
     var isChecking by remember { mutableStateOf(false) }
 
-    // Rotation Animation for Sync Icon
-    val syncTransition = rememberInfiniteTransition(label = "Sync")
-    val rotation by syncTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Rotation"
-    )
-
+    // Column
     Column(
         modifier = Modifier.fillMaxSize().background(creamColor).padding(16.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -243,7 +229,6 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
 private suspend fun checkForGithubUpdate(currentVersion: String): String? = withContext(Dispatchers.IO) {
     try {
-        // Connect to GitHub API
         val url = java.net.URL("https://api.github.com/repos/Amyat604/Igy-Shield/releases/latest")
         val conn = url.openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 5000
@@ -720,12 +705,6 @@ fun TerminalDashboard(
     val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
     var currentJitter by remember { mutableStateOf(0) }
     val blockedCount by TrafficEvent.blockedCount.collectAsState()
-    val animatedBlockedCount by animateIntAsState(targetValue = blockedCount, animationSpec = tween(1000), label = "BlockedCountAnim")
-    val statusColor by animateColorAsState(
-        targetValue = if (isSecure) Color(0xFF2E8B57) else Color.Gray,
-        animationSpec = tween(500),
-        label = "StatusColor"
-    )
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -977,9 +956,8 @@ fun TerminalDashboard(
                 GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(0.8f)) { 
                     TrafficEvent.log("CORE >> INITIATING_DEEP_REPAIR...")
                     TrafficEvent.updateCount(0)
-                    // Deep repair: Clear any stuck states
                     scope.launch {
-                        IgyPreferences.setSelectedNodeId(context, -1) // Reset to private gateway
+                        IgyPreferences.setSelectedNodeId(context, -1)
                         TrafficEvent.log("CORE >> NETWORK_STACK_RESET_SUCCESS")
                         Toast.makeText(context, "SYSTEM_REPAIRED: TRY_CONNECTING_NOW", Toast.LENGTH_SHORT).show()
                     }
@@ -1085,12 +1063,7 @@ private fun handleExecuteToggle(
             TrafficEvent.log("USER >> SHUTTING_DOWN")
             val stopIntent = Intent(context, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             context.startService(stopIntent)
-            
-            // Auto-Redirect to System VPN Settings to disable Always-on/Lockdown
-            val settingsIntent = Intent(Settings.ACTION_VPN_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(settingsIntent)
+            context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
             Toast.makeText(context, "DISABLE ALWAYS-ON / LOCKDOWN IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
             val vipList = IgyPreferences.getVipList(context)
@@ -1108,7 +1081,6 @@ private fun handleExecuteToggle(
             setBooting(true)
             TrafficEvent.log("USER >> BOOTING_SHIELD")
 
-            // ONE-CLICK SYNC: Fetch key before starting if logged in
             val (token, _, _) = IgyPreferences.getAuth(context)
             val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
             val nodeId = IgyPreferences.getSelectedNodeId(context)
@@ -1148,28 +1120,10 @@ fun TacticalManual(onDismiss: () -> Unit) {
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    ManualSection(
-                        "1. HOW TO CONNECT",
-                        "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\n" +
-                        "MM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။"
-                    )
-                    ManualSection(
-                        "2. THREE MODES EXPLAINED",
-                        "• VPN SHIELD: Protects everything on your phone.\n" +
-                        "• FOCUS MODE: Only protects the apps you choose.\n" +
-                        "• BYPASS MODE: Protects everything EXCEPT your chosen apps.\n" +
-                        "MM: ဖုန်းတစ်ခုလုံးသုံးမလား၊ app တစ်ခုချင်းသုံးမလား စိတ်ကြိုက်ရွေးပါ။"
-                    )
-                    ManualSection(
-                        "3. FOR BEST PERFORMANCE",
-                        "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\n" +
-                        "MM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။"
-                    )
-                    ManualSection(
-                        "4. NEED HELP?",
-                        "EN: If the internet stops working, click the [REPAIR] button on the main screen.\n" +
-                        "MM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။"
-                    )
+                    ManualSection("1. HOW TO CONNECT", "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\nMM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။")
+                    ManualSection("2. THREE MODES EXPLAINED", "• VPN SHIELD: Protects everything on your phone.\n• FOCUS MODE: Only protects the apps you choose.\n• BYPASS MODE: Protects everything EXCEPT your chosen apps.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား၊ app တစ်ခုချင်းသုံးမလား စိတ်ကြိုက်ရွေးပါ။")
+                    ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
+                    ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the [REPAIR] button on the main screen.\nMM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။")
                 }
             }
         },
@@ -1196,39 +1150,14 @@ fun IgyTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     
     val colorScheme = if (isDarkMode) {
-        darkColorScheme(
-            primary = Color.White,
-            onPrimary = Color.Black,
-            surface = Color(0xFF1A1A1A),
-            onSurface = Color.White,
-            background = Color(0xFF1A1A1A),
-            onBackground = Color.White,
-            secondary = Color.Gray,
-            outline = Color(0xFF333333)
-        )
+        darkColorScheme(primary = Color.White, onPrimary = Color.Black, surface = Color(0xFF1A1A1A), onSurface = Color.White, background = Color(0xFF1A1A1A), onBackground = Color.White, secondary = Color.Gray, outline = Color(0xFF333333))
     } else {
-        lightColorScheme(
-            primary = Color.White,
-            onPrimary = deepGray,
-            surface = creamColor,
-            onSurface = deepGray,
-            background = creamColor,
-            onBackground = deepGray,
-            secondary = Color.Gray,
-            outline = wheat
-        )
+        lightColorScheme(primary = Color.White, onPrimary = deepGray, surface = creamColor, onSurface = deepGray, background = creamColor, onBackground = deepGray, secondary = Color.Gray, outline = wheat)
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography(
-            bodyLarge = androidx.compose.ui.text.TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Normal,
-                fontSize = 14.sp,
-                color = if (isDarkMode) Color.White else deepGray
-            )
-        ),
+        typography = Typography(bodyLarge = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Normal, fontSize = 14.sp, color = if (isDarkMode) Color.White else deepGray)),
         content = content
     )
 }
@@ -1253,20 +1182,8 @@ fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("IGY_CONSOLE_V1.0", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Row {
-                Text(
-                    "[ CLEAR ]", 
-                    color = Color(0xFFB8860B), 
-                    fontSize = 12.sp, 
-                    modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp),
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    "[ X ]", 
-                    color = Color.Red, 
-                    fontSize = 12.sp, 
-                    modifier = Modifier.clickable { onClose() },
-                    fontFamily = FontFamily.Monospace
-                )
+                Text("[ CLEAR ]", color = Color(0xFFB8860B), fontSize = 12.sp, modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp), fontFamily = FontFamily.Monospace)
+                Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() }, fontFamily = FontFamily.Monospace)
             }
         }
         Divider(color = deepGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
