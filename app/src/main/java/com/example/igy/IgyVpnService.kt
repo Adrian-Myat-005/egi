@@ -12,6 +12,7 @@ import android.os.ParcelFileDescriptor
 import android.content.pm.ServiceInfo
 import kotlinx.coroutines.*
 import java.io.IOException
+import com.example.igy.R
 
 class IgyVpnService : VpnService(), Runnable {
     companion object {
@@ -24,16 +25,22 @@ class IgyVpnService : VpnService(), Runnable {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // CRITICAL: Call startForeground immediately to prevent OS kill
-        createNotificationChannel()
         try {
+            // CRITICAL: Call startForeground immediately to prevent OS kill
+            createNotificationChannel()
+            // USE SAFE ICON: applicationInfo.icon is guaranteed to exist
+            val iconRes = if (applicationInfo.icon != 0) applicationInfo.icon else android.R.drawable.sym_def_app_icon
+            val notification = createNotification(iconRes)
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } else {
-                startForeground(1, createNotification())
+                startForeground(1, notification)
             }
         } catch (e: Exception) {
             TrafficEvent.log("CORE >> FG_SERVICE_ERR: ${e.message}")
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         if (intent?.action == ACTION_STOP) {
@@ -61,16 +68,14 @@ class IgyVpnService : VpnService(), Runnable {
                 while (isActive) {
                     val now = System.currentTimeMillis()
                     
-                    // 1. Update Traffic Stats (Every 3s)
                     if (IgyNetwork.isAvailable()) {
                         TrafficEvent.updateCount(IgyNetwork.getNativeBlockedCount())
                     }
 
-                    // 2. Periodic Subscription Check (Every 4h)
                     if (now - lastSubCheck >= CHECK_INTERVAL) {
                         lastSubCheck = now
                         val (token, _, _) = IgyPreferences.getAuth(this@IgyVpnService)
-                        val serverUrl = IgyPreferences.getSyncEndpoint(this@IgyVpnService) ?: "http://10.0.2.2:3000"
+                        val serverUrl = IgyPreferences.getSyncEndpoint(this@IgyVpnService) ?: "https://egi-67tg.onrender.com"
                         
                         if (token.isNotEmpty()) {
                             val config = fetchVpnConfigSync(serverUrl, token)
@@ -88,7 +93,6 @@ class IgyVpnService : VpnService(), Runnable {
         return START_STICKY
     }
 
-    // Synchronous version for internal service check
     private fun fetchVpnConfigSync(serverUrl: String, token: String): String? {
         try {
             val url = java.net.URL("$serverUrl/api/vpn/config")
@@ -110,10 +114,13 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     private fun stopVpn() {
+        if (!isServiceActive) return
         isServiceActive = false
         TrafficEvent.setVpnActive(false)
         serviceScope.cancel()
-        vpnThread?.interrupt()
+        try {
+            vpnThread?.interrupt()
+        } catch (e: Exception) {}
         closeInterface()
         stopForeground(true)
         stopSelf()
@@ -126,7 +133,6 @@ class IgyVpnService : VpnService(), Runnable {
         var ssKey = IgyPreferences.getOutlineKey(this)
         val allowLocal = IgyPreferences.getLocalBypass(this)
 
-        // DEADLOCK PREVENTION: Resolve SS Host to IP before starting VPN
         try {
             if (ssKey.startsWith("ss://")) {
                 val uri = java.net.URI(ssKey.split("#")[0])
@@ -137,7 +143,7 @@ class IgyVpnService : VpnService(), Runnable {
                     val ip = address.hostAddress
                     if (ip != null) {
                         ssKey = ssKey.replace(host, ip)
-                        IgyNetwork.setOutlineKey(ssKey) // Update native key with IP
+                        IgyNetwork.setOutlineKey(ssKey)
                         TrafficEvent.log("CORE >> HOST_RESOLVED: $ip")
                     }
                 }
@@ -147,9 +153,7 @@ class IgyVpnService : VpnService(), Runnable {
         }
 
         try {
-            // 1280 is the safest MTU for all carriers (Outline default)
             val mtu = 1280
-            
             TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
             val builder = Builder()
                 .setSession("IgyShield")
@@ -165,20 +169,14 @@ class IgyVpnService : VpnService(), Runnable {
 
             if (allowLocal) builder.allowBypass()
 
-            // Optimized DNS
             builder.addDnsServer("8.8.8.8")
             builder.addDnsServer("1.1.1.1")
-
-            // IMPORTANT: Exclude the app itself from the tunnel
             builder.addDisallowedApplication(packageName)
 
-            // VPN_TUNNEL_LOGIC:
             if (isStealth) {
                 if (isGlobal) {
-                    // VPN Shield: Full encryption
                     TrafficEvent.log("SHIELD >> MODE: VPN_SHIELD [GLOBAL_ENCRYPTION]")
                 } else {
-                    // Focus Mode: Only target apps
                     if (vipList.isNotEmpty()) {
                         TrafficEvent.log("SHIELD >> MODE: FOCUS_MODE [TUNNELING_${vipList.size}_APPS]")
                         vipList.forEach { pkg ->
@@ -189,7 +187,6 @@ class IgyVpnService : VpnService(), Runnable {
                     }
                 }
             } else {
-                // Bypass List: Everything protected except targets
                 TrafficEvent.log("SHIELD >> MODE: BYPASS_LIST [PROTECTING_ALL_EXCEPT_TARGETS]")
                 if (vipList.isNotEmpty()) {
                     vipList.forEach { pkg ->
@@ -214,7 +211,6 @@ class IgyVpnService : VpnService(), Runnable {
                 val allowedDomains = IgyPreferences.getAllowedDomains(this)
                 IgyNetwork.setAllowedDomains(allowedDomains)
                 
-                // CRITICAL FIX: Ensure the resolved numeric IP key is passed to the engine!
                 if (ssKey.isNotEmpty()) {
                     TrafficEvent.log("SHIELD >> STARTING_VPN_CORE")
                     IgyNetwork.setOutlineKey(ssKey) 
@@ -233,9 +229,7 @@ class IgyVpnService : VpnService(), Runnable {
         } catch (e: Exception) {
             TrafficEvent.log("CORE >> FATAL: ${e.message}")
         } finally {
-            TrafficEvent.setVpnActive(false)
-            closeInterface()
-            TrafficEvent.log("CORE >> SHIELD_DOWN")
+            stopVpn()
         }
     }
 
@@ -247,7 +241,7 @@ class IgyVpnService : VpnService(), Runnable {
         }
     }
 
-    private fun createNotification(): Notification {
+    private fun createNotification(iconRes: Int): Notification {
         val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
 
@@ -260,7 +254,7 @@ class IgyVpnService : VpnService(), Runnable {
 
         return builder
             .setContentTitle("Igy Shield Active")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setSmallIcon(iconRes)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
             .build()
