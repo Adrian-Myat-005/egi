@@ -23,6 +23,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -447,7 +450,7 @@ fun TactileButton(
     modifier: Modifier = Modifier,
     isDarkMode: Boolean = false,
     contentColor: Color? = null,
-    elevation: Dp = 2.dp,
+    elevation: Dp = 4.dp,
     isLoading: Boolean = false
 ) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
@@ -464,37 +467,36 @@ fun TactileButton(
         }
     }
     
-    Button(
+    Surface(
         onClick = { if (!isLoading) onClick() },
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .border(1.dp, wheat, RoundedCornerShape(4.dp)),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = cardBg,
-            contentColor = contentColor ?: deepGray
-        ),
-        shape = RoundedCornerShape(4.dp),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = elevation,
-            pressedElevation = 0.dp
-        ),
-        contentPadding = PaddingValues(12.dp)
+            .padding(vertical = 6.dp)
+            .height(50.dp),
+        shape = RoundedCornerShape(12.dp),
+        shadowElevation = elevation,
+        color = cardBg,
+        border = BorderStroke(1.dp, wheat)
     ) {
-        if (showLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = contentColor ?: deepGray,
-                strokeWidth = 2.dp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+        Box(contentAlignment = Alignment.Center) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (showLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = contentColor ?: deepGray,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+                Text(
+                    text = text,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor ?: deepGray
+                )
+            }
         }
-        Text(
-            text = text,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
@@ -950,98 +952,92 @@ fun TerminalDashboard(
         modifier = Modifier
             .fillMaxSize()
             .background(creamColor)
-            .padding(8.dp)
+            .padding(16.dp)
     ) {
-        // --- TOP SECTION: THE MATRIX HEADER ---
+        // --- TOP SECTION: MODERN HEADER ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(1.8f)
-                    .fillMaxHeight()
-                    .background(cardBg)
-                    .border(0.5.dp, wheat),
-                contentAlignment = Alignment.Center
+            // WiFi Status Chip
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = cardBg,
+                border = BorderStroke(1.dp, wheat),
+                modifier = Modifier.height(32.dp)
             ) {
-                Text(
-                    text = if (currentSsid != null) "[ WIFI: $currentSsid ]" else "[ NO_WIFI ]",
-                    color = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 1
-                )
-            }
-            var isSettingsLoading by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(cardBg)
-                    .border(0.5.dp, wheat)
-                    .clickable(enabled = !isSettingsLoading) {
-                        scope.launch {
-                            isSettingsLoading = true
-                            delay(300)
-                            onOpenSettings()
-                            isSettingsLoading = false
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSettingsLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
-                } else {
-                    Text("Settings", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sync, // Placeholder for Wifi icon
+                        contentDescription = "Wifi",
+                        tint = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (currentSsid != null) currentSsid!! else "No WiFi",
+                        color = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-            var isAccountLoading by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(cardBg)
-                    .border(0.5.dp, wheat)
-                    .clickable(enabled = !isAccountLoading) {
-                        scope.launch {
-                            isAccountLoading = true
-                            delay(300)
-                            onOpenAccount()
-                            isAccountLoading = false
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isAccountLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
-                } else {
-                    Text("Account", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+
+            // Action Icons Row
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                var isSettingsLoading by remember { mutableStateOf(false) }
+                IconButton(onClick = {
+                    scope.launch {
+                        isSettingsLoading = true
+                        delay(300)
+                        onOpenSettings()
+                        isSettingsLoading = false
+                    }
+                }) {
+                    if (isSettingsLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
+                    } else {
+                        Icon(imageVector = androidx.compose.material.icons.filled.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
+                    }
                 }
-            }
-            var isManualLoading by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .weight(0.4f)
-                    .fillMaxHeight()
-                    .background(cardBg)
-                    .border(0.5.dp, wheat)
-                    .clickable(enabled = !isManualLoading) {
-                        scope.launch {
-                            isManualLoading = true
-                            delay(300)
-                            showManual = true
-                            isManualLoading = false
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isManualLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = deepGray, strokeWidth = 2.dp)
-                } else {
-                    Text("?", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+
+                var isAccountLoading by remember { mutableStateOf(false) }
+                IconButton(onClick = {
+                    scope.launch {
+                        isAccountLoading = true
+                        delay(300)
+                        onOpenAccount()
+                        isAccountLoading = false
+                    }
+                }) {
+                    if (isAccountLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
+                    } else {
+                        Icon(imageVector = androidx.compose.material.icons.filled.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
+                    }
+                }
+
+                var isManualLoading by remember { mutableStateOf(false) }
+                IconButton(onClick = {
+                    scope.launch {
+                        isManualLoading = true
+                        delay(300)
+                        showManual = true
+                        isManualLoading = false
+                    }
+                }) {
+                    if (isManualLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = deepGray, strokeWidth = 2.dp)
+                    } else {
+                        Icon(imageVector = androidx.compose.material.icons.filled.Info, contentDescription = "Help", tint = deepGray)
+                    }
                 }
             }
         }
@@ -1210,41 +1206,83 @@ fun TerminalDashboard(
             }
         }
 
+        // --- MAIN CONNECT BUTTON ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
-                .background(cardBg)
-                .border(1.dp, wheat)
-                .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
-                .clickable {
-                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppPicker, vpnLauncher) { isBooting = it }
-                },
+                .height(120.dp) // Increased height for prominence
+                .padding(top = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isBooting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color(0xFF2E8B57),
-                        strokeWidth = 3.dp
+            // Pulse Effect Layer
+            Box(
+                modifier = Modifier
+                    .size(if (isBooting) 90.dp else 80.dp) // Pulse size
+                    .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
+                    .background(
+                        color = if (isSecure) Color(0xFF2E8B57).copy(alpha = 0.2f) else Color.Transparent,
+                        shape = androidx.compose.foundation.shape.CircleShape
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+            )
+
+            // Main Button Surface
+            Surface(
+                onClick = {
+                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppPicker, vpnLauncher) { isBooting = it }
+                },
+                modifier = Modifier
+                    .size(80.dp)
+                    .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = cardBg,
+                border = BorderStroke(2.dp, if (isSecure) Color(0xFF2E8B57) else wheat),
+                shadowElevation = 8.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isBooting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            color = Color(0xFF2E8B57),
+                            strokeWidth = 3.dp
+                        )
+                    } else {
+                        // Power Icon or Text
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Sync, // Placeholder for Power icon
+                                contentDescription = "Power",
+                                tint = if (isSecure) Color(0xFF2E8B57) else if (isStrictBlocking && !isStealthMode) Color.Red else Color.Gray,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isSecure) "ON" else "OFF",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSecure) Color(0xFF2E8B57) else Color.Gray
+                            )
+                        }
+                    }
                 }
-                Text(
-                    text = when {
-                        isBooting -> "Initializing..."
-                        isSecure -> "Disconnect"
-                        isStrictBlocking && !isStealthMode -> "Locked: Config VPN"
-                        else -> "Connect"
-                    },
-                    color = if (isSecure) Color.Red else Color(0xFF2E8B57),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp
-                )
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Status Text Below Button
+        Text(
+            text = when {
+                isBooting -> "Initializing..."
+                isSecure -> "SECURE CONNECTION ESTABLISHED"
+                isStrictBlocking && !isStealthMode -> "LOCKED: CONFIG VPN"
+                else -> "TAP TO CONNECT"
+            },
+            color = if (isSecure) Color(0xFF2E8B57) else deepGray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 
     if (showManual) { TacticalManual(onDismiss = { showManual = false }) }
@@ -1254,17 +1292,25 @@ fun TerminalDashboard(
 fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color, isDarkMode: Boolean) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    Box(
+    
+    Card(
         modifier = Modifier
             .weight(weightRatio)
             .fillMaxHeight()
-            .background(cardBg)
-            .border(0.5.dp, wheat),
-        contentAlignment = Alignment.Center
+            .padding(4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(0.5.dp, wheat),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
-            Text(value, color = valueColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(label, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(value, color = valueColor, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
@@ -1294,33 +1340,37 @@ fun RowScope.GridButton(
         }
     }
 
-    Box(
+    Card(
+        onClick = { if (!isLoading) onClick() },
         modifier = modifier
             .fillMaxHeight()
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .background(cardBg)
-            .border(0.5.dp, wheat)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = LocalIndication.current,
-                enabled = !isLoading
-            ) { onClick() },
-        contentAlignment = Alignment.Center
+            .padding(4.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, wheat),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        if (showLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = color,
-                strokeWidth = 2.dp
-            )
-        } else {
-            Text(
-                text = text,
-                color = color,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize().padding(8.dp)
+        ) {
+            if (showLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = color,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = text,
+                    color = color,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
         }
     }
 }
