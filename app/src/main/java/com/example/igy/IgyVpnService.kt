@@ -14,177 +14,137 @@ import android.util.Log
 import kotlinx.coroutines.*
 import java.io.IOException
 
-class IgyVpnService : VpnService(), Runnable {
+class IgyVpnService : VpnService() {
     companion object {
         const val ACTION_STOP = "com.example.igy.STOP"
         private const val TAG = "IgyVpnService"
+        @Volatile var isRunning = false
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var vpnThread: Thread? = null
-    private var isServiceActive = false
-    private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
+    private var vpnJob: Job? = null
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            TrafficEvent.log("USER >> SHIELD_STOP_CMD")
-            cleanupAndStop()
+            stopVpn()
             return START_NOT_STICKY
         }
 
+        // 1. IMMEDIATE FOREGROUND PROMOTION (Android 14 Requirement)
         try {
             createNotificationChannel()
-            // Small icon MUST be a template drawable (white on transparent)
-            val iconRes = android.R.drawable.ic_menu_compass 
-            val notification = createNotification(iconRes)
-            
+            val notification = createNotification()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } else {
                 startForeground(1, notification)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Foreground error", e)
+            Log.e(TAG, "Critical: startForeground failed", e)
             stopSelf()
             return START_NOT_STICKY
         }
 
-        if (prepare(this) != null) {
-            TrafficEvent.log("CORE >> PERMISSION_REQUIRED")
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        // 2. PREVENT DOUBLE BOOT
+        if (isRunning) return START_STICKY
 
-        if (!isServiceActive) {
-            isServiceActive = true
-            startVpnThread()
+        // 3. LAUNCH HARDENED VPN TASK
+        isRunning = true
+        vpnJob = serviceScope.launch {
+            try {
+                runVpnTask()
+            } catch (e: Exception) {
+                Log.e(TAG, "VPN Task Panic", e)
+                TrafficEvent.log("CORE >> TASK_PANIC: ${e.message}")
+            } finally {
+                withContext(Dispatchers.Main) { stopVpn() }
+            }
         }
 
         return START_STICKY
     }
 
-    private fun startVpnThread() {
-        if (vpnThread == null || !vpnThread!!.isAlive) {
-            vpnThread = Thread(this, "IgyVpnThread")
-            vpnThread?.start()
-            
-            serviceScope.launch {
-                while (isActive) {
-                    if (IgyNetwork.isAvailable()) {
-                        try {
-                            TrafficEvent.updateCount(IgyNetwork.getNativeBlockedCount())
-                        } catch (e: Throwable) {}
-                    }
-                    delay(3000)
-                }
-            }
-        }
-    }
-
-    private fun cleanupAndStop() {
-        if (!isServiceActive && vpnInterface == null) return
-        isServiceActive = false
-        TrafficEvent.setVpnActive(false)
-        serviceScope.cancel()
-        try { vpnThread?.interrupt() } catch (e: Exception) {}
-        vpnThread = null
-        closeInterface()
-        stopForeground(true)
-        stopSelf()
-    }
-
-    override fun run() {
-        try {
-            establishVpn()
-        } catch (e: Exception) {
-            Log.e(TAG, "VPN Thread FATAL", e)
-            TrafficEvent.log("CORE >> FATAL: ${e.message}")
-        } finally {
-            if (isServiceActive) cleanupAndStop()
-        }
-    }
-
-    private fun establishVpn() {
-        val vipList = IgyPreferences.getVipList(this)
-        val isStealth = IgyPreferences.isStealthMode(this)
-        val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
-        var ssKey = IgyPreferences.getOutlineKey(this)
-        val allowLocal = IgyPreferences.getLocalBypass(this)
-
-        // DNS Resolve
+    private suspend fun runVpnTask() = withContext(Dispatchers.IO) {
+        val ssKey = IgyPreferences.getOutlineKey(this@IgyVpnService)
+        
+        // Resolve DNS if needed
+        var targetKey = ssKey
         try {
             if (ssKey.startsWith("ss://")) {
                 val uri = java.net.URI(ssKey.split("#")[0])
                 val host = uri.host
                 if (host != null && !host.matches(Regex("^[0-9.]+$"))) {
                     val address = java.net.InetAddress.getByName(host)
-                    ssKey = ssKey.replace(host, address.hostAddress ?: host)
+                    targetKey = ssKey.replace(host, address.hostAddress ?: host)
                 }
             }
-        } catch (e: Exception) { Log.e(TAG, "DNS resolve fail", e) }
+        } catch (e: Exception) { Log.e(TAG, "DNS resolution skip", e) }
 
+        // BUILDER STABILITY
         val builder = Builder()
             .setSession("IgyShield")
-            .addAddress("10.0.0.1", 24) 
+            .addAddress("10.0.0.1", 24)
             .addRoute("0.0.0.0", 0)
             .setMtu(1280)
+            .setConfigureIntent(
+                PendingIntent.getActivity(this@IgyVpnService, 0, 
+                Intent(this@IgyVpnService, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            )
 
-        val configIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        builder.setConfigureIntent(pendingIntent)
-
-        if (allowLocal) builder.allowBypass()
+        if (IgyPreferences.getLocalBypass(this@IgyVpnService)) builder.allowBypass()
         builder.addDnsServer("1.1.1.1")
-        builder.addDnsServer("8.8.8.8")
         
         try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
-        if (isStealth && !isGlobal && vipList.isNotEmpty()) {
-            vipList.forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
-        } else if (!isStealth && vipList.isNotEmpty()) {
-            vipList.forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
-        }
-
-        // CRITICAL GUARD: establish() MUST be caught specifically
+        // ESTABLISH WITH GUARD
         vpnInterface = try {
             builder.establish()
         } catch (e: Exception) {
             Log.e(TAG, "Establish failed", e)
             null
         }
-        
+
         if (vpnInterface == null) {
-            TrafficEvent.log("CORE >> INTERFACE_FAIL")
-            return
+            TrafficEvent.log("CORE >> ESTABLISH_REJECTED")
+            return@withContext
         }
 
         TrafficEvent.setVpnActive(true)
         TrafficEvent.log("CORE >> SHIELD_UP")
-        
-        // DETACH FD: This is the secret to stability.
-        // It transfers total ownership of the FD to Rust and prevents Java GC closing it.
+
+        // DETACH FD: Transfers ownership to native, prevents Java closing it
         val fd = vpnInterface!!.detachFd()
         
+        // Let OS Settle
+        delay(250)
+
         if (IgyNetwork.isAvailable()) {
             try {
-                IgyNetwork.setAllowedDomains(IgyPreferences.getAllowedDomains(this))
-                IgyNetwork.setOutlineKey(ssKey)
-                if (ssKey.isNotEmpty()) {
+                IgyNetwork.setOutlineKey(targetKey)
+                if (targetKey.isNotEmpty()) {
                     IgyNetwork.runVpnLoop(fd)
                 } else {
                     IgyNetwork.runPassiveShield(fd)
                 }
             } catch (e: Throwable) {
-                Log.e(TAG, "Native crash", e)
-                TrafficEvent.log("NATIVE >> ENGINE_PANIC")
+                Log.e(TAG, "Native execution error", e)
             }
         } else {
             TrafficEvent.log("CORE >> ENGINE_MISSING")
-            while (isServiceActive) { 
-                try { Thread.sleep(2000) } catch (e: InterruptedException) { break }
-            }
+            while (isRunning) { delay(2000) }
         }
+    }
+
+    private fun stopVpn() {
+        isRunning = false
+        TrafficEvent.setVpnActive(false)
+        vpnJob?.cancel()
+        closeInterface()
+        stopForeground(true)
+        stopSelf()
+        TrafficEvent.log("CORE >> SHIELD_DOWN")
     }
 
     private fun createNotificationChannel() {
@@ -195,14 +155,18 @@ class IgyVpnService : VpnService(), Runnable {
         }
     }
 
-    private fun createNotification(iconRes: Int): Notification {
-        val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
-        val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+    private fun createNotification(): Notification {
+        val stopPendingIntent = PendingIntent.getService(this, 0, 
+            Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }, 
+            PendingIntent.FLAG_IMMUTABLE)
+
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
-        return builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(iconRes)
+        
+        return builder.setContentTitle("Igy Shield Protected")
+            .setSmallIcon(android.R.drawable.stat_sys_vp_vpn) // Universal System Icon
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent).build()
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
+            .build()
     }
 
     private fun closeInterface() {
@@ -211,7 +175,8 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     override fun onDestroy() {
-        cleanupAndStop()
+        stopVpn()
+        serviceScope.cancel()
         super.onDestroy()
     }
 }

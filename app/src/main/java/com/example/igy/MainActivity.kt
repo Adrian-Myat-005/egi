@@ -1106,83 +1106,57 @@ private fun handleExecuteToggle(
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
+    if (isBooting) return
+    
     try {
-        if (isBooting) {
-            setBooting(false)
-            TrafficEvent.log("USER >> BOOT_CANCELLED")
-            return
-        }
-        if (isSecure) {
-            TrafficEvent.log("USER >> SHUTTING_DOWN")
-            val stopIntent = Intent(context, IgyVpnService::class.java).apply { 
+        if (isSecure || IgyVpnService.isRunning) {
+            TrafficEvent.log("USER >> STOPPING_SHIELD")
+            context.startService(Intent(context, IgyVpnService::class.java).apply { 
                 action = IgyVpnService.ACTION_STOP 
-            }
-            context.startService(stopIntent)
-            
-            // Safe redirect to system settings
+            })
+            // Redirect to system settings only if necessary
             try {
                 context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).apply { 
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK 
                 })
             } catch (e: Exception) {}
-            
-            Toast.makeText(context, "DISABLE ALWAYS-ON IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
+            // Validation
             val vipList = IgyPreferences.getVipList(context)
             if (!isGlobal && vipList.isEmpty() && isStealthMode) {
-                Toast.makeText(context, "PICK A FOCUS APP FIRST!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "PICK A FOCUS APP!", Toast.LENGTH_SHORT).show()
                 onOpenAppPicker()
-                return
-            }
-            if (!isStealthMode && vipList.isEmpty()) {
-                Toast.makeText(context, "PICK APPS TO BYPASS FIRST!", Toast.LENGTH_LONG).show()
-                onOpenAppSelector()
                 return
             }
 
             setBooting(true)
-            TrafficEvent.log("USER >> BOOTING_SHIELD")
+            TrafficEvent.log("USER >> PREPARING_KERNEL")
 
-            val (token, _, _) = IgyPreferences.getAuth(context)
-            val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
-            val nodeId = IgyPreferences.getSelectedNodeId(context)
-            
-            // Perform key sync in a dedicated background job, then launch VPN
-            CoroutineScope(Dispatchers.Main + Job()).launch {
-                if (token.isNotEmpty()) {
-                    TrafficEvent.log("CORE >> SYNCING_SECURE_KEY...")
-                    val config = fetchVpnConfig(serverUrl, token, nodeId)
-                    if (config != null) {
-                        IgyPreferences.saveOutlineKey(context, config)
-                        TrafficEvent.log("CORE >> KEY_SYNC_SUCCESS")
-                    } else {
-                        TrafficEvent.log("CORE >> SYNC_FAILED_USING_CACHE")
-                    }
-                }
-                
-                try {
-                    val intent = VpnService.prepare(context)
-                    if (intent != null) { 
-                        vpnLauncher.launch(intent) 
-                    } else { 
+            // Atomic Activation
+            CoroutineScope(Dispatchers.Main).launch {
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    vpnLauncher.launch(intent)
+                } else {
+                    try {
                         val startIntent = Intent(context, IgyVpnService::class.java)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             context.startForegroundService(startIntent)
                         } else {
                             context.startService(startIntent)
                         }
-                        setBooting(false)
+                    } catch (e: Exception) {
+                        TrafficEvent.log("CORE >> START_FAIL")
                     }
-                } catch (e: Exception) {
-                    TrafficEvent.log("CORE >> PREPARE_ERR: ${e.message}")
-                    setBooting(false)
-                    Toast.makeText(context, "VPN_START_ERROR", Toast.LENGTH_SHORT).show()
                 }
+                // Delay booting reset to allow OS to respond
+                delay(1500)
+                setBooting(false)
             }
         }
     } catch (e: Exception) {
-        TrafficEvent.log("CRITICAL >> ${e.message}")
         setBooting(false)
+        TrafficEvent.log("FATAL >> UNKNOWN_ERROR")
     }
 }
 

@@ -1,18 +1,26 @@
 package com.example.igy
 
 import android.util.Log
+import android.os.Build
 
 object IgyNetwork {
     private var isLibLoaded = false
+    private const val TAG = "IgyNetwork"
 
     init {
-        try {
-            System.loadLibrary("igy_core")
-            isLibLoaded = true
-        } catch (e: UnsatisfiedLinkError) {
-            Log.e("IgyNetwork", "NATIVE_LIB_UNSATISFIED: ${e.message}")
-        } catch (t: Throwable) {
-            Log.e("IgyNetwork", "NATIVE_LIB_FATAL: ${t.message}")
+        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
+        if (abi.contains("arm64") || abi.contains("aarch64")) {
+            try {
+                System.loadLibrary("igy_core")
+                isLibLoaded = true
+                Log.i(TAG, "Native engine loaded successfully for $abi")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "Native library missing for $abi")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Native init fatal: ${t.message}")
+            }
+        } else {
+            Log.e(TAG, "CRITICAL: Device ABI $abi is NOT supported by current build.")
         }
     }
 
