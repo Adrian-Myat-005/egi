@@ -750,7 +750,6 @@ fun TerminalDashboard(
 
     var showManual by remember { mutableStateOf(false) }
     var currentSsid by remember { mutableStateOf<String?>(null) }
-    var isCurrentSsidTrusted by remember { mutableStateOf(false) }
     var isBatteryOptimized by remember { mutableStateOf(false) }
     var isStrictBlocking by remember { mutableStateOf(false) }
     var showLockdownDialog by remember { mutableStateOf(false) }
@@ -857,10 +856,8 @@ fun TerminalDashboard(
             val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
             if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
                 currentSsid = ssid
-                isCurrentSsidTrusted = IgyPreferences.getTrustedSSIDs(context).contains(ssid)
             } else {
                 currentSsid = null
-                isCurrentSsidTrusted = false
             }
             delay(5000)
         }
@@ -900,7 +897,7 @@ fun TerminalDashboard(
             ) {
                 Text(
                     text = if (currentSsid != null) "[ WIFI: $currentSsid ]" else "[ NO_WIFI ]",
-                    color = if (isCurrentSsidTrusted) Color(0xFF2E8B57) else Color(0xFFB8860B),
+                    color = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,

@@ -11,9 +11,6 @@ object IgyPreferences {
     private const val KEY_MODE = "app_mode"
     private const val KEY_FOCUS_TARGET = "focus_target"
     private const val KEY_CASUAL_WHITELIST = "casual_whitelist"
-    private const val KEY_TRUSTED_SSIDS = "trusted_ssids"
-    private const val KEY_GEOFENCING_ENABLED = "geofencing_enabled"
-    private const val KEY_BANDWIDTH_LIMIT = "bandwidth_limit"
     private const val KEY_SYNC_ENDPOINT = "sync_endpoint"
     private const val KEY_STEALTH_MODE = "stealth_mode"
     private const val KEY_VPN_TUNNEL_MODE = "vpn_tunnel_mode"
@@ -151,16 +148,6 @@ object IgyPreferences {
         return prefs.getBoolean(KEY_AUTO_START, false)
     }
 
-    fun setBandwidthLimit(context: Context, limit: Int) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_BANDWIDTH_LIMIT, limit).apply()
-    }
-
-    fun getBandwidthLimit(context: Context): Int {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getInt(KEY_BANDWIDTH_LIMIT, 0) // 0 = Unlimited
-    }
-
     fun saveSyncEndpoint(context: Context, url: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_SYNC_ENDPOINT, url).apply()
@@ -169,38 +156,6 @@ object IgyPreferences {
     fun getSyncEndpoint(context: Context): String? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_SYNC_ENDPOINT, null)
-    }
-
-    fun isGeofencingEnabled(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_GEOFENCING_ENABLED, false)
-    }
-
-    fun setGeofencingEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_GEOFENCING_ENABLED, enabled).apply()
-    }
-
-    fun saveTrustedSSIDs(context: Context, ssids: Set<String>) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putStringSet(KEY_TRUSTED_SSIDS, ssids).apply()
-    }
-
-    fun getTrustedSSIDs(context: Context): Set<String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getStringSet(KEY_TRUSTED_SSIDS, emptySet()) ?: emptySet()
-    }
-
-    fun addTrustedSSID(context: Context, ssid: String) {
-        val ssids = getTrustedSSIDs(context).toMutableSet()
-        ssids.add(ssid)
-        saveTrustedSSIDs(context, ssids)
-    }
-
-    fun removeTrustedSSID(context: Context, ssid: String) {
-        val ssids = getTrustedSSIDs(context).toMutableSet()
-        ssids.remove(ssid)
-        saveTrustedSSIDs(context, ssids)
     }
 
     fun getMode(context: Context): AppMode {

@@ -51,14 +51,6 @@
                 android:value="VPN service for network security and traffic analysis." />
         </service>
 
-        <receiver
-            android:name=".WifiReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.net.wifi.STATE_CHANGE" />
-            </intent-filter>
-        </receiver>
-
         <receiver android:name=".BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
