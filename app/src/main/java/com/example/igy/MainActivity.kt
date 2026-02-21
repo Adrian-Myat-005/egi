@@ -411,6 +411,10 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     authData = IgyPreferences.getAuth(context)
                                     status = "LOGGED_IN: ${result.username}"
+                                    // PRE-SYNC KEY
+                                    val currentId = IgyPreferences.getSelectedNodeId(context)
+                                    val key = fetchVpnConfig(serverUrl, result.token, currentId)
+                                    if (key != null) IgyPreferences.saveOutlineKey(context, key)
                                 } else {
                                     status = "AUTH_FAILED: RECHECK_DATA"
                                     Toast.makeText(context, "AUTH_FAILED", Toast.LENGTH_SHORT).show()
@@ -439,6 +443,10 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
                                     authData = IgyPreferences.getAuth(context)
                                     status = "LOGGED_IN: ${result.username}"
+                                    // PRE-SYNC KEY
+                                    val currentId = IgyPreferences.getSelectedNodeId(context)
+                                    val key = fetchVpnConfig(serverUrl, result.token, currentId)
+                                    if (key != null) IgyPreferences.saveOutlineKey(context, key)
                                 } else {
                                     status = "LOGIN_FAILED: RECHECK_DATA"
                                     Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()

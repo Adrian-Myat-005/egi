@@ -61,6 +61,22 @@ class IgyVpnService : VpnService(), Runnable {
 
     override fun run() {
         try {
+            // 1. REAL-TIME KEY SYNC (Ensures latest key from Admin Dashboard)
+            val (token, _, _) = IgyPreferences.getAuth(this)
+            val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
+            val nodeId = IgyPreferences.getSelectedNodeId(this)
+            
+            if (token.isNotEmpty()) {
+                TrafficEvent.log("CORE >> SYNCING_KEY...")
+                val latestKey = fetchVpnConfigSync(serverUrl, token, nodeId)
+                if (latestKey != null && latestKey.startsWith("ss://")) {
+                    IgyPreferences.saveOutlineKey(this, latestKey)
+                    TrafficEvent.log("CORE >> KEY_SYNC_SUCCESS")
+                } else {
+                    TrafficEvent.log("CORE >> SYNC_FAIL: USING_CACHE")
+                }
+            }
+
             val ssKey = IgyPreferences.getOutlineKey(this)
             val builder = Builder()
                 .setSession("IgyShield")
@@ -107,6 +123,21 @@ class IgyVpnService : VpnService(), Runnable {
         vpnInterface = null
         stopForeground(true)
         stopSelf()
+    }
+
+    private fun fetchVpnConfigSync(serverUrl: String, token: String, nodeId: Int): String? {
+        try {
+            val url = java.net.URL("$serverUrl/api/vpn/config${if (nodeId != -1) "?nodeId=$nodeId" else ""}")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (conn.responseCode == 200) {
+                val res = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                return res.getString("config")
+            }
+        } catch (e: Exception) {}
+        return null
     }
 
     private fun createNotificationChannel() {
