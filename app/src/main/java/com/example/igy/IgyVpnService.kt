@@ -34,9 +34,9 @@ class IgyVpnService : VpnService(), Runnable {
 
         try {
             createNotificationChannel()
-            // CRITICAL: Use a built-in Android drawable for the small icon.
-            // Using a mipmap icon as a small icon is a common cause of status bar crashes.
-            val notification = createNotification()
+            // Small icon MUST be a template drawable (white on transparent)
+            val iconRes = android.R.drawable.ic_menu_compass 
+            val notification = createNotification(iconRes)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
@@ -44,14 +44,13 @@ class IgyVpnService : VpnService(), Runnable {
                 startForeground(1, notification)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Foreground promotion failed", e)
-            TrafficEvent.log("CORE >> FG_SERVICE_ERR: ${e.message}")
+            Log.e(TAG, "Foreground error", e)
             stopSelf()
             return START_NOT_STICKY
         }
 
         if (prepare(this) != null) {
-            TrafficEvent.log("CORE >> PERMISSION_MISSING")
+            TrafficEvent.log("CORE >> PERMISSION_REQUIRED")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -70,51 +69,16 @@ class IgyVpnService : VpnService(), Runnable {
             vpnThread?.start()
             
             serviceScope.launch {
-                var lastSubCheck = 0L
-                val CHECK_INTERVAL = 4 * 60 * 60 * 1000L // 4 Hours
-
                 while (isActive) {
-                    val now = System.currentTimeMillis()
                     if (IgyNetwork.isAvailable()) {
                         try {
                             TrafficEvent.updateCount(IgyNetwork.getNativeBlockedCount())
                         } catch (e: Throwable) {}
                     }
-                    if (now - lastSubCheck >= CHECK_INTERVAL) {
-                        lastSubCheck = now
-                        checkSubscription()
-                    }
                     delay(3000)
                 }
             }
         }
-    }
-
-    private suspend fun checkSubscription() {
-        val (token, _, _) = IgyPreferences.getAuth(this)
-        val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
-        if (token.isNotEmpty()) {
-            val config = fetchVpnConfigSync(serverUrl, token)
-            if (config == "EXPIRED" || config == "UNAUTHORIZED") {
-                TrafficEvent.log("CORE >> SUBSCRIPTION_EXPIRED")
-                cleanupAndStop()
-            }
-        }
-    }
-
-    private fun fetchVpnConfigSync(serverUrl: String, token: String): String? {
-        try {
-            val url = java.net.URL("$serverUrl/api/vpn/config")
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            if (conn.responseCode == 200) {
-                return org.json.JSONObject(conn.inputStream.bufferedReader().readText()).getString("config")
-            } else if (conn.responseCode == 403) return "EXPIRED"
-            else if (conn.responseCode == 401) return "UNAUTHORIZED"
-        } catch (e: Exception) {}
-        return null
     }
 
     private fun cleanupAndStop() {
@@ -147,6 +111,7 @@ class IgyVpnService : VpnService(), Runnable {
         var ssKey = IgyPreferences.getOutlineKey(this)
         val allowLocal = IgyPreferences.getLocalBypass(this)
 
+        // DNS Resolve
         try {
             if (ssKey.startsWith("ss://")) {
                 val uri = java.net.URI(ssKey.split("#")[0])
@@ -156,7 +121,7 @@ class IgyVpnService : VpnService(), Runnable {
                     ssKey = ssKey.replace(host, address.hostAddress ?: host)
                 }
             }
-        } catch (e: Exception) { TrafficEvent.log("CORE >> DNS_ERR: ${e.message}") }
+        } catch (e: Exception) { Log.e(TAG, "DNS resolve fail", e) }
 
         val builder = Builder()
             .setSession("IgyShield")
@@ -173,9 +138,7 @@ class IgyVpnService : VpnService(), Runnable {
         builder.addDnsServer("1.1.1.1")
         builder.addDnsServer("8.8.8.8")
         
-        try {
-            builder.addDisallowedApplication(packageName)
-        } catch (e: Exception) {}
+        try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
         if (isStealth && !isGlobal && vipList.isNotEmpty()) {
             vipList.forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
@@ -183,26 +146,26 @@ class IgyVpnService : VpnService(), Runnable {
             vipList.forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
         }
 
-        TrafficEvent.log("CORE >> ESTABLISHING_TUN")
-        
-        // SECURITY GUARD: establish() can throw SecurityException if the system dialog was dismissed
-        try {
-            vpnInterface = builder.establish()
+        // CRITICAL GUARD: establish() MUST be caught specifically
+        vpnInterface = try {
+            builder.establish()
         } catch (e: Exception) {
-            Log.e(TAG, "Interface establish failed", e)
-            TrafficEvent.log("CORE >> ESTABLISH_FAILED: ${e.message}")
-            return
+            Log.e(TAG, "Establish failed", e)
+            null
         }
         
         if (vpnInterface == null) {
-            TrafficEvent.log("CORE >> INTERFACE_NULL")
+            TrafficEvent.log("CORE >> INTERFACE_FAIL")
             return
         }
 
         TrafficEvent.setVpnActive(true)
         TrafficEvent.log("CORE >> SHIELD_UP")
         
-        val fd = vpnInterface!!.fd
+        // DETACH FD: This is the secret to stability.
+        // It transfers total ownership of the FD to Rust and prevents Java GC closing it.
+        val fd = vpnInterface!!.detachFd()
+        
         if (IgyNetwork.isAvailable()) {
             try {
                 IgyNetwork.setAllowedDomains(IgyPreferences.getAllowedDomains(this))
@@ -213,11 +176,11 @@ class IgyVpnService : VpnService(), Runnable {
                     IgyNetwork.runPassiveShield(fd)
                 }
             } catch (e: Throwable) {
-                Log.e(TAG, "Native execution panic", e)
-                TrafficEvent.log("NATIVE >> FATAL_CORE_PANIC")
+                Log.e(TAG, "Native crash", e)
+                TrafficEvent.log("NATIVE >> ENGINE_PANIC")
             }
         } else {
-            TrafficEvent.log("CORE >> ENGINE_OFFLINE")
+            TrafficEvent.log("CORE >> ENGINE_MISSING")
             while (isServiceActive) { 
                 try { Thread.sleep(2000) } catch (e: InterruptedException) { break }
             }
@@ -232,16 +195,13 @@ class IgyVpnService : VpnService(), Runnable {
         }
     }
 
-    private fun createNotification(): Notification {
+    private fun createNotification(iconRes: Int): Notification {
         val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
-        
-        // STABILITY FIX: Use built-in system icon to avoid ResourceNotFoundException crashes
         return builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(android.R.drawable.ic_menu_compass) 
+            .setSmallIcon(iconRes)
             .setOngoing(true)
-            .setCategory(Notification.CATEGORY_SERVICE)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent).build()
     }
 

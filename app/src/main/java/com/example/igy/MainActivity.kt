@@ -776,21 +776,27 @@ fun TerminalDashboard(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             TrafficEvent.log("USER >> PERMISSION_GRANTED")
-            try {
-                val startIntent = Intent(context, IgyVpnService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(startIntent)
-                } else {
-                    context.startService(startIntent)
-                }
-            } catch (e: Exception) {
-                TrafficEvent.log("CORE >> START_ERR: ${e.message}")
-            }
+            startIgyVpnService(context)
             isBooting = false
         } else {
             TrafficEvent.log("USER >> PERMISSION_DENIED")
             isBooting = false
             Toast.makeText(context, "KERNEL ACCESS DENIED", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Permission request for Notifications (Android 13+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            TrafficEvent.log("USER >> NOTIF_PERMISSION_DECLINED")
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
