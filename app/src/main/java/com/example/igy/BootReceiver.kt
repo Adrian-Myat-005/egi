@@ -51,5 +51,10 @@ class BootReceiver : BroadcastReceiver() {
                 ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
             }
         }
+        
+        if (IgyPreferences.isAutoStartTriggerEnabled(context)) {
+            val autoIntent = Intent(context, AutoTriggerService::class.java)
+            context.startService(autoIntent)
+        }
     }
 }

@@ -21,6 +21,7 @@ pub struct SecureKey {
 lazy_static::lazy_static! {
     pub static ref OUTLINE_KEY: RwLock<SecureKey> = RwLock::new(SecureKey::default());
     pub static ref ALLOWED_DOMAINS: RwLock<Vec<String>> = RwLock::new(Vec::new());
+    pub static ref ALLOWED_UIDS: RwLock<Vec<u32>> = RwLock::new(Vec::new());
     pub static ref TOKIO_RT: Runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()

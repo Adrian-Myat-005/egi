@@ -43,7 +43,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN, ACCOUNT, SETTINGS
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN, ACCOUNT, SETTINGS, AUTO_START_PICKER
 }
 
 class MainActivity : ComponentActivity() {
@@ -149,13 +149,14 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                 onDnsLogConsumed = { dnsLogMessage = null }
             )
             Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL })
+            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL }, onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER })
+            Screen.AUTO_START_PICKER -> AutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
         }
     }
 }
 
 @Composable
-fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit) {
+fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit) {
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
@@ -187,6 +188,32 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             localBypass = it
             IgyPreferences.setLocalBypass(context, it)
         }
+        
+        var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
+        SettingsToggle("AUTO_START_ON_APP_OPEN", autoStartTrigger) { enabled ->
+            if (enabled) {
+                if (!hasUsageStatsPermission(context)) {
+                    val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                    context.startActivity(intent)
+                    Toast.makeText(context, "PLEASE_ENABLE_USAGE_ACCESS", Toast.LENGTH_LONG).show()
+                } else {
+                    autoStartTrigger = true
+                    IgyPreferences.setAutoStartTriggerEnabled(context, true)
+                    context.startService(Intent(context, AutoTriggerService::class.java))
+                }
+            } else {
+                autoStartTrigger = false
+                IgyPreferences.setAutoStartTriggerEnabled(context, false)
+                context.stopService(Intent(context, AutoTriggerService::class.java))
+            }
+        }
+
+        if (autoStartTrigger) {
+            TactileButton("[ CONFIGURE_AUTO_START_APPS ]", isDarkMode = isDarkMode, onClick = {
+                onOpenAutoStartPicker()
+            })
+        }
+
         TactileButton("[ SYSTEM_VPN_CONFIG ]", isDarkMode = isDarkMode, onClick = {
             context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
         })
@@ -247,6 +274,17 @@ private suspend fun checkForGithubUpdate(currentVersion: String): String? = with
         TrafficEvent.log("UPDATE >> ERR: ${e.message}")
     }
     null
+}
+
+private fun hasUsageStatsPermission(context: Context): Boolean {
+    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    } else {
+        @Suppress("DEPRECATION")
+        appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    }
+    return mode == android.app.AppOpsManager.MODE_ALLOWED
 }
 
 @Composable

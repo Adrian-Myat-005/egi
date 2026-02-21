@@ -26,6 +26,7 @@ object IgyNetwork {
     external fun toggleStealthMode(enabled: Boolean)
     external fun setOutlineKey(key: String)
     external fun setAllowedDomains(domains: String)
+    external fun setAllowedUids(uids: LongArray)
 
     fun isAvailable() = isLibLoaded
 

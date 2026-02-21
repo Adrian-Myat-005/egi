@@ -30,6 +30,28 @@ object IgyPreferences {
     private const val KEY_PREMIUM_EXPIRY = "premium_expiry"
     private const val KEY_DARK_MODE = "dark_mode"
     private const val KEY_SELECTED_NODE_ID = "selected_node_id"
+    private const val KEY_AUTO_START_TRIGGER = "auto_start_trigger"
+    private const val KEY_AUTO_START_APPS = "auto_start_apps"
+
+    fun isAutoStartTriggerEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_START_TRIGGER, false)
+    }
+
+    fun setAutoStartTriggerEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_START_TRIGGER, enabled).apply()
+    }
+
+    fun getAutoStartApps(context: Context): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getStringSet(KEY_AUTO_START_APPS, emptySet()) ?: emptySet()
+    }
+
+    fun setAutoStartApps(context: Context, apps: Set<String>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(KEY_AUTO_START_APPS, apps).apply()
+    }
 
     fun isDarkMode(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

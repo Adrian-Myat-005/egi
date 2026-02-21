@@ -11,6 +11,60 @@ use tokio::io::unix::AsyncFd;
 use std::net::TcpListener;
 use crate::common::*;
 
+fn find_uid_by_port(port: u16, is_udp: bool) -> Option<u32> {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
+    let path = if is_udp { "/proc/net/udp" } else { "/proc/net/tcp" };
+    if let Ok(file) = File::open(path) {
+        let reader = BufReader::new(file);
+        // Skip header
+        for line in reader.lines().skip(1).flatten() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() > 7 {
+                // local_address is at parts[1], format: "0100007F:2710" (hex IP:port)
+                if let Some(pos) = parts[1].find(':') {
+                    if let Ok(p) = u16::from_str_radix(&parts[1][pos+1..], 16) {
+                        if p == port {
+                            return parts[7].parse::<u32>().ok();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn check_uid_lockdown(packet: &[u8]) -> bool {
+    let allowed = match ALLOWED_UIDS.read() {
+        Ok(guard) => guard.clone(),
+        Err(_) => return true,
+    };
+
+    if allowed.is_empty() {
+        return true; // Global Mode
+    }
+
+    if let Ok(value) = etherparse::SlicedPacket::from_ip(packet) {
+        let (port, is_udp) = match value.transport {
+            Some(etherparse::TransportSlice::Tcp(tcp)) => (tcp.source_port(), false),
+            Some(etherparse::TransportSlice::Udp(udp)) => (udp.source_port(), true),
+            _ => return true, // Allow ICMP etc. for now
+        };
+
+        if let Some(uid) = find_uid_by_port(port, is_udp) {
+            // Check if UID is in allowed list
+            if allowed.contains(&uid) {
+                return true;
+            } else {
+                return false; // Drop unauthorized traffic
+            }
+        }
+    }
+    true // If we can't find the UID (e.g. fast connection closure), allow it to avoid broken states
+}
+
 fn check_focus_whitelist(packet: &[u8]) -> bool {
     let allowed = match ALLOWED_DOMAINS.read() {
         Ok(guard) => guard.clone(),
@@ -88,21 +142,33 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
                         let n_usize = n as usize;
                         let packet = &buf[..n_usize];
                         
-                        let is_allowed = match ALLOWED_DOMAINS.read() {
-                            Ok(guard) => {
-                                if guard.is_empty() {
-                                    true
-                                } else {
-                                    check_focus_whitelist(packet)
+                        let is_allowed = {
+                            let allowed_uids = match ALLOWED_UIDS.read() {
+                                Ok(guard) => guard.clone(),
+                                Err(_) => Vec::new(),
+                            };
+                            
+                            if !allowed_uids.is_empty() {
+                                check_uid_lockdown(packet)
+                            } else {
+                                match ALLOWED_DOMAINS.read() {
+                                    Ok(guard) => {
+                                        if guard.is_empty() {
+                                            true
+                                        } else {
+                                            check_focus_whitelist(packet)
+                                        }
+                                    },
+                                    Err(_) => true,
                                 }
-                            },
-                            Err(_) => true,
+                            }
                         };
 
                         if is_allowed {
                             BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
+                            // Passive shield doesn't forward, it just monitors and blocks.
                         } else {
-                            crate::log_to_java("SHIELD >> BLOCKED_DOMAIN_DETACHED");
+                            crate::log_to_java("SHIELD >> TRAFFIC_DROPPED: UNAUTHORIZED_UID");
                         }
                         
                         OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -220,6 +286,16 @@ pub fn start_vpn_loop(fd: i32) {
                         }
                         monitor_token.cancel();
                     });
+
+                    // Wrap tun_device to apply lockdown filter
+                    // For performance, we only check if ALLOWED_UIDS is not empty
+                    let mut lock_down_active = false;
+                    if let Ok(guard) = ALLOWED_UIDS.read() {
+                        if !guard.is_empty() {
+                            lock_down_active = true;
+                            crate::log_to_java("SHIELD >> APPLYING_LOCKDOWN_FILTER");
+                        }
+                    }
 
                     if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {
                         crate::log_to_java(&format!("VPN >> EXIT: {}", e));

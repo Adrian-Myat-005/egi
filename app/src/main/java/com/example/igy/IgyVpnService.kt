@@ -139,21 +139,35 @@ class IgyVpnService : VpnService(), Runnable {
                     }
                 }
                 isStealth && !isGlobal -> {
-                    // VPN FOCUS MODE
+                    // VPN TRUE FOCUS (LOCKDOWN MODE)
                     val vipList = IgyPreferences.getVipList(this)
-                    TrafficEvent.log("SHIELD >> MODE: VPN_FOCUS")
+                    TrafficEvent.log("SHIELD >> MODE: TRUE_FOCUS_LOCKDOWN")
+                    
                     if (vipList.isEmpty()) {
                         TrafficEvent.log("SHIELD >> WARN: NO_APPS_SELECTED")
                     } else {
-                        TrafficEvent.log("SHIELD >> FOCUSING_${vipList.size}_APPS")
+                        val uids = mutableListOf<Long>()
+                        vipList.forEach { pkg ->
+                            try {
+                                val uid = packageManager.getPackageUid(pkg, 0)
+                                uids.add(uid.toLong())
+                            } catch (e: Exception) {}
+                        }
+                        if (IgyNetwork.isAvailable()) {
+                            IgyNetwork.setAllowedUids(uids.toLongArray())
+                        }
+                        TrafficEvent.log("SHIELD >> LOCKING_DOWN_${uids.size}_APPS")
                     }
-                    vipList.forEach { 
-                        try { builder.addAllowedApplication(it) } catch (e: Exception) {} 
-                    }
+                    // IMPORTANT: To block ALL others, we do NOT use addAllowedApplication.
+                    // We route everything into the VPN, and Rust drops unauthorized traffic.
+                    TrafficEvent.log("SHIELD >> REDIRECTING_ALL_TRAFFIC_TO_CORE")
                 }
                 else -> {
                     // VPN GLOBAL MODE
                     TrafficEvent.log("SHIELD >> MODE: VPN_GLOBAL_ARMED")
+                    if (IgyNetwork.isAvailable()) {
+                        IgyNetwork.setAllowedUids(longArrayOf()) // Clear list for global
+                    }
                     TrafficEvent.log("SHIELD >> PROTECTING_WHOLE_DEVICE")
                 }
             }

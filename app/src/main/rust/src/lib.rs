@@ -96,6 +96,24 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedDomains(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedUids(
+    mut env: JNIEnv,
+    _class: JClass,
+    uids: jlongArray,
+) {
+    if let Ok(len) = env.get_array_length(&uids) {
+        let mut uids_vec = vec![0i64; len as usize];
+        if let Ok(_) = env.get_long_array_region(&uids, 0, &mut uids_vec) {
+            let uids_u32: Vec<u32> = uids_vec.into_iter().map(|uid| uid as u32).collect();
+            if let Ok(mut allowed) = ALLOWED_UIDS.write() {
+                *allowed = uids_u32;
+                crate::log_to_java(&format!("SHIELD >> SYNC_FOCUS_LIST: {}_UIDS", len));
+            }
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_example_igy_IgyNetwork_getCoreHealth(
     env: JNIEnv,
     _class: JClass,
