@@ -189,6 +189,32 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             IgyPreferences.setLocalBypass(context, it)
         }
         
+        // --- TACTICAL TIP: ALWAYS-ON ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .background(cardBg.copy(alpha = 0.5f))
+                .border(0.5.dp, Color(0xFFB8860B), RoundedCornerShape(4.dp))
+                .padding(8.dp)
+        ) {
+            Column {
+                Text("TACTICAL_TIP: FULL_SECURITY", color = Color(0xFFB8860B), fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Text("Enable 'Always-on VPN' and 'Block connections without VPN' in system settings to prevent data leaks.", 
+                    color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        TactileButton("[ CONFIGURE_ALWAYS_ON_VPN ]", isDarkMode = isDarkMode, onClick = {
+            try {
+                // Try to open the VPN settings directly
+                val intent = Intent("android.net.vpn.SETTINGS")
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+            }
+        })
+
         var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
         SettingsToggle("AUTO_START_ON_APP_OPEN", autoStartTrigger) { enabled ->
             if (enabled) {
