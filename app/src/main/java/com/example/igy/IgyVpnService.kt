@@ -128,14 +128,30 @@ class IgyVpnService : VpnService(), Runnable {
             val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
             val vipList = IgyPreferences.getVipList(this)
 
-            if (isStealth && !isGlobal && vipList.isNotEmpty()) {
-                TrafficEvent.log("SHIELD >> FOCUS_MODE: ACTIVE")
-                vipList.forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
-            } else if (!isStealth && vipList.isNotEmpty()) {
-                TrafficEvent.log("SHIELD >> BYPASS_MODE: ACTIVE")
-                vipList.forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
-            } else {
-                TrafficEvent.log("SHIELD >> VPN_SHIELD: ACTIVE")
+            // --- MODE SELECTION & ROUTING ---
+            when {
+                !isStealth -> {
+                    // BYPASS MODE (Firewall)
+                    TrafficEvent.log("SHIELD >> BYPASS_MODE: ACTIVE")
+                    TrafficEvent.log("SHIELD >> SILENCING_BACKGROUND_DATA")
+                    vipList.forEach { 
+                        try { builder.addDisallowedApplication(it) } catch (e: Exception) {} 
+                    }
+                }
+                isStealth && !isGlobal -> {
+                    // VPN FOCUS MODE
+                    TrafficEvent.log("SHIELD >> FOCUS_MODE: ACTIVE")
+                    if (vipList.isEmpty()) {
+                        TrafficEvent.log("SHIELD >> WARN: NO_APPS_SELECTED")
+                    }
+                    vipList.forEach { 
+                        try { builder.addAllowedApplication(it) } catch (e: Exception) {} 
+                    }
+                }
+                else -> {
+                    // VPN GLOBAL MODE
+                    TrafficEvent.log("SHIELD >> VPN_SHIELD_GLOBAL: ACTIVE")
+                }
             }
 
             vpnInterface = builder.establish()
@@ -152,10 +168,17 @@ class IgyVpnService : VpnService(), Runnable {
             if (IgyNetwork.isAvailable()) {
                 IgyNetwork.setAllowedDomains(IgyPreferences.getAllowedDomains(this))
                 IgyNetwork.setOutlineKey(ssKey)
-                if (ssKey.isNotEmpty()) {
+
+                if (!isStealth) {
+                    // BYPASS MODE: Always use Passive Shield (to swallow background traffic)
+                    TrafficEvent.log("CORE >> FIREWALL_ACTIVE")
+                    IgyNetwork.runPassiveShield(fd)
+                } else if (ssKey.isNotEmpty()) {
+                    // VPN MODES (Global/Focus): Use VpnLoop if key is present
                     IgyNetwork.runVpnLoop(fd)
                 } else {
-                    TrafficEvent.log("CORE >> PASSIVE_MODE")
+                    // Fallback to Passive Shield if no key is found
+                    TrafficEvent.log("CORE >> PASSIVE_MODE: NO_KEY")
                     IgyNetwork.runPassiveShield(fd)
                 }
             } else {
