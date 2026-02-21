@@ -43,7 +43,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, WIFI_RADAR, ROUTER_ADMIN, ACCOUNT, SETTINGS, AUTO_START_PICKER
+    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, ACCOUNT, SETTINGS, AUTO_START_PICKER
 }
 
 class MainActivity : ComponentActivity() {
@@ -69,7 +69,6 @@ class MainActivity : ComponentActivity() {
 fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     var currentScreen by remember { mutableStateOf(Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
-    var gatewayIp by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -124,24 +123,10 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                 currentScreen = Screen.TERMINAL
             })
             Screen.APP_SELECTOR -> AppSelectorScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.WIFI_RADAR -> WifiScanScreen(isDarkMode,
-                onBack = { currentScreen = Screen.TERMINAL },
-                onNavigateToRouter = { ip ->
-                    gatewayIp = ip
-                    currentScreen = Screen.ROUTER_ADMIN
-                }
-            )
-            Screen.ROUTER_ADMIN -> {
-                RouterAdminScreen(isDarkMode,
-                    gatewayIp = gatewayIp,
-                    onBack = { currentScreen = Screen.WIFI_RADAR }
-                )
-            }
             Screen.TERMINAL -> TerminalDashboard(isDarkMode,
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
                 onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
-                onOpenWifiRadar = { currentScreen = Screen.WIFI_RADAR },
                 onOpenAccount = { currentScreen = Screen.ACCOUNT },
                 onOpenSettings = { currentScreen = Screen.SETTINGS },
                 onShowLogs = { showLogs = true },
@@ -731,7 +716,6 @@ fun TerminalDashboard(
     onOpenAppPicker: () -> Unit,
     onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
-    onOpenWifiRadar: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,
     onShowLogs: () -> Unit,
@@ -834,16 +818,6 @@ fun TerminalDashboard(
                     currentPing = -1
                 }
             }
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true) {
-            onOpenWifiRadar()
-        } else {
-            Toast.makeText(context, "Radar requires Location to scan", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1026,17 +1000,6 @@ fun TerminalDashboard(
                     if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY BYPASS", Toast.LENGTH_SHORT).show()
                     onOpenAppSelector()
                 }
-                GridButton("[ NETWORK_RADAR ]", isDarkMode, Modifier.weight(1f)) {
-                    val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
-                    if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        onOpenWifiRadar()
-                    } else {
-                        permissionLauncher.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION))
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("[ CONSOLE_LOGS ]", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
                 GridButton(
                     text = if (isStealthMode && isVpnTunnelGlobal) "[ VPN GLOBAL: ACTIVE ]" else "[ VPN GLOBAL ]",
                     isDarkMode = isDarkMode,
@@ -1052,10 +1015,26 @@ fun TerminalDashboard(
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
+                GridButton("[ CONSOLE_LOGS ]", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
+                GridButton(
+                    text = if (isStealthMode && !isVpnTunnelGlobal) "[ VPN FOCUS: ACTIVE ]" else "[ VPN FOCUS ]",
+                    isDarkMode = isDarkMode,
+                    modifier = Modifier.weight(1f),
+                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57)
+                ) {
+                    isStealthMode = true
+                    isVpnTunnelGlobal = false
+                    IgyPreferences.setStealthMode(context, true)
+                    IgyPreferences.setVpnTunnelMode(context, false)
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY FOCUS", Toast.LENGTH_SHORT).show()
+                    onOpenAppPicker()
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
                     text = if (isBatteryOptimized) "[ BATTERY: OK ]" else "[ BATTERY: RESTRICTED ]",
                     isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.weight(1f),
                     color = if (isBatteryOptimized) Color(0xFF2E8B57) else Color.Red
                 ) {
                     val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
@@ -1073,20 +1052,7 @@ fun TerminalDashboard(
                         Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
                     }
                 }
-                GridButton(
-                    text = if (isStealthMode && !isVpnTunnelGlobal) "[ VPN FOCUS: ACTIVE ]" else "[ VPN FOCUS ]",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1.4f),
-                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57)
-                ) {
-                    isStealthMode = true
-                    isVpnTunnelGlobal = false
-                    IgyPreferences.setStealthMode(context, true)
-                    IgyPreferences.setVpnTunnelMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY FOCUS", Toast.LENGTH_SHORT).show()
-                    onOpenAppPicker()
-                }
-                GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(0.8f)) { 
+                GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(1f)) { 
                     TrafficEvent.log("CORE >> INITIATING_DEEP_REPAIR...")
                     TrafficEvent.updateCount(0)
                     scope.launch {

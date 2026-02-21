@@ -1,7 +1,6 @@
 mod common;
 mod vpn;
 mod stats;
-mod scanner;
 #[cfg(test)]
 mod tests;
 
@@ -224,16 +223,5 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_measureNetworkStats(
 ) -> jstring {
     let ip: String = env.get_string(&target_ip).map(|s| s.into()).unwrap_or_default();
     let result = stats::measure_stats(ip);
-    env.new_string(result).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
-}
-
-#[no_mangle]
-pub extern "system" fn Java_com_example_igy_IgyNetwork_scanSubnet(
-    mut env: JNIEnv,
-    _class: JClass,
-    base_ip: JString,
-) -> jstring {
-    let ip: String = env.get_string(&base_ip).map(|s| s.into()).unwrap_or_default();
-    let result = scanner::scan_subnet(ip);
     env.new_string(result).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
 }

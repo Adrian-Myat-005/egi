@@ -21,9 +21,6 @@ object IgyPreferences {
     private const val KEY_LOCAL_BYPASS = "local_bypass"
     private const val KEY_AUTO_START = "auto_start"
     private const val KEY_ALLOWED_DOMAINS = "allowed_domains"
-    private const val KEY_ROUTER_USER = "router_user"
-    private const val KEY_ROUTER_PASS = "router_pass"
-    private const val KEY_ROUTER_BRAND = "router_brand"
     private const val KEY_AUTH_TOKEN = "auth_token"
     private const val KEY_USERNAME = "username"
     private const val KEY_IS_PREMIUM = "is_premium"
@@ -89,32 +86,6 @@ object IgyPreferences {
             remove(KEY_IS_PREMIUM)
             remove(KEY_PREMIUM_EXPIRY)
         }.apply()
-    }
-
-    fun saveRouterCredentials(context: Context, user: String, pass: String, brand: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putString(KEY_ROUTER_USER, SecurityUtils.encrypt(user))
-            putString(KEY_ROUTER_PASS, SecurityUtils.encrypt(pass))
-            putString(KEY_ROUTER_BRAND, brand)
-        }.apply()
-    }
-
-    fun getRouterCredentials(context: Context): Triple<String, String, String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val userEnc = prefs.getString(KEY_ROUTER_USER, "") ?: ""
-        val passEnc = prefs.getString(KEY_ROUTER_PASS, "") ?: ""
-        val brand = prefs.getString(KEY_ROUTER_BRAND, "Generic") ?: "Generic"
-        
-        return try {
-            Triple(
-                if (userEnc.isNotEmpty()) SecurityUtils.decrypt(userEnc) else "",
-                if (passEnc.isNotEmpty()) SecurityUtils.decrypt(passEnc) else "",
-                brand
-            )
-        } catch (e: Exception) {
-            Triple("", "", "Generic")
-        }
     }
 
     fun saveMode(context: Context, mode: AppMode) {
