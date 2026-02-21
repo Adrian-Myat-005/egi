@@ -13,15 +13,18 @@ import java.util.*
 class AutoTriggerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var job: Job? = null
-    private var wasAutoStarted = false // Track if we started the VPN
+    
+    // Track if we auto-started the VPN to avoid closing it if manually started
+    @Volatile private var wasAutoStarted = false 
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (job == null || !job!!.isActive) {
+            TrafficEvent.log("AUTO >> MONITOR_INITIATED")
             startMonitoring()
         }
-        return START_STICKY
+        return START_STICKY // Ensure service restarts if killed
     }
 
     private fun startMonitoring() {
@@ -37,30 +40,34 @@ class AutoTriggerService : Service() {
 
                     if (currentApp != null && currentApp != packageName) {
                         if (triggerApps.contains(currentApp)) {
-                            // TARGET APP OPENED
+                            // --- TARGET APP DETECTED ---
                             if (!isVpnRunning) {
-                                TrafficEvent.log("AUTO >> TRIGGERED_BY: $currentApp")
+                                TrafficEvent.log("AUTO >> TARGET_DETECTED: $currentApp")
                                 startVpn()
                                 wasAutoStarted = true
                             }
                         } else {
-                            // OTHER APP OR HOME OPENED
+                            // --- OTHER APP OR HOME ---
                             if (isVpnRunning && wasAutoStarted) {
-                                TrafficEvent.log("AUTO >> TARGET_CLOSED: STOPPING_SHIELD")
+                                TrafficEvent.log("AUTO >> TARGET_LEFT: STOPPING_TUNNEL")
                                 stopVpn()
+                                wasAutoStarted = false // CRITICAL: Reset state for next open
+                            } else if (!isVpnRunning) {
+                                // Ensure state is reset even if VPN was closed manually
                                 wasAutoStarted = false
                             }
                         }
                     }
                 }
-                delay(1500) // Slightly faster loop for better response
+                delay(1200) // Optimal balance between battery and speed
             }
         }
     }
 
     private fun getForegroundApp(usm: UsageStatsManager): String? {
         val time = System.currentTimeMillis()
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 10, time)
+        // Increase time window to 15 seconds to avoid empty stats on quick switches
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 15, time)
         if (stats != null && stats.isNotEmpty()) {
             val sortedStats = stats.sortedByDescending { it.lastTimeUsed }
             return sortedStats[0].packageName
@@ -69,24 +76,20 @@ class AutoTriggerService : Service() {
     }
 
     private fun startVpn() {
-        // 1. Check if VPN is actually authorized (User might have revoked it)
-        val vpnIntent = android.net.VpnService.prepare(this)
-        if (vpnIntent != null) {
-            TrafficEvent.log("AUTO >> ERR: VPN_UNAUTHORIZED")
-            // In a real app, we'd show a notification here.
-            return
-        }
-
         try {
-            TrafficEvent.log("AUTO >> INITIALIZING_SHIELD_TUNNEL")
-            val intent = Intent(this, IgyVpnService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
+            // Check if already authorized
+            if (android.net.VpnService.prepare(this) == null) {
+                val intent = Intent(this, IgyVpnService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
             } else {
-                startService(intent)
+                TrafficEvent.log("AUTO >> ERR: VPN_REAUTHORIZATION_NEEDED")
             }
         } catch (e: Exception) {
-            Log.e("AutoTrigger", "Failed to start VPN", e)
+            Log.e("AutoTrigger", "Start fail", e)
         }
     }
 
@@ -97,11 +100,17 @@ class AutoTriggerService : Service() {
             }
             startService(intent)
         } catch (e: Exception) {
-            Log.e("AutoTrigger", "Failed to stop VPN", e)
+            Log.e("AutoTrigger", "Stop fail", e)
         }
     }
 
     override fun onDestroy() {
+        serviceScope.cancel()
+        job = null
+        TrafficEvent.log("AUTO >> MONITOR_STOPPED")
+        super.onDestroy()
+    }
+}
         serviceScope.cancel()
         super.onDestroy()
     }
