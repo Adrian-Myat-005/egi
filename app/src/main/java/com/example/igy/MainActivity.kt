@@ -1108,55 +1108,42 @@ private fun handleExecuteToggle(
 ) {
     if (isBooting) return
     
-    try {
-        if (isSecure || IgyVpnService.isRunning) {
-            TrafficEvent.log("USER >> STOPPING_SHIELD")
-            context.startService(Intent(context, IgyVpnService::class.java).apply { 
-                action = IgyVpnService.ACTION_STOP 
-            })
-            // Redirect to system settings only if necessary
-            try {
-                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).apply { 
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK 
-                })
-            } catch (e: Exception) {}
+    val currentIsRunning = IgyVpnService.isRunning
+    if (currentIsRunning) {
+        TrafficEvent.log("USER >> REQUEST_SHUTDOWN")
+        context.startService(Intent(context, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP })
+        return
+    }
+
+    // Validation
+    val vipList = IgyPreferences.getVipList(context)
+    if (!isGlobal && vipList.isEmpty() && isStealthMode) {
+        Toast.makeText(context, "PICK A FOCUS APP!", Toast.LENGTH_SHORT).show()
+        onOpenAppPicker()
+        return
+    }
+
+    setBooting(true)
+    TrafficEvent.log("USER >> INITIATING_BOOT")
+
+    CoroutineScope(Dispatchers.Main).launch {
+        val intent = VpnService.prepare(context)
+        if (intent != null) {
+            vpnLauncher.launch(intent)
         } else {
-            // Validation
-            val vipList = IgyPreferences.getVipList(context)
-            if (!isGlobal && vipList.isEmpty() && isStealthMode) {
-                Toast.makeText(context, "PICK A FOCUS APP!", Toast.LENGTH_SHORT).show()
-                onOpenAppPicker()
-                return
-            }
-
-            setBooting(true)
-            TrafficEvent.log("USER >> PREPARING_KERNEL")
-
-            // Atomic Activation
-            CoroutineScope(Dispatchers.Main).launch {
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    vpnLauncher.launch(intent)
+            try {
+                val startIntent = Intent(context, IgyVpnService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(startIntent)
                 } else {
-                    try {
-                        val startIntent = Intent(context, IgyVpnService::class.java)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            context.startForegroundService(startIntent)
-                        } else {
-                            context.startService(startIntent)
-                        }
-                    } catch (e: Exception) {
-                        TrafficEvent.log("CORE >> START_FAIL")
-                    }
+                    context.startService(startIntent)
                 }
-                // Delay booting reset to allow OS to respond
-                delay(1500)
-                setBooting(false)
+            } catch (e: Exception) {
+                TrafficEvent.log("CORE >> START_FAIL")
             }
         }
-    } catch (e: Exception) {
+        delay(1500)
         setBooting(false)
-        TrafficEvent.log("FATAL >> UNKNOWN_ERROR")
     }
 }
 
