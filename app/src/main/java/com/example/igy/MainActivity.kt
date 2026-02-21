@@ -959,6 +959,7 @@ fun TerminalDashboard(
                 ) {
                     isStealthMode = false
                     IgyPreferences.setStealthMode(context, false)
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY BYPASS", Toast.LENGTH_SHORT).show()
                     onOpenAppSelector()
                 }
                 GridButton("[ NETWORK_RADAR ]", isDarkMode, Modifier.weight(1f)) {
@@ -982,6 +983,7 @@ fun TerminalDashboard(
                     isVpnTunnelGlobal = true
                     IgyPreferences.setStealthMode(context, true)
                     IgyPreferences.setVpnTunnelMode(context, true)
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY GLOBAL", Toast.LENGTH_SHORT).show()
                     TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
                 }
             }
@@ -1017,6 +1019,7 @@ fun TerminalDashboard(
                     isVpnTunnelGlobal = false
                     IgyPreferences.setStealthMode(context, true)
                     IgyPreferences.setVpnTunnelMode(context, false)
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY FOCUS", Toast.LENGTH_SHORT).show()
                     onOpenAppPicker()
                 }
                 GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(0.8f)) { 
@@ -1173,7 +1176,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
                     ManualSection("1. HOW TO CONNECT", "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\nMM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။")
-                    ManualSection("2. THREE MODES EXPLAINED", "• VPN SHIELD: Protects everything on your phone.\n• FOCUS MODE: Only protects the apps you choose.\n• BYPASS MODE: Protects everything EXCEPT your chosen apps.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား၊ app တစ်ခုချင်းသုံးမလား စိတ်ကြိုက်ရွေးပါ။")
+                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN GLOBAL]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN FOCUS]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [BYPASS MODE]: INTERCEPTS everyone except VIP apps to block background data. Best for saving battery/data.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (GLOBAL)၊ app တစ်ခုချင်းသုံးမလား (FOCUS) စိတ်ကြိုက်ရွေးပါ။")
                     ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
                     ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the [REPAIR] button on the main screen.\nMM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။")
                 }

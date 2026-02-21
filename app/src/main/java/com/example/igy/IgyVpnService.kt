@@ -126,23 +126,26 @@ class IgyVpnService : VpnService(), Runnable {
 
             val isStealth = IgyPreferences.isStealthMode(this)
             val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
-            val vipList = IgyPreferences.getVipList(this)
 
             // --- MODE SELECTION & ROUTING ---
             when {
                 !isStealth -> {
                     // BYPASS MODE (Firewall)
-                    TrafficEvent.log("SHIELD >> BYPASS_MODE: ACTIVE")
-                    TrafficEvent.log("SHIELD >> SILENCING_BACKGROUND_DATA")
+                    val vipList = IgyPreferences.getVipList(this)
+                    TrafficEvent.log("SHIELD >> MODE: BYPASS_FIREWALL")
+                    TrafficEvent.log("SHIELD >> BYPASSING_${vipList.size}_VIP_APPS")
                     vipList.forEach { 
                         try { builder.addDisallowedApplication(it) } catch (e: Exception) {} 
                     }
                 }
                 isStealth && !isGlobal -> {
                     // VPN FOCUS MODE
-                    TrafficEvent.log("SHIELD >> FOCUS_MODE: ACTIVE")
+                    val vipList = IgyPreferences.getVipList(this)
+                    TrafficEvent.log("SHIELD >> MODE: VPN_FOCUS")
                     if (vipList.isEmpty()) {
                         TrafficEvent.log("SHIELD >> WARN: NO_APPS_SELECTED")
+                    } else {
+                        TrafficEvent.log("SHIELD >> FOCUSING_${vipList.size}_APPS")
                     }
                     vipList.forEach { 
                         try { builder.addAllowedApplication(it) } catch (e: Exception) {} 
@@ -150,7 +153,8 @@ class IgyVpnService : VpnService(), Runnable {
                 }
                 else -> {
                     // VPN GLOBAL MODE
-                    TrafficEvent.log("SHIELD >> VPN_SHIELD_GLOBAL: ACTIVE")
+                    TrafficEvent.log("SHIELD >> MODE: VPN_GLOBAL_ARMED")
+                    TrafficEvent.log("SHIELD >> PROTECTING_WHOLE_DEVICE")
                 }
             }
 
