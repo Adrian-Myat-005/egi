@@ -5,18 +5,26 @@ mod scanner;
 #[cfg(test)]
 mod tests;
 
-use jni::objects::{JClass, JString, JValue};
+use jni::objects::{JClass, JString, JValue, GlobalRef};
 use jni::{JNIEnv, JavaVM};
 use jni::sys::{jstring, jlong, jint, jboolean};
 use std::sync::atomic::Ordering;
 use crate::common::*;
 
 static mut JVM: Option<JavaVM> = None;
+static mut CLASS_REF: Option<GlobalRef> = None;
 
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> jint {
     unsafe {
-        JVM = Some(vm);
+        JVM = Some(vm.clone());
+        if let Ok(mut env) = vm.get_env() {
+            if let Ok(class) = env.find_class("com/example/igy/IgyNetwork") {
+                if let Ok(global_ref) = env.new_global_ref(class) {
+                    CLASS_REF = Some(global_ref);
+                }
+            }
+        }
     }
     jni::sys::JNI_VERSION_1_6
 }
@@ -24,16 +32,21 @@ pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> ji
 pub fn log_to_java(msg: &str) {
     unsafe {
         if let Some(ref vm) = JVM {
+            // Attach the current thread if not already attached
             if let Ok(mut env) = vm.attach_current_thread() {
-                if let Ok(class) = env.find_class("com/example/igy/IgyNetwork") {
+                if let Some(ref class_ref) = CLASS_REF {
                     if let Ok(msg_jstring) = env.new_string(msg) {
                         let _ = env.call_static_method(
-                            class,
+                            class_ref,
                             "nativeLog",
                             "(Ljava/lang/String;)V",
                             &[JValue::from(&msg_jstring)],
                         );
                     }
+                }
+                // Always clear exceptions to prevent the JNI boundary from crashing
+                if env.exception_check().unwrap_or(false) {
+                    let _ = env.exception_clear();
                 }
             }
         }

@@ -106,10 +106,90 @@ fn find_free_port() -> Option<u16> {
         .ok()
 }
 
+fn set_nonblocking(fd: RawFd) -> std::io::Result<()> {
+    unsafe {
+        let flags = libc::fcntl(fd, libc::F_GETFL);
+        if flags < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+pub async fn run_passive_shield_internal(fd: RawFd) {
+    CORE_STATUS.store(2, Ordering::SeqCst);
+    crate::log_to_java("VPN >> PASSIVE_SHIELD_UP");
+    
+    if let Err(e) = set_nonblocking(fd) {
+        crate::log_to_java(&format!("VPN >> ERR_NONBLOCK: {}", e));
+    }
+
+    let async_fd = match AsyncFd::new(fd) {
+        Ok(afd) => afd,
+        Err(e) => {
+            crate::log_to_java(&format!("VPN >> PASSIVE_ERR: {}", e));
+            CORE_STATUS.store(3, Ordering::SeqCst);
+            return;
+        }
+    };
+
+    let mut buf = vec![0u8; 16384];
+    loop {
+        if CORE_STATUS.load(Ordering::SeqCst) == 0 { break; }
+        match async_fd.readable().await {
+            Ok(mut guard) => {
+                match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
+                    n if n > 0 => {
+                        let n_usize = n as usize;
+                        let packet = &buf[..n_usize];
+                        
+                        let is_allowed = match ALLOWED_DOMAINS.read() {
+                            Ok(guard) => {
+                                if guard.is_empty() {
+                                    true
+                                } else {
+                                    check_focus_whitelist(packet)
+                                }
+                            },
+                            Err(_) => true,
+                        };
+
+                        if is_allowed {
+                            BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
+                        } else {
+                            crate::log_to_java("SHIELD >> BLOCKED_DOMAIN_DETACHED");
+                        }
+                        
+                        OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
+                        guard.clear_ready();
+                    }
+                    0 => break,
+                    _ => {
+                        let err = std::io::Error::last_os_error();
+                        if err.kind() != std::io::ErrorKind::WouldBlock {
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    crate::log_to_java("VPN >> PASSIVE_SHIELD_DOWN");
+    CORE_STATUS.store(0, Ordering::SeqCst);
+}
+
 pub fn start_vpn_loop(fd: i32) {
     CORE_STATUS.store(1, Ordering::SeqCst);
     crate::log_to_java("VPN >> STARTING_LOOP");
     
+    if let Err(e) = set_nonblocking(fd) {
+        crate::log_to_java(&format!("VPN >> WARN_NONBLOCK: {}", e));
+    }
+
     TOKIO_RT.block_on(async {
         let secure_key = match OUTLINE_KEY.read() {
             Ok(guard) => guard.clone(),
@@ -157,17 +237,13 @@ pub fn start_vpn_loop(fd: i32) {
 
         // Wait for SOCKS5 proxy to be ready with retries
         let mut proxy_ready = false;
-        for i in 1..=5 {
-            tokio::time::sleep(Duration::from_millis(200 * i)).await;
-            match tokio::net::TcpStream::connect(local_addr_str.clone()).await {
-                Ok(_) => {
-                    proxy_ready = true;
-                    break;
-                }
-                Err(_) => {
-                    crate::log_to_java(&format!("VPN >> RETRYING_SOCKS5_CONN ({}/5)", i));
-                }
+        for i in 1..=10 {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            if tokio::net::TcpStream::connect(local_addr_str.clone()).await.is_ok() {
+                proxy_ready = true;
+                break;
             }
+            crate::log_to_java(&format!("VPN >> WAITING_FOR_SOCKS5 ({}/10)", i));
         }
 
         if !proxy_ready {
@@ -190,21 +266,17 @@ pub fn start_vpn_loop(fd: i32) {
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
-                    args.dns = ArgDns::Virtual; // Absolute stability: handle DNS internally
+                    args.dns = ArgDns::Virtual;
                     args.verbosity = ArgVerbosity::Off;
                     
-                    crate::log_to_java("VPN >> ENGINE_READY (MTU: 1280)");
+                    crate::log_to_java("VPN >> ENGINE_READY");
 
-                    // Simple heartbeat monitor
                     let monitor_token = token.clone();
                     tokio::spawn(async move {
-                        loop {
-                            tokio::time::sleep(Duration::from_secs(60)).await;
-                            if CORE_STATUS.load(Ordering::SeqCst) == 0 {
-                                monitor_token.cancel();
-                                break;
-                            }
+                        while CORE_STATUS.load(Ordering::SeqCst) != 0 {
+                            tokio::time::sleep(Duration::from_secs(5)).await;
                         }
+                        monitor_token.cancel();
                     });
 
                     if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {

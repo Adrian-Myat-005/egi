@@ -110,13 +110,6 @@ class IgyVpnService : VpnService(), Runnable {
 
             val ssKey = IgyPreferences.getOutlineKey(this)
             
-            // Safety: Don't blackhole the user's internet if the key is empty
-            if (ssKey.isEmpty()) {
-                TrafficEvent.log("CORE >> NO_KEY: SHIELD_ABORTED")
-                stopVpn()
-                return
-            }
-
             // B. ESTABLISH TUNNEL
             val builder = Builder()
                 .setSession("IgyShield")
