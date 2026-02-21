@@ -130,10 +130,10 @@ class IgyVpnService : VpnService(), Runnable {
             // --- MODE SELECTION & ROUTING ---
             when {
                 !isStealth -> {
-                    // TURBO ACCELERATOR (High-Speed Direct Path)
+                    // NORMAL FOCUS (High-Speed Direct Path)
                     val vipList = IgyPreferences.getVipList(this)
-                    TrafficEvent.log("TURBO >> MODE: ACCELERATOR_ACTIVE")
-                    TrafficEvent.log("TURBO >> VIP_APPS_DIRECT_PATH: ${vipList.size}")
+                    TrafficEvent.log("NORMAL_FOCUS >> ACTIVE")
+                    TrafficEvent.log("NORMAL_FOCUS >> VIP_APPS_DIRECT_PATH: ${vipList.size}")
                     vipList.forEach { 
                         try { builder.addDisallowedApplication(it) } catch (e: Exception) {} 
                     }
@@ -141,12 +141,12 @@ class IgyVpnService : VpnService(), Runnable {
                     builder.addDnsServer("1.1.1.1")
                 }
                 isStealth && !isGlobal -> {
-                    // VPN TRUE FOCUS (LOCKDOWN MODE)
+                    // VPN FOCUS (LOCKDOWN MODE)
                     val vipList = IgyPreferences.getVipList(this)
-                    TrafficEvent.log("SHIELD >> MODE: TRUE_FOCUS_LOCKDOWN")
+                    TrafficEvent.log("VPN_FOCUS >> ACTIVE")
                     
                     if (vipList.isEmpty()) {
-                        TrafficEvent.log("SHIELD >> WARN: NO_APPS_SELECTED")
+                        TrafficEvent.log("VPN_FOCUS >> WARN: NO_APPS_SELECTED")
                     } else {
                         val uids = mutableListOf<Long>()
                         vipList.forEach { pkg ->
@@ -158,19 +158,19 @@ class IgyVpnService : VpnService(), Runnable {
                         if (IgyNetwork.isAvailable()) {
                             IgyNetwork.setAllowedUids(uids.toLongArray())
                         }
-                        TrafficEvent.log("SHIELD >> LOCKING_DOWN_${uids.size}_APPS")
+                        TrafficEvent.log("VPN_FOCUS >> LOCKING_DOWN_${uids.size}_APPS")
                     }
                     // IMPORTANT: To block ALL others, we do NOT use addAllowedApplication.
                     // We route everything into the VPN, and Rust drops unauthorized traffic.
-                    TrafficEvent.log("SHIELD >> REDIRECTING_ALL_TRAFFIC_TO_CORE")
+                    TrafficEvent.log("VPN_FOCUS >> REDIRECTING_ALL_TRAFFIC_TO_CORE")
                 }
                 else -> {
                     // VPN GLOBAL MODE
-                    TrafficEvent.log("SHIELD >> MODE: VPN_GLOBAL_ARMED")
+                    TrafficEvent.log("VPN >> ACTIVE")
                     if (IgyNetwork.isAvailable()) {
                         IgyNetwork.setAllowedUids(longArrayOf()) // Clear list for global
                     }
-                    TrafficEvent.log("SHIELD >> PROTECTING_WHOLE_DEVICE")
+                    TrafficEvent.log("VPN >> PROTECTING_WHOLE_DEVICE")
                 }
             }
 
@@ -181,7 +181,7 @@ class IgyVpnService : VpnService(), Runnable {
             }
 
             TrafficEvent.setVpnActive(true)
-            TrafficEvent.log("CORE >> SHIELD_UP")
+            TrafficEvent.log("CONNECTED")
 
             // C. HANDOVER TO NATIVE ENGINE
             val fd = vpnInterface!!.fd
@@ -190,24 +190,24 @@ class IgyVpnService : VpnService(), Runnable {
                 IgyNetwork.setOutlineKey(ssKey)
 
                 if (!isStealth) {
-                    // TURBO MODE: Always use Passive Shield (to swallow background traffic)
-                    TrafficEvent.log("TURBO >> ACCELERATION_ENGAGED")
+                    // NORMAL FOCUS: Always use Passive Shield (to swallow background traffic)
+                    TrafficEvent.log("NORMAL_FOCUS >> ENGAGED")
                     IgyNetwork.runPassiveShield(fd)
                 } else if (ssKey.isNotEmpty()) {
                     // VPN MODES (Global/Focus): Use VpnLoop if key is present
                     IgyNetwork.runVpnLoop(fd)
                 } else {
                     // Fallback to Passive Shield if no key is found
-                    TrafficEvent.log("CORE >> PASSIVE_MODE: NO_KEY")
+                    TrafficEvent.log("VPN >> PASSIVE_MODE: NO_KEY")
                     IgyNetwork.runPassiveShield(fd)
                 }
             } else {
-                TrafficEvent.log("CORE >> ENGINE_OFFLINE")
+                TrafficEvent.log("ENGINE_OFFLINE")
                 while (isRunning) { Thread.sleep(2000) }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Native thread panic", e)
-            TrafficEvent.log("CORE >> FATAL_ERROR")
+            TrafficEvent.log("FATAL_ERROR")
         } finally {
             stopVpn()
         }
@@ -215,7 +215,7 @@ class IgyVpnService : VpnService(), Runnable {
 
     private fun stopVpn() {
         if (!isRunning) {
-            TrafficEvent.log("CORE >> ALREADY_OFFLINE")
+            TrafficEvent.log("ALREADY_OFFLINE")
             return
         }
         isRunning = false
@@ -231,15 +231,15 @@ class IgyVpnService : VpnService(), Runnable {
         }
         
         stopSelf()
-        TrafficEvent.log("CORE >> SHIELD_DOWN")
+        TrafficEvent.log("DISCONNECTED")
     }
 
     private fun fetchVpnConfigSync(serverUrl: String, token: String, nodeId: Int): String? {
         try {
             val url = java.net.URL("$serverUrl/api/vpn/config${if (nodeId != -1) "?nodeId=$nodeId" else ""}")
             val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
+            conn.connectTimeout = 30000
+            conn.readTimeout = 30000
             conn.setRequestProperty("Authorization", "Bearer $token")
             if (conn.responseCode == 200) {
                 val res = org.json.JSONObject(conn.inputStream.bufferedReader().readText())

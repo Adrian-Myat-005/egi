@@ -99,7 +99,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             text = { TerminalLog(isDarkMode, onClose = { showLogs = false }) },
             confirmButton = {
                 TextButton(onClick = { showLogs = false }) {
-                    Text("[ CLOSE_LOGS ]", color = Color.Red, fontFamily = FontFamily.Monospace)
+                    Text("X", color = Color.Red, fontFamily = FontFamily.Monospace)
                 }
             }
         )
@@ -161,11 +161,11 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
         // --- SECTION 1: VPN & NETWORK ---
         SettingsHeader("1. VPN & NETWORK CONTROL")
-        SettingsToggle("DARK_MODE", isDarkMode) {
+        SettingsToggle("Dark Theme", isDarkMode) {
             onThemeChange(it)
         }
         var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-        SettingsToggle("LOCAL_DIRECT_ACCESS", localBypass) {
+        SettingsToggle("Local Network Access", localBypass) {
             localBypass = it
             IgyPreferences.setLocalBypass(context, it)
         }
@@ -186,7 +186,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             }
         }
 
-        TactileButton("[ CONFIGURE_ALWAYS_ON_VPN ]", isDarkMode = isDarkMode, onClick = {
+        TactileButton("Always-On VPN Setup", isDarkMode = isDarkMode, onClick = {
             try {
                 // Try to open the VPN settings directly
                 val intent = Intent("android.net.vpn.SETTINGS")
@@ -197,7 +197,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         })
 
         var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
-        SettingsToggle("AUTO_START_ON_APP_OPEN", autoStartTrigger) { enabled ->
+        SettingsToggle("Auto-Connect-VPN", autoStartTrigger) { enabled ->
             if (enabled) {
                 if (!hasUsageStatsPermission(context)) {
                     val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
@@ -216,14 +216,10 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         }
 
         if (autoStartTrigger) {
-            TactileButton("[ CONFIGURE_AUTO_START_APPS ]", isDarkMode = isDarkMode, onClick = {
+            TactileButton("Auto-Connect-VPN-Apps", isDarkMode = isDarkMode, onClick = {
                 onOpenAutoStartPicker()
             })
         }
-
-        TactileButton("[ SYSTEM_VPN_CONFIG ]", isDarkMode = isDarkMode, onClick = {
-            context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-        })
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -234,8 +230,9 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         Spacer(modifier = Modifier.height(12.dp))
         
         TactileButton(
-            text = if (isChecking) "[ SCANNING... ]" else "[ CHECK_FOR_UPDATES ]",
+            text = if (isChecking) "Scanning..." else "Check for Updates",
             isDarkMode = isDarkMode,
+            isLoading = isChecking,
             onClick = {
                 if (isChecking) return@TactileButton
                 scope.launch {
@@ -257,7 +254,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         )
 
         Spacer(modifier = Modifier.weight(1f))
-        Text("[ BACK TO TERMINAL ]", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Text("Back", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -318,14 +315,25 @@ fun TactileButton(
     modifier: Modifier = Modifier,
     isDarkMode: Boolean = false,
     contentColor: Color? = null,
-    elevation: Dp = 2.dp
+    elevation: Dp = 2.dp,
+    isLoading: Boolean = false
 ) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            delay(200)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
+    
     Button(
-        onClick = onClick,
+        onClick = { if (!isLoading) onClick() },
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
@@ -341,6 +349,14 @@ fun TactileButton(
         ),
         contentPadding = PaddingValues(12.dp)
     ) {
+        if (showLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = contentColor ?: deepGray,
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Text(
             text = text,
             fontFamily = FontFamily.Monospace,
@@ -412,7 +428,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = if (isAuthenticating) "WAKING_UP_SERVER ($countdown s)..." else "STATUS: $status",
+            text = if (isAuthenticating) "Waking up server ($countdown s)..." else "STATUS: $status",
             color = if (isPremium) Color(0xFF2E8B57) else Color.Gray,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace
@@ -442,74 +458,42 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(24.dp))
             
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TactileButton(
-                    text = "RIGYSTER",
-                    isDarkMode = isDarkMode,
-                    onClick = {
-                        if (isAuthenticating) return@TactileButton
-                        scope.launch {
-                            try {
-                                isAuthenticating = true
-                                val result = performAuth(serverUrl, username.trim(), password, true)
-                                if (result != null) {
-                                    IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
-                                    authData = IgyPreferences.getAuth(context)
-                                    status = "LOGGED_IN: ${result.username}"
-                                    // PRE-SYNC KEY
-                                    val currentId = IgyPreferences.getSelectedNodeId(context)
-                                    val key = fetchVpnConfig(serverUrl, result.token, currentId)
-                                    if (key != null) IgyPreferences.saveOutlineKey(context, key)
-                                } else {
-                                    status = "AUTH_FAILED: RECHECK_DATA"
-                                    Toast.makeText(context, "AUTH_FAILED", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                status = "ERROR: SERVER_TIMEOUT"
-                                Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
-                            } finally {
-                                isAuthenticating = false
+            TactileButton(
+                text = "Login",
+                isDarkMode = isDarkMode,
+                isLoading = isAuthenticating,
+                contentColor = Color(0xFF2E8B57),
+                onClick = {
+                    if (isAuthenticating) return@TactileButton
+                    scope.launch {
+                        try {
+                            isAuthenticating = true
+                            val result = performAuth(serverUrl, username.trim(), password, false)
+                            if (result != null) {
+                                IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                authData = IgyPreferences.getAuth(context)
+                                status = "LOGGED_IN: ${result.username}"
+                                // PRE-SYNC KEY
+                                val currentId = IgyPreferences.getSelectedNodeId(context)
+                                val key = fetchVpnConfig(serverUrl, result.token, currentId)
+                                if (key != null) IgyPreferences.saveOutlineKey(context, key)
+                            } else {
+                                status = "LOGIN_FAILED: RECHECK_DATA"
+                                Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()
                             }
+                        } catch (e: Exception) {
+                            status = "ERROR: SERVER_TIMEOUT"
+                            Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
+                        } finally {
+                            isAuthenticating = false
                         }
-                    },
-                    modifier = Modifier.weight(1f).padding(end = 4.dp)
-                )
-                TactileButton(
-                    text = "LOGIN",
-                    isDarkMode = isDarkMode,
-                    contentColor = Color(0xFF2E8B57),
-                    onClick = {
-                        if (isAuthenticating) return@TactileButton
-                        scope.launch {
-                            try {
-                                isAuthenticating = true
-                                val result = performAuth(serverUrl, username.trim(), password, false)
-                                if (result != null) {
-                                    IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
-                                    authData = IgyPreferences.getAuth(context)
-                                    status = "LOGGED_IN: ${result.username}"
-                                    // PRE-SYNC KEY
-                                    val currentId = IgyPreferences.getSelectedNodeId(context)
-                                    val key = fetchVpnConfig(serverUrl, result.token, currentId)
-                                    if (key != null) IgyPreferences.saveOutlineKey(context, key)
-                                } else {
-                                    status = "LOGIN_FAILED: RECHECK_DATA"
-                                    Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                status = "ERROR: SERVER_TIMEOUT"
-                                Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
-                            } finally {
-                                isAuthenticating = false
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f).padding(start = 4.dp)
-                )
-            }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
             if (isPremium && regions.isNotEmpty()) {
-                Text("VPN_RIGYON_SELECTOR", color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Text("Server Locations", color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 regions.forEach { region ->
@@ -530,7 +514,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(name, color = if (selectedNodeId == id) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                        if (selectedNodeId == id) Text("[ ACTIVE ]", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        if (selectedNodeId == id) Text("Active", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
                 
@@ -548,14 +532,14 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("PRIVATE_GATEWAY (DEFAULT)", color = if (selectedNodeId == -1) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    if (selectedNodeId == -1) Text("[ SELECTED ]", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text("Default Server", color = if (selectedNodeId == -1) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    if (selectedNodeId == -1) Text("Selected", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
             TactileButton(
-                text = "LOGOUT",
+                text = "Logout",
                 isDarkMode = isDarkMode,
                 contentColor = Color.Red,
                 onClick = {
@@ -567,33 +551,9 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        TactileButton(
-            text = "[ GET TEST KEY ]",
-            isDarkMode = isDarkMode,
-            contentColor = Color(0xFF20B2AA),
-            onClick = {
-                if (isAuthenticating) return@TactileButton
-                scope.launch {
-                    try {
-                        isAuthenticating = true
-                        val key = fetchTestKey(serverUrl)
-                        if (key != null) {
-                            IgyPreferences.saveOutlineKey(context, key)
-                            Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "SYNC_ERROR", Toast.LENGTH_SHORT).show()
-                    } finally {
-                        isAuthenticating = false
-                    }
-                }
-            }
-        )
-
         Spacer(modifier = Modifier.height(24.dp))
         TactileButton(
-            text = "[ BUY PREMIUM: 10,000 MMK / MONTH ]",
+            text = "Premium",
             isDarkMode = isDarkMode,
             contentColor = Color(0xFFB8860B),
             elevation = 4.dp,
@@ -604,7 +564,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         )
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("[ BACK TO TERMINAL ]", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Text("Back", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -723,6 +683,7 @@ fun TerminalDashboard(
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     var isBooting by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
     var isVpnTunnelGlobal by remember { mutableStateOf(IgyPreferences.isVpnTunnelGlobal(context)) }
 
@@ -904,7 +865,7 @@ fun TerminalDashboard(
                     .clickable { onOpenSettings() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ SETTINGS ]", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                Text("Settings", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
             }
             Box(
                 modifier = Modifier
@@ -915,7 +876,7 @@ fun TerminalDashboard(
                     .clickable { onOpenAccount() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ ACCOUNT ]", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                Text("Account", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
             }
             Box(
                 modifier = Modifier
@@ -926,7 +887,7 @@ fun TerminalDashboard(
                     .clickable { showManual = true },
                 contentAlignment = Alignment.Center
             ) {
-                Text("[ ? ]", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                Text("?", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             }
         }
 
@@ -937,7 +898,7 @@ fun TerminalDashboard(
         ) {
             StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2E8B57) else Color.Red, isDarkMode)
             StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA), isDarkMode)
-            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray, isDarkMode)
+            StatsTile("STATUS", if (isSecure) "CONNECTED" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray, isDarkMode)
         }
 
         Box(
@@ -978,18 +939,18 @@ fun TerminalDashboard(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
-                    text = if (!isStealthMode) "[ TURBO ACCELERATOR: ACTIVE ]" else "[ TURBO ACCELERATOR ]",
+                    text = if (!isStealthMode) "Normal Focus: Active" else "Normal Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
                 ) {
                     isStealthMode = false
                     IgyPreferences.setStealthMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY TURBO", Toast.LENGTH_SHORT).show()
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
                     onOpenAppSelector()
                 }
                 GridButton(
-                    text = if (isStealthMode && isVpnTunnelGlobal) "[ VPN GLOBAL: ACTIVE ]" else "[ VPN GLOBAL ]",
+                    text = if (isStealthMode && isVpnTunnelGlobal) "VPN: Active" else "VPN",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2E8B57)
@@ -998,14 +959,14 @@ fun TerminalDashboard(
                     isVpnTunnelGlobal = true
                     IgyPreferences.setStealthMode(context, true)
                     IgyPreferences.setVpnTunnelMode(context, true)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY GLOBAL", Toast.LENGTH_SHORT).show()
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
                     TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("[ CONSOLE_LOGS ]", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
+                GridButton("Activity Log", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
                 GridButton(
-                    text = if (isStealthMode && !isVpnTunnelGlobal) "[ VPN FOCUS: ACTIVE ]" else "[ VPN FOCUS ]",
+                    text = if (isStealthMode && !isVpnTunnelGlobal) "VPN Focus: Active" else "VPN Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57)
@@ -1014,13 +975,13 @@ fun TerminalDashboard(
                     isVpnTunnelGlobal = false
                     IgyPreferences.setStealthMode(context, true)
                     IgyPreferences.setVpnTunnelMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY FOCUS", Toast.LENGTH_SHORT).show()
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
                     onOpenAppPicker()
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
-                    text = if (isBatteryOptimized) "[ BATTERY: OK ]" else "[ BATTERY: RESTRICTED ]",
+                    text = if (isBatteryOptimized) "Battery-Saver: OK" else "Battery-Saver: Restricted",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (isBatteryOptimized) Color(0xFF2E8B57) else Color.Red
@@ -1040,13 +1001,21 @@ fun TerminalDashboard(
                         Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
                     }
                 }
-                GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(1f)) { 
-                    TrafficEvent.log("CORE >> INITIATING_DEEP_REPAIR...")
+                GridButton(
+                    text = "refresh",
+                    isDarkMode = isDarkMode,
+                    modifier = Modifier.weight(1f),
+                    isLoading = isRefreshing
+                ) { 
+                    TrafficEvent.log("CORE >> REFRESHING_STACK...")
                     TrafficEvent.updateCount(0)
                     scope.launch {
+                        isRefreshing = true
                         IgyPreferences.setSelectedNodeId(context, -1)
-                        TrafficEvent.log("CORE >> NETWORK_STACK_RESET_SUCCESS")
-                        Toast.makeText(context, "SYSTEM_REPAIRED: TRY_CONNECTING_NOW", Toast.LENGTH_SHORT).show()
+                        delay(1000) // Visual feedback for refresh
+                        isRefreshing = false
+                        TrafficEvent.log("CORE >> REFRESH_SUCCESS")
+                        Toast.makeText(context, "SYSTEM_REFRESHED", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -1064,18 +1033,28 @@ fun TerminalDashboard(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = when {
-                    isBooting -> "> [ INITIALIZING... ] <"
-                    isSecure -> "> [ SHUTDOWN_SHIELD ] <"
-                    isStrictBlocking && !isStealthMode -> "> [ LOCKED: CONFIG_VPN ] <"
-                    else -> "> [ ENGAGE_SHIELD ] <"
-                },
-                color = if (isSecure) Color.Red else Color(0xFF2E8B57),
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isBooting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFF2E8B57),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+                Text(
+                    text = when {
+                        isBooting -> "Initializing..."
+                        isSecure -> "Disconnect"
+                        isStrictBlocking && !isStealthMode -> "Locked: Config VPN"
+                        else -> "Connect"
+                    },
+                    color = if (isSecure) Color.Red else Color(0xFF2E8B57),
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp
+                )
+            }
         }
     }
 
@@ -1102,12 +1081,29 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
 }
 
 @Composable
-fun RowScope.GridButton(text: String, isDarkMode: Boolean, modifier: Modifier = Modifier, color: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
+fun RowScope.GridButton(
+    text: String,
+    isDarkMode: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = Color(0xFF2E8B57),
+    isLoading: Boolean = false,
+    onClick: () -> Unit
+) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "ButtonScale")
+
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            delay(200)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
 
     Box(
         modifier = modifier
@@ -1115,16 +1111,28 @@ fun RowScope.GridButton(text: String, isDarkMode: Boolean, modifier: Modifier = 
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .background(cardBg)
             .border(0.5.dp, wheat)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { onClick() },
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                enabled = !isLoading
+            ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = color,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
+        if (showLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = color,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Text(
+                text = text,
+                color = color,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }
 
@@ -1199,7 +1207,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("[ UNDERSTOOD / နားလည်ပါပြီ ]", color = Color.Green, fontFamily = FontFamily.Monospace) }
+            TextButton(onClick = onDismiss) { Text("OK", color = Color.Green, fontFamily = FontFamily.Monospace) }
         }
     )
 }
@@ -1251,10 +1259,10 @@ fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
     }
     Column(modifier = Modifier.fillMaxSize().background(creamColor).padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("IGY_CONSOLE_V1.0", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("Activity Log", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Row {
-                Text("[ CLEAR ]", color = Color(0xFFB8860B), fontSize = 12.sp, modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp), fontFamily = FontFamily.Monospace)
-                Text("[ X ]", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() }, fontFamily = FontFamily.Monospace)
+                Text("Clear", color = Color(0xFFB8860B), fontSize = 12.sp, modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp), fontFamily = FontFamily.Monospace)
+                Text("X", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() }, fontFamily = FontFamily.Monospace)
             }
         }
         Divider(color = deepGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
