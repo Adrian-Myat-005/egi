@@ -208,7 +208,7 @@ class IgyVpnService : VpnService(), Runnable {
         val stopPendingIntent = PendingIntent.getService(this, 0, Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }, PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
         return builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(android.R.drawable.stat_sys_vp_vpn) // Guaranteed system resource
+            .setSmallIcon(R.drawable.ic_shield_status) // Custom brand-appropriate icon
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
             .build()
