@@ -53,11 +53,10 @@ object IgyPreferences {
 
     fun getAuth(context: Context): Triple<String, String, Boolean> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return Triple(
-            prefs.getString(KEY_AUTH_TOKEN, "") ?: "",
-            prefs.getString(KEY_USERNAME, "Guest") ?: "Guest",
-            prefs.getBoolean(KEY_IS_PREMIUM, false)
-        )
+        val token = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
+        val user = prefs.getString(KEY_USERNAME, "Guest") ?: "Guest"
+        val isPremium = prefs.getBoolean(KEY_IS_PREMIUM, false)
+        return Triple(token, user, isPremium)
     }
 
     fun clearAuth(context: Context) {

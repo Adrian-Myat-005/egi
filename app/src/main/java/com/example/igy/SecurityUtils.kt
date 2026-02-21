@@ -48,13 +48,19 @@ object SecurityUtils {
     }
 
     fun decrypt(encryptedData: String): String {
-        val combined = Base64.decode(encryptedData, Base64.DEFAULT)
-        val iv = combined.sliceArray(0 until 12)
-        val data = combined.sliceArray(12 until combined.size)
-        
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        val spec = GCMParameterSpec(128, iv)
-        cipher.init(Cipher.DECRYPT_MODE, getSecretKey(), spec)
-        return String(cipher.doFinal(data))
+        try {
+            val combined = Base64.decode(encryptedData, Base64.DEFAULT)
+            if (combined.size < 13) return "" // Minimum 12 IV + 1 byte data
+            
+            val iv = combined.sliceArray(0 until 12)
+            val data = combined.sliceArray(12 until combined.size)
+            
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            val spec = GCMParameterSpec(128, iv)
+            cipher.init(Cipher.DECRYPT_MODE, getSecretKey(), spec)
+            return String(cipher.doFinal(data))
+        } catch (e: Exception) {
+            return ""
+        }
     }
 }

@@ -616,10 +616,10 @@ private suspend fun performAuth(serverUrl: String, user: String, pass: String, i
         
         if (conn.responseCode == 200) {
             val res = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
-            val userObj = res.getJSONObject("user")
+            val userObj = res.optJSONObject("user") ?: return@withContext null
             return@withContext AuthResult(
-                res.getString("token"),
-                userObj.getString("username"),
+                res.optString("token", ""),
+                userObj.optString("username", "Guest"),
                 userObj.optBoolean("isPremium", false),
                 userObj.optLong("expiry", 0L)
             )
@@ -761,10 +761,14 @@ fun TerminalDashboard(
                     val statsJson = withContext(Dispatchers.IO) {
                         IgyNetwork.measureNetworkStats("1.1.1.1")
                     }
-                    val json = JSONObject(statsJson)
-                    currentPing = json.optInt("ping", -1)
-                    currentJitter = json.optInt("jitter", 0)
-                } catch (e: Throwable) {}
+                    if (statsJson.isNotEmpty()) {
+                        val json = JSONObject(statsJson)
+                        currentPing = json.optInt("ping", -1)
+                        currentJitter = json.optInt("jitter", 0)
+                    }
+                } catch (e: Exception) {
+                    currentPing = -1
+                }
             }
         }
     }
