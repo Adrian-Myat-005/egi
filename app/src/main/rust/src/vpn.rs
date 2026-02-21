@@ -287,14 +287,17 @@ pub fn start_vpn_loop(fd: i32) {
                         monitor_token.cancel();
                     });
 
-                    // Wrap tun_device to apply lockdown filter
-                    // For performance, we only check if ALLOWED_UIDS is not empty
                     let mut lock_down_active = false;
                     if let Ok(guard) = ALLOWED_UIDS.read() {
                         if !guard.is_empty() {
                             lock_down_active = true;
-                            crate::log_to_java("SHIELD >> APPLYING_LOCKDOWN_FILTER");
                         }
+                    }
+
+                    if lock_down_active {
+                        crate::log_to_java("SHIELD >> LOCKDOWN_FILTER: ENABLED");
+                    } else {
+                        crate::log_to_java("SHIELD >> LOCKDOWN_FILTER: DISABLED (GLOBAL)");
                     }
 
                     if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {

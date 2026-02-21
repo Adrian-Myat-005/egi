@@ -7,7 +7,7 @@ mod tests;
 
 use jni::objects::{JClass, JString, JValue, GlobalRef};
 use jni::{JNIEnv, JavaVM};
-use jni::sys::{jstring, jlong, jint, jboolean};
+use jni::sys::{jstring, jlong, jint, jboolean, jlongArray};
 use std::sync::atomic::Ordering;
 use crate::common::*;
 
