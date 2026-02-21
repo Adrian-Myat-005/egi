@@ -39,12 +39,16 @@ object SecurityUtils {
     }
 
     fun encrypt(data: String): String {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())
-        val iv = cipher.iv
-        val encryptedData = cipher.doFinal(data.toByteArray())
-        val combined = iv + encryptedData
-        return Base64.encodeToString(combined, Base64.DEFAULT)
+        try {
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())
+            val iv = cipher.iv
+            val encryptedData = cipher.doFinal(data.toByteArray())
+            val combined = iv + encryptedData
+            return Base64.encodeToString(combined, Base64.DEFAULT)
+        } catch (e: Exception) {
+            return "" // Fail gracefully instead of crashing
+        }
     }
 
     fun decrypt(encryptedData: String): String {

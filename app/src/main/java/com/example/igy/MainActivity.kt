@@ -761,7 +761,7 @@ fun TerminalDashboard(
                     val statsJson = withContext(Dispatchers.IO) {
                         IgyNetwork.measureNetworkStats("1.1.1.1")
                     }
-                    if (statsJson.isNotEmpty()) {
+                    if (!statsJson.isNullOrEmpty()) {
                         val json = JSONObject(statsJson)
                         currentPing = json.optInt("ping", -1)
                         currentJitter = json.optInt("jitter", 0)
