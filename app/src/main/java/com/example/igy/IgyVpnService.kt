@@ -25,10 +25,14 @@ class IgyVpnService : VpnService(), Runnable {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            TrafficEvent.log("USER >> SHIELD_STOP_CMD")
+            cleanupAndStop()
+            return START_NOT_STICKY
+        }
+
         try {
-            // CRITICAL: Call startForeground immediately to prevent OS kill
             createNotificationChannel()
-            // USE SAFE ICON: applicationInfo.icon is guaranteed to exist
             val iconRes = if (applicationInfo.icon != 0) applicationInfo.icon else android.R.drawable.sym_def_app_icon
             val notification = createNotification(iconRes)
             
@@ -43,20 +47,21 @@ class IgyVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
-        if (intent?.action == ACTION_STOP) {
-            TrafficEvent.log("USER >> SHIELD_STOP_CMD")
-            stopVpn()
-            return START_NOT_STICKY
-        }
-
         if (prepare(this) != null) {
             TrafficEvent.log("CORE >> PERMISSION_MISSING")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        isServiceActive = true
+        if (!isServiceActive) {
+            isServiceActive = true
+            startVpnThread()
+        }
 
+        return START_STICKY
+    }
+
+    private fun startVpnThread() {
         if (vpnThread == null || !vpnThread!!.isAlive) {
             vpnThread = Thread(this, "IgyVpnThread")
             vpnThread?.start()
@@ -67,30 +72,29 @@ class IgyVpnService : VpnService(), Runnable {
 
                 while (isActive) {
                     val now = System.currentTimeMillis()
-                    
                     if (IgyNetwork.isAvailable()) {
                         TrafficEvent.updateCount(IgyNetwork.getNativeBlockedCount())
                     }
-
                     if (now - lastSubCheck >= CHECK_INTERVAL) {
                         lastSubCheck = now
-                        val (token, _, _) = IgyPreferences.getAuth(this@IgyVpnService)
-                        val serverUrl = IgyPreferences.getSyncEndpoint(this@IgyVpnService) ?: "https://egi-67tg.onrender.com"
-                        
-                        if (token.isNotEmpty()) {
-                            val config = fetchVpnConfigSync(serverUrl, token)
-                            if (config == "EXPIRED" || config == "UNAUTHORIZED") {
-                                TrafficEvent.log("CORE >> SUBSCRIPTION_EXPIRED: SHUTTING_DOWN")
-                                stopVpn()
-                                break
-                            }
-                        }
+                        checkSubscription()
                     }
                     delay(3000)
                 }
             }
         }
-        return START_STICKY
+    }
+
+    private suspend fun checkSubscription() {
+        val (token, _, _) = IgyPreferences.getAuth(this)
+        val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
+        if (token.isNotEmpty()) {
+            val config = fetchVpnConfigSync(serverUrl, token)
+            if (config == "EXPIRED" || config == "UNAUTHORIZED") {
+                TrafficEvent.log("CORE >> SUBSCRIPTION_EXPIRED")
+                cleanupAndStop()
+            }
+        }
     }
 
     private fun fetchVpnConfigSync(serverUrl: String, token: String): String? {
@@ -100,136 +104,89 @@ class IgyVpnService : VpnService(), Runnable {
             conn.connectTimeout = 5000
             conn.readTimeout = 5000
             conn.setRequestProperty("Authorization", "Bearer $token")
-            
             if (conn.responseCode == 200) {
-                val res = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
-                return res.getString("config")
-            } else if (conn.responseCode == 403) {
-                return "EXPIRED"
-            } else if (conn.responseCode == 401) {
-                return "UNAUTHORIZED"
-            }
+                return org.json.JSONObject(conn.inputStream.bufferedReader().readText()).getString("config")
+            } else if (conn.responseCode == 403) return "EXPIRED"
+            else if (conn.responseCode == 401) return "UNAUTHORIZED"
         } catch (e: Exception) {}
         return null
     }
 
-    private fun stopVpn() {
-        if (!isServiceActive) return
+    private fun cleanupAndStop() {
         isServiceActive = false
         TrafficEvent.setVpnActive(false)
         serviceScope.cancel()
-        try {
-            vpnThread?.interrupt()
-        } catch (e: Exception) {}
+        try { vpnThread?.interrupt() } catch (e: Exception) {}
         closeInterface()
         stopForeground(true)
         stopSelf()
     }
 
     override fun run() {
+        try {
+            establishVpn()
+        } catch (e: Exception) {
+            TrafficEvent.log("CORE >> FATAL: ${e.message}")
+        } finally {
+            if (isServiceActive) cleanupAndStop()
+        }
+    }
+
+    private fun establishVpn() {
         val vipList = IgyPreferences.getVipList(this)
         val isStealth = IgyPreferences.isStealthMode(this)
         val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
         var ssKey = IgyPreferences.getOutlineKey(this)
         val allowLocal = IgyPreferences.getLocalBypass(this)
 
+        // Resolve Host
         try {
             if (ssKey.startsWith("ss://")) {
                 val uri = java.net.URI(ssKey.split("#")[0])
                 val host = uri.host
                 if (host != null && !host.matches(Regex("^[0-9.]+$"))) {
-                    TrafficEvent.log("CORE >> RESOLVING_HOST: $host")
                     val address = java.net.InetAddress.getByName(host)
-                    val ip = address.hostAddress
-                    if (ip != null) {
-                        ssKey = ssKey.replace(host, ip)
-                        IgyNetwork.setOutlineKey(ssKey)
-                        TrafficEvent.log("CORE >> HOST_RESOLVED: $ip")
-                    }
+                    ssKey = ssKey.replace(host, address.hostAddress ?: host)
                 }
             }
-        } catch (e: Exception) {
-            TrafficEvent.log("CORE >> DNS_PRE_RESOLVE_ERR: ${e.message}")
+        } catch (e: Exception) { TrafficEvent.log("CORE >> DNS_ERR: ${e.message}") }
+
+        val builder = Builder()
+            .setSession("IgyShield")
+            .addAddress("172.19.0.1", 30) 
+            .addRoute("0.0.0.0", 0)
+            .setMtu(1280)
+            .setBlocking(true) 
+
+        val configIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        builder.setConfigureIntent(pendingIntent)
+
+        if (allowLocal) builder.allowBypass()
+        builder.addDnsServer("8.8.8.8")
+        builder.addDnsServer("1.1.1.1")
+        builder.addDisallowedApplication(packageName)
+
+        if (isStealth && !isGlobal && vipList.isNotEmpty()) {
+            vipList.forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
+        } else if (!isStealth && vipList.isNotEmpty()) {
+            vipList.forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
         }
 
-        try {
-            val mtu = 1280
-            TrafficEvent.log("CORE >> INITIALIZING_BUILDER [MTU: $mtu]")
-            val builder = Builder()
-                .setSession("IgyShield")
-                .addAddress("172.19.0.1", 30) 
-                .addRoute("0.0.0.0", 0)
-                .setMtu(mtu)
-                .setBlocking(true) 
+        vpnInterface = builder.establish()
+        if (vpnInterface == null) return
 
-            val configIntent = Intent(this, MainActivity::class.java)
-            val pendingIntent = PendingIntent.getActivity(this, 0, configIntent, 
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            builder.setConfigureIntent(pendingIntent)
-
-            if (allowLocal) builder.allowBypass()
-
-            builder.addDnsServer("8.8.8.8")
-            builder.addDnsServer("1.1.1.1")
-            builder.addDisallowedApplication(packageName)
-
-            if (isStealth) {
-                if (isGlobal) {
-                    TrafficEvent.log("SHIELD >> MODE: VPN_SHIELD [GLOBAL_ENCRYPTION]")
-                } else {
-                    if (vipList.isNotEmpty()) {
-                        TrafficEvent.log("SHIELD >> MODE: FOCUS_MODE [TUNNELING_${vipList.size}_APPS]")
-                        vipList.forEach { pkg ->
-                            try { builder.addAllowedApplication(pkg) } catch (e: Exception) {}
-                        }
-                    } else {
-                        TrafficEvent.log("SHIELD >> FOCUS_MODE_EMPTY: FALLING_BACK_TO_GLOBAL")
-                    }
-                }
-            } else {
-                TrafficEvent.log("SHIELD >> MODE: BYPASS_LIST [PROTECTING_ALL_EXCEPT_TARGETS]")
-                if (vipList.isNotEmpty()) {
-                    vipList.forEach { pkg ->
-                        try { builder.addDisallowedApplication(pkg) } catch (e: Exception) {}
-                    }
-                }
-            }
-
-            TrafficEvent.log("CORE >> ESTABLISHING_INTERFACE")
-            vpnInterface = builder.establish()
-            
-            if (vpnInterface == null) {
-                TrafficEvent.log("CORE >> INTERFACE_REJECTED_BY_SYSTEM")
-                return
-            }
-            
-            TrafficEvent.setVpnActive(true)
-            TrafficEvent.log("CORE >> SHIELD_UP (KEY_SIGN_SHOULD_BE_VISIBLE)")
-
-            val fd = vpnInterface!!.fd
-            if (IgyNetwork.isAvailable()) {
-                val allowedDomains = IgyPreferences.getAllowedDomains(this)
-                IgyNetwork.setAllowedDomains(allowedDomains)
-                
-                if (ssKey.isNotEmpty()) {
-                    TrafficEvent.log("SHIELD >> STARTING_VPN_CORE")
-                    IgyNetwork.setOutlineKey(ssKey) 
-                    IgyNetwork.runVpnLoop(fd)
-                } else {
-                    TrafficEvent.log("SHIELD >> NO_KEY: STARTING_PASSIVE_SHIELD")
-                    IgyNetwork.runPassiveShield(fd)
-                }
-            } else {
-                TrafficEvent.log("CORE >> NATIVE_LIB_LOAD_FAILED")
-                while (isServiceActive) {
-                    try { Thread.sleep(2000) } catch (e: InterruptedException) { break }
-                }
-            }
-
-        } catch (e: Exception) {
-            TrafficEvent.log("CORE >> FATAL: ${e.message}")
-        } finally {
-            stopVpn()
+        TrafficEvent.setVpnActive(true)
+        val fd = vpnInterface!!.fd
+        if (IgyNetwork.isAvailable()) {
+            IgyNetwork.setAllowedDomains(IgyPreferences.getAllowedDomains(this))
+            IgyNetwork.setOutlineKey(ssKey)
+            if (ssKey.isNotEmpty()) IgyNetwork.runVpnLoop(fd)
+            else IgyNetwork.runPassiveShield(fd)
+        } else {
+            TrafficEvent.log("CORE >> ENGINE_MISSING")
+            while (isServiceActive) { Thread.sleep(2000) }
         }
     }
 
@@ -244,31 +201,18 @@ class IgyVpnService : VpnService(), Runnable {
     private fun createNotification(iconRes: Int): Notification {
         val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
         val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
-
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, "igy_vpn")
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-
-        return builder
-            .setContentTitle("Igy Shield Active")
-            .setSmallIcon(iconRes)
-            .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
-            .build()
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
+        return builder.setContentTitle("Igy Shield Active").setSmallIcon(iconRes).setOngoing(true)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent).build()
     }
 
     private fun closeInterface() {
-        try {
-            vpnInterface?.close()
-            vpnInterface = null
-        } catch (e: Exception) {}
+        try { vpnInterface?.close() } catch (e: Exception) {}
+        vpnInterface = null
     }
 
     override fun onDestroy() {
-        stopVpn()
+        cleanupAndStop()
         super.onDestroy()
     }
 }

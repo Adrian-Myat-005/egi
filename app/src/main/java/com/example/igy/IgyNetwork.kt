@@ -1,5 +1,7 @@
 package com.example.igy
 
+import android.util.Log
+
 object IgyNetwork {
     private var isLibLoaded = false
 
@@ -7,8 +9,10 @@ object IgyNetwork {
         try {
             System.loadLibrary("igy_core")
             isLibLoaded = true
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e("IgyNetwork", "NATIVE_LIB_UNSATISFIED: ${e.message}")
         } catch (t: Throwable) {
-            // Native library failed to load
+            Log.e("IgyNetwork", "NATIVE_LIB_FATAL: ${t.message}")
         }
     }
 
