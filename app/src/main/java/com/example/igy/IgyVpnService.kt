@@ -24,6 +24,18 @@ class IgyVpnService : VpnService(), Runnable {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // CRITICAL: Call startForeground immediately to prevent OS kill
+        createNotificationChannel()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(1, createNotification())
+            }
+        } catch (e: Exception) {
+            TrafficEvent.log("CORE >> FG_SERVICE_ERR: ${e.message}")
+        }
+
         if (intent?.action == ACTION_STOP) {
             TrafficEvent.log("USER >> SHIELD_STOP_CMD")
             stopVpn()
@@ -36,24 +48,7 @@ class IgyVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
-        // Check for Always-on / Lockdown
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Note: This only works if we are the current Always-on VPN
-            // For general detection, we'll also use the network check in MainActivity
-        }
-
         isServiceActive = true
-        createNotificationChannel()
-        
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(1, createNotification())
-            }
-        } catch (e: Exception) {
-            TrafficEvent.log("CORE >> FG_SERVICE_ERR: ${e.message}")
-        }
 
         if (vpnThread == null || !vpnThread!!.isAlive) {
             vpnThread = Thread(this, "IgyVpnThread")

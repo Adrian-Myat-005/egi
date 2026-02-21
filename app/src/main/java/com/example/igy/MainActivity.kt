@@ -320,6 +320,20 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
     val scope = rememberCoroutineScope()
 
+    // Countdown State
+    var countdown by remember { mutableStateOf(0) }
+    var isAuthenticating by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isAuthenticating) {
+        if (isAuthenticating) {
+            countdown = 30
+            while (countdown > 0 && isAuthenticating) {
+                delay(1000)
+                countdown--
+            }
+        }
+    }
+
     // Region Selector State
     var regions by remember { mutableStateOf(listOf<JSONObject>()) }
     var selectedNodeId by remember { mutableStateOf(IgyPreferences.getSelectedNodeId(context)) }
@@ -347,12 +361,18 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             },
             label = { Text("SERVER_URL", color = Color.Gray) },
             modifier = Modifier.fillMaxWidth().background(cardBg),
+            enabled = !isAuthenticating,
             textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(8.dp))
         
-        Text("STATUS: $status", color = if (isPremium) Color(0xFF2E8B57) else Color.Gray, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-        if (isPremium) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Text(
+            text = if (isAuthenticating) "WAKING_UP_SERVER ($countdown s)..." else "STATUS: $status",
+            color = if (isPremium) Color(0xFF2E8B57) else Color.Gray,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace
+        )
+        if (isPremium && !isAuthenticating) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -362,6 +382,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 onValueChange = { username = it },
                 label = { Text("USERNAME", color = Color.Gray) },
                 modifier = Modifier.fillMaxWidth().background(cardBg),
+                enabled = !isAuthenticating,
                 textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -371,6 +392,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 label = { Text("PASSWORD", color = Color.Gray) },
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth().background(cardBg),
+                enabled = !isAuthenticating,
                 textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -380,9 +402,10 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     text = "RIGYSTER",
                     isDarkMode = isDarkMode,
                     onClick = {
+                        if (isAuthenticating) return@TactileButton
                         scope.launch {
                             try {
-                                status = "WAKING_UP_SERVER (30s)..."
+                                isAuthenticating = true
                                 val result = performAuth(serverUrl, username.trim(), password, true)
                                 if (result != null) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
@@ -395,6 +418,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             } catch (e: Exception) {
                                 status = "ERROR: SERVER_TIMEOUT"
                                 Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isAuthenticating = false
                             }
                         }
                     },
@@ -405,9 +430,10 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     isDarkMode = isDarkMode,
                     contentColor = Color(0xFF2E8B57),
                     onClick = {
+                        if (isAuthenticating) return@TactileButton
                         scope.launch {
                             try {
-                                status = "WAKING_UP_SERVER (30s)..."
+                                isAuthenticating = true
                                 val result = performAuth(serverUrl, username.trim(), password, false)
                                 if (result != null) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
@@ -420,6 +446,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             } catch (e: Exception) {
                                 status = "ERROR: SERVER_TIMEOUT"
                                 Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isAuthenticating = false
                             }
                         }
                     },
@@ -441,6 +469,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             .background(if (selectedNodeId == id) Color.White else Color.Transparent)
                             .border(0.5.dp, if (selectedNodeId == id) deepGray else wheat)
                             .clickable {
+                                if (isAuthenticating) return@clickable
                                 selectedNodeId = id
                                 IgyPreferences.setSelectedNodeId(context, id)
                             }
@@ -459,6 +488,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         .background(if (selectedNodeId == -1) Color.White else Color.Transparent)
                         .border(0.5.dp, if (selectedNodeId == -1) deepGray else wheat)
                         .clickable {
+                            if (isAuthenticating) return@clickable
                             selectedNodeId = -1
                             IgyPreferences.setSelectedNodeId(context, -1)
                         }
@@ -476,6 +506,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 isDarkMode = isDarkMode,
                 contentColor = Color.Red,
                 onClick = {
+                    if (isAuthenticating) return@TactileButton
                     IgyPreferences.clearAuth(context)
                     authData = IgyPreferences.getAuth(context)
                     status = "GUEST_MODE"
@@ -489,11 +520,19 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             isDarkMode = isDarkMode,
             contentColor = Color(0xFF20B2AA),
             onClick = {
+                if (isAuthenticating) return@TactileButton
                 scope.launch {
-                    val key = fetchTestKey(serverUrl)
-                    if (key != null) {
-                        IgyPreferences.saveOutlineKey(context, key)
-                        Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
+                    try {
+                        isAuthenticating = true
+                        val key = fetchTestKey(serverUrl)
+                        if (key != null) {
+                            IgyPreferences.saveOutlineKey(context, key)
+                            Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "SYNC_ERROR", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isAuthenticating = false
                     }
                 }
             }
@@ -737,7 +776,11 @@ fun TerminalDashboard(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             TrafficEvent.log("USER >> PERMISSION_GRANTED")
-            ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
+            } catch (e: Exception) {
+                TrafficEvent.log("CORE >> START_ERR: ${e.message}")
+            }
             isBooting = false
         } else {
             TrafficEvent.log("USER >> PERMISSION_DENIED")
@@ -1052,7 +1095,7 @@ private fun handleExecuteToggle(
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
-    val scope = CoroutineScope(Dispatchers.Main + Job())
+    val mainScope = CoroutineScope(Dispatchers.Main + Job())
     try {
         if (isBooting) {
             setBooting(false)
@@ -1061,9 +1104,22 @@ private fun handleExecuteToggle(
         }
         if (isSecure) {
             TrafficEvent.log("USER >> SHUTTING_DOWN")
-            val stopIntent = Intent(context, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
-            context.startService(stopIntent)
-            context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
+            val stopIntent = Intent(context, IgyVpnService::class.java).apply { 
+                action = IgyVpnService.ACTION_STOP 
+            }
+            try {
+                context.startService(stopIntent)
+            } catch (e: Exception) {
+                TrafficEvent.log("CORE >> STOP_ERR: ${e.message}")
+            }
+            
+            try {
+                val settingsIntent = Intent(Settings.ACTION_VPN_SETTINGS).apply { 
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK 
+                }
+                context.startActivity(settingsIntent)
+            } catch (e: Exception) {}
+            
             Toast.makeText(context, "DISABLE ALWAYS-ON / LOCKDOWN IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
             val vipList = IgyPreferences.getVipList(context)
@@ -1084,8 +1140,9 @@ private fun handleExecuteToggle(
             val (token, _, _) = IgyPreferences.getAuth(context)
             val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
             val nodeId = IgyPreferences.getSelectedNodeId(context)
-            if (token.isNotEmpty()) {
-                scope.launch {
+            
+            mainScope.launch {
+                if (token.isNotEmpty()) {
                     TrafficEvent.log("CORE >> SYNCING_SECURE_KEY...")
                     val config = fetchVpnConfig(serverUrl, token, nodeId)
                     if (config != null) {
@@ -1094,15 +1151,22 @@ private fun handleExecuteToggle(
                     } else {
                         TrafficEvent.log("CORE >> SYNC_FAILED_USING_CACHE")
                     }
-                    
-                    val intent = VpnService.prepare(context)
-                    if (intent != null) { vpnLauncher.launch(intent) } 
-                    else { ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java)) }
                 }
-            } else {
-                val intent = VpnService.prepare(context)
-                if (intent != null) { vpnLauncher.launch(intent) } 
-                else { ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java)) }
+                
+                try {
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) { 
+                        vpnLauncher.launch(intent) 
+                    } else { 
+                        val startIntent = Intent(context, IgyVpnService::class.java)
+                        ContextCompat.startForegroundService(context, startIntent)
+                        setBooting(false) // Reset booting if started directly
+                    }
+                } catch (e: Exception) {
+                    TrafficEvent.log("CORE >> PREPARE_ERR: ${e.message}")
+                    setBooting(false)
+                    Toast.makeText(context, "VPN_START_ERROR", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     } catch (e: Exception) {
