@@ -497,19 +497,6 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         Text("IGY >> SYSTEM_AUTHENTICATION", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
         
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = { 
-                serverUrl = it
-                IgyPreferences.saveSyncEndpoint(context, it)
-            },
-            label = { Text("SERVER_URL", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth().background(cardBg),
-            enabled = !isAuthenticating,
-            textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        
         Text(
             text = if (isAuthenticating) "Waking up server ($countdown s)..." else "STATUS: $status",
             color = if (isPremium) Color(0xFF2E8B57) else Color.Gray,
