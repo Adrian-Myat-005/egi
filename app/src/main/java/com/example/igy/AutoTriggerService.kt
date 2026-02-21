@@ -69,7 +69,16 @@ class AutoTriggerService : Service() {
     }
 
     private fun startVpn() {
+        // 1. Check if VPN is actually authorized (User might have revoked it)
+        val vpnIntent = android.net.VpnService.prepare(this)
+        if (vpnIntent != null) {
+            TrafficEvent.log("AUTO >> ERR: VPN_UNAUTHORIZED")
+            // In a real app, we'd show a notification here.
+            return
+        }
+
         try {
+            TrafficEvent.log("AUTO >> INITIALIZING_SHIELD_TUNNEL")
             val intent = Intent(this, IgyVpnService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)

@@ -11,6 +11,62 @@ use tokio::io::unix::AsyncFd;
 use std::net::TcpListener;
 use crate::common::*;
 
+use std::pin::Pin;
+use std::task::{Context as TaskContext, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+// --- TRUE LOCKDOWN: FILTERED TUN WRAPPER ---
+struct FilteredTun<T> {
+    inner: T,
+}
+
+impl<T: AsyncRead + Unpin> AsyncRead for FilteredTun<T> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        loop {
+            let initial_len = buf.filled().len();
+            match Pin::new(&mut self.inner).poll_read(cx, buf) {
+                Poll::Ready(Ok(())) => {
+                    let packet = &buf.filled()[initial_len..];
+                    if packet.is_empty() { return Poll::Ready(Ok(())); }
+                    
+                    if check_uid_lockdown(packet) {
+                        return Poll::Ready(Ok(())); // Allow
+                    } else {
+                        // Drop & Retry: Clear the buffer portion and read again
+                        let current_len = buf.filled().len();
+                        buf.set_filled(initial_len); 
+                        // Note: To be truly stable, we'd loop. For now, we continue
+                        continue;
+                    }
+                }
+                other => return other,
+            }
+        }
+    }
+}
+
+impl<T: AsyncWrite + Unpin> AsyncWrite for FilteredTun<T> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
 fn find_uid_by_port(port: u16, is_udp: bool) -> Option<u32> {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
@@ -300,7 +356,9 @@ pub fn start_vpn_loop(fd: i32) {
                         crate::log_to_java("SHIELD >> LOCKDOWN_FILTER: DISABLED (GLOBAL)");
                     }
 
-                    if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {
+                    let filtered_tun = FilteredTun { inner: tun_device };
+
+                    if let Err(e) = run_tun2proxy(filtered_tun, 1280, args, token).await {
                         crate::log_to_java(&format!("VPN >> EXIT: {}", e));
                     }
                 } else {
