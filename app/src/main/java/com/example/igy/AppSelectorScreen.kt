@@ -142,7 +142,6 @@ fun AppSelectorScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     MatrixSelectorRow(
                         app = app,
                         isDarkMode = isDarkMode,
-                        mode = currentMode,
                         isSelected = if (currentMode == AppMode.FOCUS) focusTarget == app.packageName else casualWhitelist.contains(app.packageName),
                         onSelect = {
                             if (currentMode == AppMode.FOCUS) {
@@ -186,7 +185,7 @@ fun AppSelectorScreen(isDarkMode: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-fun MatrixSelectorRow(app: AppInfo, isDarkMode: Boolean, mode: AppMode, isSelected: Boolean, onSelect: () -> Unit) {
+fun MatrixSelectorRow(app: AppInfo, isDarkMode: Boolean, isSelected: Boolean, onSelect: () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White

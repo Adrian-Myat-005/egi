@@ -265,12 +265,32 @@ class IgyVpnService : VpnService(), Runnable {
         }
         
         val stopPendingIntent = PendingIntent.getService(this, 1, stopIntent, flags)
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
-        return builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(R.drawable.ic_shield_status) // Custom brand-appropriate icon
+        
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, "igy_vpn")
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+
+        val stopAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            Notification.Action.Builder(null, "STOP", stopPendingIntent).build()
+        } else {
+            null
+        }
+
+        builder.setContentTitle("Igy Shield Active")
+            .setSmallIcon(R.drawable.ic_shield_status)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
-            .build()
+        
+        if (stopAction != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            builder.addAction(stopAction)
+        } else {
+            @Suppress("DEPRECATION")
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
+        }
+
+        return builder.build()
     }
 
     override fun onDestroy() {

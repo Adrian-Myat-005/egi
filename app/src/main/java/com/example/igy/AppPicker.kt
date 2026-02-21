@@ -28,7 +28,6 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 fun AppPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val darkCream = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White

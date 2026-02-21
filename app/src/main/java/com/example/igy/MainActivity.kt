@@ -125,13 +125,10 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             Screen.APP_SELECTOR -> AppSelectorScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
             Screen.TERMINAL -> TerminalDashboard(isDarkMode,
                 onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
-                onOpenDnsPicker = { currentScreen = Screen.DNS_PICKER },
                 onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
                 onOpenAccount = { currentScreen = Screen.ACCOUNT },
                 onOpenSettings = { currentScreen = Screen.SETTINGS },
-                onShowLogs = { showLogs = true },
-                dnsMsg = dnsLogMessage,
-                onDnsLogConsumed = { dnsLogMessage = null }
+                onShowLogs = { showLogs = true }
             )
             Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
             Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL }, onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER })
@@ -145,7 +142,6 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val scope = rememberCoroutineScope()
     
@@ -714,13 +710,10 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 fun TerminalDashboard(
     isDarkMode: Boolean,
     onOpenAppPicker: () -> Unit,
-    onOpenDnsPicker: () -> Unit,
     onOpenAppSelector: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,
-    onShowLogs: () -> Unit,
-    dnsMsg: String?,
-    onDnsLogConsumed: () -> Unit
+    onShowLogs: () -> Unit
 ) {
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
@@ -729,12 +722,9 @@ fun TerminalDashboard(
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
-    val events by TrafficEvent.events.collectAsState(initial = "SYSTEM_READY")
     var isBooting by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
     var isVpnTunnelGlobal by remember { mutableStateOf(IgyPreferences.isVpnTunnelGlobal(context)) }
-    var isLocalBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-    var isAutoStart by remember { mutableStateOf(IgyPreferences.getAutoStart(context)) }
 
     // Connecting Pulse Animation
     val connectingTransition = rememberInfiniteTransition(label = "ConnectingPulse")
@@ -853,6 +843,7 @@ fun TerminalDashboard(
     LaunchedEffect(Unit) {
         val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
         while (true) {
+            @Suppress("DEPRECATION")
             val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
             if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
                 currentSsid = ssid
@@ -1069,7 +1060,7 @@ fun TerminalDashboard(
                 .border(1.dp, wheat)
                 .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                 .clickable {
-                    handleExecuteToggle(context, isSecure, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppSelector, onOpenAppPicker, vpnLauncher) { isBooting = it }
+                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppPicker, vpnLauncher) { isBooting = it }
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -1152,11 +1143,9 @@ private fun startIgyVpnService(context: Context) {
 
 private fun handleExecuteToggle(
     context: Context,
-    isSecure: Boolean,
     isBooting: Boolean,
     isStealthMode: Boolean,
     isGlobal: Boolean,
-    onOpenAppSelector: () -> Unit,
     onOpenAppPicker: () -> Unit,
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit

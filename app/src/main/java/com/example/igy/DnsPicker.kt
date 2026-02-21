@@ -127,7 +127,6 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
 
 @Composable
 fun MatrixDnsRow(isDarkMode: Boolean, cardBg: Color, provider: DnsProvider, isSelected: Boolean, onSelect: () -> Unit) {
-    val textColor = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     Column(
         modifier = Modifier
             .fillMaxWidth()
