@@ -26,6 +26,7 @@ class IgyVpnService : VpnService(), Runnable {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            TrafficEvent.log("USER >> NOTIFICATION_STOP_SIGNAL")
             stopVpn()
             return START_NOT_STICKY
         }
@@ -170,12 +171,22 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     private fun stopVpn() {
-        if (!isRunning) return
+        if (!isRunning) {
+            TrafficEvent.log("CORE >> ALREADY_OFFLINE")
+            return
+        }
         isRunning = false
         TrafficEvent.setVpnActive(false)
         try { vpnInterface?.close() } catch (e: Exception) {}
         vpnInterface = null
-        stopForeground(true)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        
         stopSelf()
         TrafficEvent.log("CORE >> SHIELD_DOWN")
     }
@@ -205,7 +216,14 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     private fun createNotification(): Notification {
-        val stopPendingIntent = PendingIntent.getService(this, 0, Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }, PendingIntent.FLAG_IMMUTABLE)
+        val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        
+        val stopPendingIntent = PendingIntent.getService(this, 1, stopIntent, flags)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
         return builder.setContentTitle("Igy Shield Active")
             .setSmallIcon(R.drawable.ic_shield_status) // Custom brand-appropriate icon
