@@ -23,25 +23,35 @@ const authenticateAdmin = (req: express.Request, res: express.Response, next: ex
     }
 };
 
+app.get('/api/ping', (req, res) => res.json({ status: 'ALIVE' }));
+
 app.post('/api/auth/register', async (req, res) => {
   const { username, password } = req.body;
   try {
+    if (!username || !password) return res.status(400).json({ error: 'MISSING_DATA' });
+    const normalizedUsername = username.toLowerCase().trim();
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, password: hashedPassword });
-    res.json({ token: generateToken(user), user: { username, isPremium: false, expiry: 0 } });
-  } catch (error) {
-    res.status(400).json({ error: 'USER_ALREADY_EXISTS' });
+    const user = await User.create({ username: normalizedUsername, password: hashedPassword });
+    res.json({ token: generateToken(user), user: { username: normalizedUsername, isPremium: false, expiry: 0 } });
+  } catch (error: any) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      res.status(400).json({ error: 'USER_ALREADY_EXISTS' });
+    } else {
+      res.status(500).json({ error: 'DATABASE_ERROR' });
+    }
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = await User.findOne({ where: { username } });
+  if (!username || !password) return res.status(400).json({ error: 'MISSING_DATA' });
+  const normalizedUsername = username.toLowerCase().trim();
+  const user = await User.findOne({ where: { username: normalizedUsername } });
   if (user && await bcrypt.compare(password, user.password)) {
     res.json({ 
       token: generateToken(user), 
       user: { 
-        username, 
+        username: normalizedUsername, 
         isPremium: user.isPremium,
         expiry: user.subscriptionExpiry ? user.subscriptionExpiry.getTime() : 0,
         assignedKey: user.assignedKey
@@ -136,25 +146,13 @@ app.post('/api/admin/reset', authenticateAdmin, async (req, res) => {
 // Admin-only: Permanent user deletion
 app.post('/api/admin/delete', authenticateAdmin, async (req, res) => {
     const { username } = req.body;
-    const user = await User.findOne({ where: { username } });
+    const user = await User.findOne({ where: { username: username.toLowerCase().trim() } });
     if (user) {
       await user.destroy();
       res.json({ success: true, message: "USER_DELETED" });
     } else {
       res.status(404).json({ error: 'USER_NOT_FOUND' });
     }
-});
-
-// Admin-only: Delete user
-app.post('/api/admin/delete', authenticateAdmin, async (req, res) => {
-  const { username } = req.body;
-  const user = await User.findOne({ where: { username } });
-  if (user) {
-    await user.destroy();
-    res.json({ success: true, message: "USER_DELETED" });
-  } else {
-    res.status(404).json({ error: 'USER_NOT_FOUND' });
-  }
 });
 
 sequelize.sync().then(() => {

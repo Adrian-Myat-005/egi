@@ -72,6 +72,25 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
     var gatewayIp by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
+
+    // --- PRE-WARM SERVER (Render Wake-up) ---
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val url = java.net.URL("$serverUrl/api/ping")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.responseCode // Triggers the wake-up request
+                TrafficEvent.log("CORE >> PRE_WARM_SIGNAL_SENT")
+            } catch (e: Exception) {
+                // Ignore errors; this is just a best-effort wake-up
+            }
+        }
+    }
 
     if (showLogs) {
         AlertDialog(
@@ -180,9 +199,9 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             localBypass = it
             IgyPreferences.setLocalBypass(context, it)
         }
-        SettingsButton("[ SYSTEM_VPN_CONFIG ]") {
+        TactileButton("[ SYSTEM_VPN_CONFIG ]", isDarkMode = isDarkMode, onClick = {
             context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-        }
+        })
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -192,9 +211,11 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         Text("STATUS: $updateStatus", color = if (updateStatus.contains("FOUND")) Color(0xFF2E8B57) else Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(12.dp))
         
-        Button(
+        TactileButton(
+            text = if (isChecking) "[ SCANNING... ]" else "[ CHECK_FOR_UPDATES ]",
+            isDarkMode = isDarkMode,
             onClick = {
-                if (isChecking) return@Button
+                if (isChecking) return@TactileButton
                 scope.launch {
                     isChecking = true
                     updateStatus = "SCANNING_REPOSITORIES..."
@@ -210,24 +231,8 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
                         updateStatus = "YOU_ARE_ON_LATEST"
                     }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color.Gray),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isChecking) {
-                    Icon(
-                        imageVector = Icons.Default.Sync,
-                        contentDescription = null,
-                        modifier = androidx.compose.ui.Modifier.size(16.dp).graphicsLayer(rotationZ = rotation),
-                        tint = Color(0xFFB8860B)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text("[ CHECK_FOR_UPDATES ]", fontFamily = FontFamily.Monospace)
             }
-        }
+        )
 
         Spacer(modifier = Modifier.weight(1f))
         Text("[ BACK TO TERMINAL ]", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
@@ -275,14 +280,41 @@ fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -
 }
 
 @Composable
-fun SettingsButton(label: String, onClick: () -> Unit) {
+fun TactileButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isDarkMode: Boolean = false,
+    contentColor: Color? = null,
+    elevation: Dp = 2.dp
+) {
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color.Gray),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .border(1.dp, wheat, RoundedCornerShape(4.dp)),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = cardBg,
+            contentColor = contentColor ?: deepGray
+        ),
+        shape = RoundedCornerShape(4.dp),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = elevation,
+            pressedElevation = 0.dp
+        ),
+        contentPadding = PaddingValues(12.dp)
     ) {
-        Text(label, fontFamily = FontFamily.Monospace)
+        Text(
+            text = text,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -296,7 +328,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
-    val (savedToken, savedUser, isPremium) = IgyPreferences.getAuth(context)
+    var authData by remember { mutableStateOf(IgyPreferences.getAuth(context)) }
+    val (savedToken, savedUser, isPremium) = authData
     var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
     val scope = rememberCoroutineScope()
 
@@ -356,14 +389,17 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Button(
+                TactileButton(
+                    text = "RIGYSTER",
+                    isDarkMode = isDarkMode,
                     onClick = {
                         scope.launch {
                             try {
                                 status = "WAKING_UP_SERVER (30s)..."
-                                val result = performAuth(serverUrl, username, password, true)
+                                val result = performAuth(serverUrl, username.trim(), password, true)
                                 if (result != null) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    authData = IgyPreferences.getAuth(context)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
                                     status = "AUTH_FAILED: RECHECK_DATA"
@@ -375,20 +411,20 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = deepGray),
-                    modifier = Modifier.border(1.dp, wheat),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                ) {
-                    Text("RIGYSTER", fontFamily = FontFamily.Monospace)
-                }
-                Button(
+                    modifier = Modifier.weight(1f).padding(end = 4.dp)
+                )
+                TactileButton(
+                    text = "LOGIN",
+                    isDarkMode = isDarkMode,
+                    contentColor = Color(0xFF2E8B57),
                     onClick = {
                         scope.launch {
                             try {
                                 status = "WAKING_UP_SERVER (30s)..."
-                                val result = performAuth(serverUrl, username, password, false)
+                                val result = performAuth(serverUrl, username.trim(), password, false)
                                 if (result != null) {
                                     IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                                    authData = IgyPreferences.getAuth(context)
                                     status = "LOGGED_IN: ${result.username}"
                                 } else {
                                     status = "LOGIN_FAILED: RECHECK_DATA"
@@ -400,12 +436,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF2E8B57)),
-                    modifier = Modifier.border(1.dp, wheat),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                ) {
-                    Text("LOGIN", fontFamily = FontFamily.Monospace)
-                }
+                    modifier = Modifier.weight(1f).padding(start = 4.dp)
+                )
             }
         } else {
             if (isPremium && regions.isNotEmpty()) {
@@ -428,8 +460,8 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(name, color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                        if (selectedNodeId == id) Text("[ SELECTED ]", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text(name, color = if (selectedNodeId == id) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        if (selectedNodeId == id) Text("[ ACTIVE ]", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
                 
@@ -446,27 +478,29 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("PRIVATE_GATEWAY (DEFAULT)", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    Text("PRIVATE_GATEWAY (DEFAULT)", color = if (selectedNodeId == -1) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                     if (selectedNodeId == -1) Text("[ SELECTED ]", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            Button(
+            TactileButton(
+                text = "LOGOUT",
+                isDarkMode = isDarkMode,
+                contentColor = Color.Red,
                 onClick = {
                     IgyPreferences.clearAuth(context)
+                    authData = IgyPreferences.getAuth(context)
                     status = "GUEST_MODE"
-                },
-                modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Red),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-            ) {
-                Text("LOGOUT", fontFamily = FontFamily.Monospace)
-            }
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Button(
+        TactileButton(
+            text = "[ GET TEST KEY ]",
+            isDarkMode = isDarkMode,
+            contentColor = Color(0xFF20B2AA),
             onClick = {
                 scope.launch {
                     val key = fetchTestKey(serverUrl)
@@ -475,26 +509,20 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         Toast.makeText(context, "TEST_KEY_IMPORTED", Toast.LENGTH_SHORT).show()
                     }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().border(1.dp, wheat),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF20B2AA)),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-        ) {
-            Text("[ GET TEST KEY ]", fontFamily = FontFamily.Monospace)
-        }
+            }
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
-        Button(
+        TactileButton(
+            text = "[ BUY PREMIUM: 10,000 MMK / MONTH ]",
+            isDarkMode = isDarkMode,
+            contentColor = Color(0xFFB8860B),
+            elevation = 4.dp,
             onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/Amyat604"))
                 context.startActivity(intent)
-            },
-            modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFFB8860B)),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFFB8860B)),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-        ) {
-            Text("[ BUY PREMIUM: 10,000 MMK / MONTH ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-        }
+            }
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
         Text("[ BACK TO TERMINAL ]", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
@@ -508,7 +536,7 @@ private suspend fun fetchTestKey(serverUrl: String): String? = withContext(Dispa
         conn.connectTimeout = 5000
         conn.readTimeout = 5000
         if (conn.responseCode == 200) {
-            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            val res = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
             return@withContext res.getString("config")
         }
     } catch (e: Exception) {}
@@ -523,12 +551,14 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
         conn.readTimeout = 30000
         conn.setRequestProperty("Authorization", "Bearer $token")
         if (conn.responseCode == 200) {
-            val res = JSONArray(conn.inputStream.bufferedReader().readText())
+            val res = JSONArray(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
             val list = mutableListOf<JSONObject>()
             for (i in 0 until res.length()) { list.add(res.getJSONObject(i)) }
             return@withContext list
         }
     } catch (e: Exception) {}
+    emptyList()
+}
     emptyList()
 }
 
@@ -548,10 +578,12 @@ private suspend fun performAuth(serverUrl: String, user: String, pass: String, i
             put("username", user)
             put("password", pass)
         }
-        conn.outputStream.write(body.toString().toByteArray())
+        conn.outputStream.use { os ->
+            os.write(body.toString().toByteArray(Charsets.UTF_8))
+        }
         
         if (conn.responseCode == 200) {
-            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            val res = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
             val userObj = res.getJSONObject("user")
             return@withContext AuthResult(
                 res.getString("token"),
@@ -559,8 +591,17 @@ private suspend fun performAuth(serverUrl: String, user: String, pass: String, i
                 userObj.optBoolean("isPremium", false),
                 userObj.optLong("expiry", 0L)
             )
+        } else {
+            val errorText = try { 
+                val errorStream = conn.errorStream ?: conn.inputStream
+                val json = JSONObject(errorStream.bufferedReader(Charsets.UTF_8).readText())
+                json.optString("error", "UNKNOWN_ERROR")
+            } catch (e: Exception) { "CODE_${conn.responseCode}" }
+            TrafficEvent.log("AUTH >> FAIL: $errorText")
         }
-    } catch (e: Exception) {}
+    } catch (e: Exception) {
+        TrafficEvent.log("AUTH >> ERR: ${e.message}")
+    }
     null
 }
 
@@ -573,10 +614,18 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
         conn.setRequestProperty("Authorization", "Bearer $token")
         
         if (conn.responseCode == 200) {
-            val res = JSONObject(conn.inputStream.bufferedReader().readText())
+            val res = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
             return@withContext res.getString("config")
+        } else {
+            val errorText = try { 
+                val json = JSONObject(conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: "{}")
+                json.optString("error", "CONFIG_FETCH_FAILED")
+            } catch (e: Exception) { "CODE_${conn.responseCode}" }
+            TrafficEvent.log("VPN >> ERR: $errorText")
         }
-    } catch (e: Exception) {}
+    } catch (e: Exception) {
+        TrafficEvent.log("VPN >> FATAL: ${e.message}")
+    }
     null
 }
 

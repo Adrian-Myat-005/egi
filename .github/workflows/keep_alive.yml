@@ -1,0 +1,15 @@
+name: SERVER_KEEP_ALIVE_24_7
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Runs every 10 minutes
+  workflow_dispatch: # Allows manual trigger for testing
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: WAKE_UP_SIGNAL_EMISSION
+        run: |
+          curl -s -X GET https://egi-67tg.onrender.com/api/ping
+          echo "SIGNAL_SENT: $(date)"
