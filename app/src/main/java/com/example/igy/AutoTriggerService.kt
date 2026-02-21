@@ -13,6 +13,7 @@ import java.util.*
 class AutoTriggerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var job: Job? = null
+    private var wasAutoStarted = false // Track if we started the VPN
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -29,20 +30,30 @@ class AutoTriggerService : Service() {
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             
             while (isActive) {
-                // Cons: Battery drain. Saving: Only poll if screen is ON
                 if (powerManager.isInteractive) {
                     val currentApp = getForegroundApp(usageStatsManager)
+                    val triggerApps = IgyPreferences.getAutoStartApps(applicationContext)
+                    val isVpnRunning = IgyVpnService.isRunning
+
                     if (currentApp != null && currentApp != packageName) {
-                        val triggerApps = IgyPreferences.getAutoStartApps(applicationContext)
                         if (triggerApps.contains(currentApp)) {
-                            if (!IgyVpnService.isRunning) {
+                            // TARGET APP OPENED
+                            if (!isVpnRunning) {
                                 TrafficEvent.log("AUTO >> TRIGGERED_BY: $currentApp")
                                 startVpn()
+                                wasAutoStarted = true
+                            }
+                        } else {
+                            // OTHER APP OR HOME OPENED
+                            if (isVpnRunning && wasAutoStarted) {
+                                TrafficEvent.log("AUTO >> TARGET_CLOSED: STOPPING_SHIELD")
+                                stopVpn()
+                                wasAutoStarted = false
                             }
                         }
                     }
                 }
-                delay(2000) // Poll every 2 seconds for efficiency
+                delay(1500) // Slightly faster loop for better response
             }
         }
     }
@@ -67,6 +78,17 @@ class AutoTriggerService : Service() {
             }
         } catch (e: Exception) {
             Log.e("AutoTrigger", "Failed to start VPN", e)
+        }
+    }
+
+    private fun stopVpn() {
+        try {
+            val intent = Intent(this, IgyVpnService::class.java).apply {
+                action = IgyVpnService.ACTION_STOP
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("AutoTrigger", "Failed to stop VPN", e)
         }
     }
 
