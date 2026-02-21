@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -443,6 +444,7 @@ fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, isLoadi
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TactileButton(
     text: String,
@@ -787,6 +789,7 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
     null
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TerminalDashboard(
     isDarkMode: Boolean,
@@ -1004,7 +1007,7 @@ fun TerminalDashboard(
                     if (isSettingsLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = androidx.compose.material.icons.filled.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
+                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
                     }
                 }
 
@@ -1020,7 +1023,7 @@ fun TerminalDashboard(
                     if (isAccountLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = androidx.compose.material.icons.filled.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
+                        Icon(imageVector = Icons.Filled.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
                     }
                 }
 
@@ -1036,7 +1039,7 @@ fun TerminalDashboard(
                     if (isManualLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = deepGray, strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = androidx.compose.material.icons.filled.Info, contentDescription = "Help", tint = deepGray)
+                        Icon(imageVector = Icons.Filled.Info, contentDescription = "Help", tint = deepGray)
                     }
                 }
             }
@@ -1315,6 +1318,7 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RowScope.GridButton(
     text: String,
