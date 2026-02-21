@@ -13,7 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 libc = "0.2"
-shadowsocks = { version = "1.24", default-features = false, features = ["aead-cipher-2022"] }
+shadowsocks = { version = "1.24", default-features = false, features = ["aead-cipher-2022", "aead-cipher"] }
 shadowsocks-service = { version = "1.24", features = ["local"] }
 tun2proxy = "0.6"
 tun = { version = "0.7", features = ["async"] }

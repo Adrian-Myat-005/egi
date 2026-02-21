@@ -11,7 +11,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 object SecurityUtils {
-    private const val KEY_ALIAS = "igy_secure_key_v2"
+    private const val KEY_ALIAS = "igy_secure_key"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val TAG = "SecurityUtils"
