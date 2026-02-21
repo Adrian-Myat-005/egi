@@ -33,6 +33,8 @@ class AutoTriggerService : Service() {
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             
             while (isActive) {
+                var pollingInterval = 1200L // Default active interval
+                
                 if (powerManager.isInteractive) {
                     val currentApp = getForegroundApp(usageStatsManager)
                     val triggerApps = IgyPreferences.getAutoStartApps(applicationContext)
@@ -56,10 +58,16 @@ class AutoTriggerService : Service() {
                                 // Ensure state is reset even if VPN was closed manually
                                 wasAutoStarted = false
                             }
+                            // If no target app, we can slow down polling to save battery
+                            pollingInterval = 5000L 
                         }
                     }
+                } else {
+                    // Screen is OFF: Extreme battery saving mode
+                    pollingInterval = 30000L
                 }
-                delay(1200) // Optimal balance between battery and speed
+                
+                delay(pollingInterval)
             }
         }
     }

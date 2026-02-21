@@ -159,8 +159,55 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         Text("IGY >> SYSTEM_SETTINGS", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- SECTION 1: VPN & NETWORK ---
-        SettingsHeader("1. VPN & NETWORK CONTROL")
+        // --- SECTION 1: PERMISSION & SYSTEM HEALTH ---
+        SettingsHeader("1. PERMISSION & SYSTEM HEALTH")
+        
+        // 1.1 VPN Permission
+        val isVpnPrepared = android.net.VpnService.prepare(context) == null
+        PermissionItem("VPN Service Access", isVpnPrepared, isDarkMode) {
+            val intent = android.net.VpnService.prepare(context)
+            if (intent != null) context.startActivity(intent)
+        }
+
+        // 1.2 Usage Stats (for Auto-Connect)
+        val hasUsageAccess = hasUsageStatsPermission(context)
+        PermissionItem("App Usage Detection", hasUsageAccess, isDarkMode) {
+            context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+
+        // 1.3 Battery Optimization
+        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } else true
+        PermissionItem("Unrestricted Battery", isIgnoringBattery, isDarkMode) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                }
+            }
+        }
+
+        // 1.4 Notifications (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasNotifPermission = ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            PermissionItem("System Notifications", hasNotifPermission, isDarkMode) {
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                }
+                context.startActivity(intent)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- SECTION 2: VPN & NETWORK ---
+        SettingsHeader("2. VPN & NETWORK CONTROL")
         SettingsToggle("Dark Theme", isDarkMode) {
             onThemeChange(it)
         }
@@ -223,8 +270,8 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- SECTION 2: SOFTWARE UPDATE ---
-        SettingsHeader("2. SOFTWARE UPDATE")
+        // --- SECTION 3: SOFTWARE UPDATE ---
+        SettingsHeader("3. SOFTWARE UPDATE")
         Text("BUILD_VERSION: $currentVersion", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Text("STATUS: $updateStatus", color = if (updateStatus.contains("FOUND")) Color(0xFF2E8B57) else Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(12.dp))
@@ -305,6 +352,42 @@ fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -
     ) {
         Text(label, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, onClick: () -> Unit) {
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .background(cardBg)
+            .border(0.5.dp, wheat)
+            .clickable { onClick() }
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontSize = 14.sp, fontFamily = FontFamily.Monospace, color = deepGray)
+            Text(
+                if (granted) "STATUS: GRANTED" else "STATUS: RESTRICTED",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = if (granted) Color(0xFF2E8B57) else Color.Red
+            )
+        }
+        Text(
+            if (granted) "[ OK ]" else "[ CONFIGURE ]",
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B)
+        )
     }
 }
 
@@ -911,7 +994,7 @@ fun TerminalDashboard(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(scaleX = activePulseScale, scaleY = activePulseScale)) {
                 Text(
-                    text = "THREATS_DEFLECTED",
+                    text = "Blocked Tracking",
                     color = deepGray.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp
@@ -1199,10 +1282,10 @@ fun TacticalManual(onDismiss: () -> Unit) {
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    ManualSection("1. HOW TO CONNECT", "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\nMM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။")
-                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN GLOBAL]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN FOCUS]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [TURBO ACCELERATOR]: ACCELERATE your VIP apps by blocking all background data thieves for maximum speed.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (GLOBAL)၊ app တစ်ခုချင်းသုံးမလား (FOCUS) (သို့မဟုတ်) အင်တာနက်မြန်အောင် လုပ်မလား (TURBO) စိတ်ကြိုက်ရွေးပါ။")
-                    ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
-                    ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the [REPAIR] button on the main screen.\nMM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။")
+                    ManualSection("1. HOW TO CONNECT", "EN: Simply click Connect to start. If it's your first time, click Account to sign in.\nMM: Connect ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် Account ထဲမှာ အကောင့်ဝင်ပါ။")
+                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN Focus]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [Normal Focus]: ACCELERATE your VIP apps by blocking all background data thieves for maximum speed.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (VPN)၊ app တစ်ခုချင်းသုံးမလား (VPN Focus) (သို့မဟုတ်) အင်တာနက်မြန်အောင် လုပ်မလား (Normal Focus) စိတ်ကြိုက်ရွေးပါ။")
+                    ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to Settings -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
+                    ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the refresh button on the main screen.\nMM: အင်တာနက်မရတော့ရင် refresh ခလုတ်ကို နှိပ်ပေးပါ။")
                 }
             }
         },
