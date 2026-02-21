@@ -30,7 +30,6 @@ class IgyVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
-        // 1. Mandatory Foreground Promotion (ASAP)
         createNotificationChannel()
         try {
             val notification = createNotification()
@@ -40,14 +39,13 @@ class IgyVpnService : VpnService(), Runnable {
                 startForeground(1, notification)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Foreground start fail", e)
+            Log.e(TAG, "FG promotion fail", e)
             stopSelf()
             return START_NOT_STICKY
         }
 
         if (isRunning) return START_STICKY
 
-        // 2. Start Logic
         isRunning = true
         TrafficEvent.setVpnActive(true)
         
@@ -61,7 +59,7 @@ class IgyVpnService : VpnService(), Runnable {
 
     override fun run() {
         try {
-            // 1. REAL-TIME KEY SYNC (Ensures latest key from Admin Dashboard)
+            // 1. Pre-Sync Key
             val (token, _, _) = IgyPreferences.getAuth(this)
             val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
             val nodeId = IgyPreferences.getSelectedNodeId(this)
@@ -71,13 +69,20 @@ class IgyVpnService : VpnService(), Runnable {
                 val latestKey = fetchVpnConfigSync(serverUrl, token, nodeId)
                 if (latestKey != null && latestKey.startsWith("ss://")) {
                     IgyPreferences.saveOutlineKey(this, latestKey)
-                    TrafficEvent.log("CORE >> KEY_SYNC_SUCCESS")
-                } else {
-                    TrafficEvent.log("CORE >> SYNC_FAIL: USING_CACHE")
                 }
             }
 
             val ssKey = IgyPreferences.getOutlineKey(this)
+            
+            // 2. ROBUSTNESS: If no key is available, don't establish TUN
+            // This prevents "No Internet" in Bypass Mode when not logged in.
+            if (ssKey.isEmpty()) {
+                TrafficEvent.log("CORE >> STANDBY_MODE: NO_KEY")
+                while (isRunning) { Thread.sleep(2000) }
+                return
+            }
+
+            // 3. Setup Builder
             val builder = Builder()
                 .setSession("IgyShield")
                 .addAddress("10.0.0.1", 24)
@@ -90,26 +95,37 @@ class IgyVpnService : VpnService(), Runnable {
             
             try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
+            // 4. Handle Stealth/Bypass Mode
+            val isStealth = IgyPreferences.isStealthMode(this)
+            val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
+            val vipList = IgyPreferences.getVipList(this)
+
+            if (isStealth && !isGlobal && vipList.isNotEmpty()) {
+                TrafficEvent.log("SHIELD >> FOCUS_MODE: ${vipList.size}_APPS")
+                vipList.forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
+            } else if (!isStealth && vipList.isNotEmpty()) {
+                TrafficEvent.log("SHIELD >> BYPASS_MODE: ${vipList.size}_APPS")
+                vipList.forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
+            } else {
+                TrafficEvent.log("SHIELD >> GLOBAL_MODE")
+            }
+
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                TrafficEvent.log("CORE >> ESTABLISH_REJECTED")
+                TrafficEvent.log("CORE >> ESTABLISH_FAIL")
                 return
             }
 
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
                 IgyNetwork.setOutlineKey(ssKey)
-                if (ssKey.isNotEmpty()) {
-                    IgyNetwork.runVpnLoop(fd)
-                } else {
-                    IgyNetwork.runPassiveShield(fd)
-                }
+                IgyNetwork.runVpnLoop(fd)
             } else {
-                TrafficEvent.log("CORE >> NATIVE_ENGINE_MISSING")
+                TrafficEvent.log("CORE >> ENGINE_MISSING")
                 while (isRunning) { Thread.sleep(2000) }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Thread panic", e)
+            Log.e(TAG, "Fatal run loop error", e)
             TrafficEvent.log("CORE >> FATAL: ${e.message}")
         } finally {
             stopVpn()
@@ -152,7 +168,7 @@ class IgyVpnService : VpnService(), Runnable {
         val stopPendingIntent = PendingIntent.getService(this, 0, Intent(this, IgyVpnService::class.java).apply { action = ACTION_STOP }, PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "igy_vpn") else Notification.Builder(this)
         return builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Guaranteed safe public icon
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
             .build()
