@@ -34,8 +34,10 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.graphics.graphicsLayer
@@ -557,8 +559,6 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
             return@withContext list
         }
     } catch (e: Exception) {}
-    emptyList()
-}
     emptyList()
 }
 
