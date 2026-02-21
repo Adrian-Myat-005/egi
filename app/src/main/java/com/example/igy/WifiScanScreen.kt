@@ -173,6 +173,7 @@ fun WifiScanScreen(isDarkMode: Boolean, onBack: () -> Unit, onNavigateToRouter: 
         ) {
             if (isMapView) {
                 TopologyMap(
+                    isDarkMode = isDarkMode,
                     devices = resolvedDevices,
                     onDeviceClick = { if (it.status != "Gateway") selectedDevice = it else showRouterCreds = true }
                 )
@@ -344,7 +345,7 @@ fun MatrixDeviceRow(device: DeviceInfo, onClick: () -> Unit) {
 }
 
 @Composable
-fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) {
+fun TopologyMap(isDarkMode: Boolean, devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) {
     val gateway = devices.find { it.status == "Gateway" }
     val others = devices.filter { it.status != "Gateway" }
     
@@ -360,7 +361,7 @@ fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) 
             drawCircle(Color.Green.copy(alpha = 0.1f), radius = maxRadius, style = Stroke(1f))
         }
         
-        gateway?.let { Node(it, isGateway = true, onClick = {}) }
+        gateway?.let { Node(isDarkMode, it, isGateway = true, onClick = {}) }
 
         others.forEachIndexed { index, device ->
             val angle = (2 * Math.PI * index / others.size).toFloat()
@@ -370,14 +371,15 @@ fun TopologyMap(devices: List<DeviceInfo>, onDeviceClick: (DeviceInfo) -> Unit) 
             val offsetY = (radius.value * Math.sin(angle.toDouble())).dp
 
             Box(modifier = Modifier.offset(x = offsetX, y = offsetY)) {
-                Node(device, isGateway = false, onClick = { onDeviceClick(device) })
+                Node(isDarkMode, device, isGateway = false, onClick = { onDeviceClick(device) })
             }
         }
     }
 }
 
 @Composable
-fun Node(device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
+fun Node(isDarkMode: Boolean, device: DeviceInfo, isGateway: Boolean, onClick: () -> Unit) {
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable { onClick() }

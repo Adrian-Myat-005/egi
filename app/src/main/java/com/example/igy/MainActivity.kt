@@ -293,7 +293,6 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
@@ -816,9 +815,9 @@ fun TerminalDashboard(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2E8B57) else Color.Red)
-            StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA))
-            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray)
+            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2E8B57) else Color.Red, isDarkMode)
+            StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA), isDarkMode)
+            StatsTile("STATUS", if (isSecure) "ACTIVE" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray, isDarkMode)
         }
 
         Box(
@@ -860,6 +859,7 @@ fun TerminalDashboard(
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
                     text = if (!isStealthMode) "[ BYPASS MODE: ACTIVE ]" else "[ BYPASS MODE ]",
+                    isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
                 ) {
@@ -867,7 +867,7 @@ fun TerminalDashboard(
                     IgyPreferences.setStealthMode(context, false)
                     onOpenAppSelector()
                 }
-                GridButton("[ NETWORK_RADAR ]", Modifier.weight(1f)) {
+                GridButton("[ NETWORK_RADAR ]", isDarkMode, Modifier.weight(1f)) {
                     val status = ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION)
                     if (status == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                         onOpenWifiRadar()
@@ -877,9 +877,10 @@ fun TerminalDashboard(
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("[ CONSOLE_LOGS ]", Modifier.weight(1f)) { onShowLogs() }
+                GridButton("[ CONSOLE_LOGS ]", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
                 GridButton(
                     text = if (isStealthMode && isVpnTunnelGlobal) "[ VPN GLOBAL: ACTIVE ]" else "[ VPN GLOBAL ]",
+                    isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2E8B57)
                 ) {
@@ -893,6 +894,7 @@ fun TerminalDashboard(
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
                     text = if (isBatteryOptimized) "[ BATTERY: OK ]" else "[ BATTERY: RESTRICTED ]",
+                    isDarkMode = isDarkMode,
                     modifier = Modifier.weight(0.8f),
                     color = if (isBatteryOptimized) Color(0xFF2E8B57) else Color.Red
                 ) {
@@ -913,6 +915,7 @@ fun TerminalDashboard(
                 }
                 GridButton(
                     text = if (isStealthMode && !isVpnTunnelGlobal) "[ VPN FOCUS: ACTIVE ]" else "[ VPN FOCUS ]",
+                    isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1.4f),
                     color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57)
                 ) {
@@ -922,7 +925,7 @@ fun TerminalDashboard(
                     IgyPreferences.setVpnTunnelMode(context, false)
                     onOpenAppPicker()
                 }
-                GridButton("[ REPAIR ]", Modifier.weight(0.8f)) { 
+                GridButton("[ REPAIR ]", isDarkMode, Modifier.weight(0.8f)) { 
                     TrafficEvent.log("CORE >> INITIATING_DEEP_REPAIR...")
                     TrafficEvent.updateCount(0)
                     // Deep repair: Clear any stuck states
@@ -966,7 +969,7 @@ fun TerminalDashboard(
 }
 
 @Composable
-fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color) {
+fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueColor: Color, isDarkMode: Boolean) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     Box(
@@ -985,7 +988,7 @@ fun RowScope.StatsTile(label: String, value: String, weightRatio: Float, valueCo
 }
 
 @Composable
-fun RowScope.GridButton(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
+fun RowScope.GridButton(text: String, isDarkMode: Boolean, modifier: Modifier = Modifier, color: Color = Color(0xFF2E8B57), onClick: () -> Unit) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val interactionSource = remember { MutableInteractionSource() }
