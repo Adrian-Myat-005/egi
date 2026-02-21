@@ -111,7 +111,3 @@ class AutoTriggerService : Service() {
         super.onDestroy()
     }
 }
-        serviceScope.cancel()
-        super.onDestroy()
-    }
-}
