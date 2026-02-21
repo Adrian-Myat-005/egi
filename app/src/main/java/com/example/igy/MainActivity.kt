@@ -165,7 +165,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             onThemeChange(it)
         }
         var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-        SettingsToggle("LOCAL_BYPASS", localBypass) {
+        SettingsToggle("LOCAL_DIRECT_ACCESS", localBypass) {
             localBypass = it
             IgyPreferences.setLocalBypass(context, it)
         }
@@ -978,14 +978,14 @@ fun TerminalDashboard(
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
-                    text = if (!isStealthMode) "[ BYPASS MODE: ACTIVE ]" else "[ BYPASS MODE ]",
+                    text = if (!isStealthMode) "[ TURBO ACCELERATOR: ACTIVE ]" else "[ TURBO ACCELERATOR ]",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
                 ) {
                     isStealthMode = false
                     IgyPreferences.setStealthMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY BYPASS", Toast.LENGTH_SHORT).show()
+                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY TURBO", Toast.LENGTH_SHORT).show()
                     onOpenAppSelector()
                 }
                 GridButton(
@@ -1192,7 +1192,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
                     ManualSection("1. HOW TO CONNECT", "EN: Simply click [ENGAGE_SHIELD] to start. If it's your first time, click [ACCOUNT] to get a key.\nMM: ENGAGE ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် ACCOUNT ထဲမှာ Key အရင်ယူပါ။")
-                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN GLOBAL]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN FOCUS]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [BYPASS MODE]: INTERCEPTS everyone except VIP apps to block background data. Best for saving battery/data.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (GLOBAL)၊ app တစ်ခုချင်းသုံးမလား (FOCUS) စိတ်ကြိုက်ရွေးပါ။")
+                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN GLOBAL]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN FOCUS]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [TURBO ACCELERATOR]: ACCELERATE your VIP apps by blocking all background data thieves for maximum speed.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (GLOBAL)၊ app တစ်ခုချင်းသုံးမလား (FOCUS) (သို့မဟုတ်) အင်တာနက်မြန်အောင် လုပ်မလား (TURBO) စိတ်ကြိုက်ရွေးပါ။")
                     ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to [SETTINGS] -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
                     ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the [REPAIR] button on the main screen.\nMM: အင်တာနက်မရတော့ရင် REPAIR ခလုတ်ကို နှိပ်ပေးပါ။")
                 }

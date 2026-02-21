@@ -130,13 +130,15 @@ class IgyVpnService : VpnService(), Runnable {
             // --- MODE SELECTION & ROUTING ---
             when {
                 !isStealth -> {
-                    // BYPASS MODE (Firewall)
+                    // TURBO ACCELERATOR (High-Speed Direct Path)
                     val vipList = IgyPreferences.getVipList(this)
-                    TrafficEvent.log("SHIELD >> MODE: BYPASS_FIREWALL")
-                    TrafficEvent.log("SHIELD >> BYPASSING_${vipList.size}_VIP_APPS")
+                    TrafficEvent.log("TURBO >> MODE: ACCELERATOR_ACTIVE")
+                    TrafficEvent.log("TURBO >> VIP_APPS_DIRECT_PATH: ${vipList.size}")
                     vipList.forEach { 
                         try { builder.addDisallowedApplication(it) } catch (e: Exception) {} 
                     }
+                    // Optimize for low latency with Cloudflare DNS even in direct mode
+                    builder.addDnsServer("1.1.1.1")
                 }
                 isStealth && !isGlobal -> {
                     // VPN TRUE FOCUS (LOCKDOWN MODE)
@@ -188,8 +190,8 @@ class IgyVpnService : VpnService(), Runnable {
                 IgyNetwork.setOutlineKey(ssKey)
 
                 if (!isStealth) {
-                    // BYPASS MODE: Always use Passive Shield (to swallow background traffic)
-                    TrafficEvent.log("CORE >> FIREWALL_ACTIVE")
+                    // TURBO MODE: Always use Passive Shield (to swallow background traffic)
+                    TrafficEvent.log("TURBO >> ACCELERATION_ENGAGED")
                     IgyNetwork.runPassiveShield(fd)
                 } else if (ssKey.isNotEmpty()) {
                     // VPN MODES (Global/Focus): Use VpnLoop if key is present

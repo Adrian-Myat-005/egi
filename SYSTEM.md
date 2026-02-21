@@ -35,7 +35,7 @@ Igy Shield orchestrates network traffic through three distinct, user-selectable 
 | :--- | :--- | :--- |
 | **[VPN GLOBAL]** | Full-device encrypted tunnel. | Global Routing + `runVpnLoop` |
 | **[VPN FOCUS]** | **True Lockdown**: ONLY selected apps get internet. | UID Filtering + `FilteredTun` + `runVpnLoop` |
-| **[BYPASS MODE]** | Firewalling to block background data. | UID Exclusion + `runPassiveShield` |
+| **[TURBO ACCELERATOR]** | Speed optimization by blocking background data. | UID Exclusion + `runPassiveShield` |
 
 *   **VPN FOCUS (Lockdown):** Unlike standard split-tunneling, this mode physically cuts off internet access for every app *except* the selected focus target, ensuring 100% bandwidth and zero background leaks.
 
