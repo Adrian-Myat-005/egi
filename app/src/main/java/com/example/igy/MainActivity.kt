@@ -777,7 +777,12 @@ fun TerminalDashboard(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             TrafficEvent.log("USER >> PERMISSION_GRANTED")
             try {
-                ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
+                val startIntent = Intent(context, IgyVpnService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(startIntent)
+                } else {
+                    context.startService(startIntent)
+                }
             } catch (e: Exception) {
                 TrafficEvent.log("CORE >> START_ERR: ${e.message}")
             }
@@ -1095,7 +1100,6 @@ private fun handleExecuteToggle(
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
-    val mainScope = CoroutineScope(Dispatchers.Main + Job())
     try {
         if (isBooting) {
             setBooting(false)
@@ -1107,20 +1111,16 @@ private fun handleExecuteToggle(
             val stopIntent = Intent(context, IgyVpnService::class.java).apply { 
                 action = IgyVpnService.ACTION_STOP 
             }
-            try {
-                context.startService(stopIntent)
-            } catch (e: Exception) {
-                TrafficEvent.log("CORE >> STOP_ERR: ${e.message}")
-            }
+            context.startService(stopIntent)
             
+            // Safe redirect to system settings
             try {
-                val settingsIntent = Intent(Settings.ACTION_VPN_SETTINGS).apply { 
+                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).apply { 
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK 
-                }
-                context.startActivity(settingsIntent)
+                })
             } catch (e: Exception) {}
             
-            Toast.makeText(context, "DISABLE ALWAYS-ON / LOCKDOWN IF NEEDED", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "DISABLE ALWAYS-ON IF NEEDED", Toast.LENGTH_LONG).show()
         } else {
             val vipList = IgyPreferences.getVipList(context)
             if (!isGlobal && vipList.isEmpty() && isStealthMode) {
@@ -1141,7 +1141,8 @@ private fun handleExecuteToggle(
             val serverUrl = IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com"
             val nodeId = IgyPreferences.getSelectedNodeId(context)
             
-            mainScope.launch {
+            // Perform key sync in a dedicated background job, then launch VPN
+            CoroutineScope(Dispatchers.Main + Job()).launch {
                 if (token.isNotEmpty()) {
                     TrafficEvent.log("CORE >> SYNCING_SECURE_KEY...")
                     val config = fetchVpnConfig(serverUrl, token, nodeId)
@@ -1159,8 +1160,12 @@ private fun handleExecuteToggle(
                         vpnLauncher.launch(intent) 
                     } else { 
                         val startIntent = Intent(context, IgyVpnService::class.java)
-                        ContextCompat.startForegroundService(context, startIntent)
-                        setBooting(false) // Reset booting if started directly
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(startIntent)
+                        } else {
+                            context.startService(startIntent)
+                        }
+                        setBooting(false)
                     }
                 } catch (e: Exception) {
                     TrafficEvent.log("CORE >> PREPARE_ERR: ${e.message}")
