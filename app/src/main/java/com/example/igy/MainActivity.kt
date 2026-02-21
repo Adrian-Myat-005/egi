@@ -1095,6 +1095,19 @@ fun RowScope.GridButton(text: String, isDarkMode: Boolean, modifier: Modifier = 
     }
 }
 
+private fun startIgyVpnService(context: Context) {
+    try {
+        val startIntent = Intent(context, IgyVpnService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(startIntent)
+        } else {
+            context.startService(startIntent)
+        }
+    } catch (e: Exception) {
+        TrafficEvent.log("CORE >> START_FAIL")
+    }
+}
+
 private fun handleExecuteToggle(
     context: Context,
     isSecure: Boolean,
@@ -1131,16 +1144,7 @@ private fun handleExecuteToggle(
         if (intent != null) {
             vpnLauncher.launch(intent)
         } else {
-            try {
-                val startIntent = Intent(context, IgyVpnService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(startIntent)
-                } else {
-                    context.startService(startIntent)
-                }
-            } catch (e: Exception) {
-                TrafficEvent.log("CORE >> START_FAIL")
-            }
+            startIgyVpnService(context)
         }
         delay(1500)
         setBooting(false)
