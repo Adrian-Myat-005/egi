@@ -164,15 +164,27 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         
         // 1.1 VPN Permission
         val isVpnPrepared = android.net.VpnService.prepare(context) == null
-        PermissionItem("VPN Service Access", isVpnPrepared, isDarkMode) {
-            val intent = android.net.VpnService.prepare(context)
-            if (intent != null) context.startActivity(intent)
+        var isVpnPermLoading by remember { mutableStateOf(false) }
+        PermissionItem("VPN Service Access", isVpnPrepared, isDarkMode, isVpnPermLoading) {
+            scope.launch {
+                isVpnPermLoading = true
+                delay(300)
+                val intent = android.net.VpnService.prepare(context)
+                if (intent != null) context.startActivity(intent)
+                isVpnPermLoading = false
+            }
         }
 
         // 1.2 Usage Stats (for Auto-Connect)
         val hasUsageAccess = hasUsageStatsPermission(context)
-        PermissionItem("App Usage Detection", hasUsageAccess, isDarkMode) {
-            context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        var isUsagePermLoading by remember { mutableStateOf(false) }
+        PermissionItem("App Usage Detection", hasUsageAccess, isDarkMode, isUsagePermLoading) {
+            scope.launch {
+                isUsagePermLoading = true
+                delay(300)
+                context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                isUsagePermLoading = false
+            }
         }
 
         // 1.3 Battery Optimization
@@ -180,27 +192,39 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             pm.isIgnoringBatteryOptimizations(context.packageName)
         } else true
-        PermissionItem("Unrestricted Battery", isIgnoringBattery, isDarkMode) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = android.net.Uri.parse("package:${context.packageName}")
+        var isBattPermLoading by remember { mutableStateOf(false) }
+        PermissionItem("Unrestricted Battery", isIgnoringBattery, isDarkMode, isBattPermLoading) {
+            scope.launch {
+                isBattPermLoading = true
+                delay(300)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
+                isBattPermLoading = false
             }
         }
 
         // 1.4 Notifications (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val hasNotifPermission = ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            PermissionItem("System Notifications", hasNotifPermission, isDarkMode) {
-                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            var isNotifPermLoading by remember { mutableStateOf(false) }
+            PermissionItem("System Notifications", hasNotifPermission, isDarkMode, isNotifPermLoading) {
+                scope.launch {
+                    isNotifPermLoading = true
+                    delay(300)
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    }
+                    context.startActivity(intent)
+                    isNotifPermLoading = false
                 }
-                context.startActivity(intent)
             }
         }
 
@@ -233,13 +257,18 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             }
         }
 
-        TactileButton("Always-On VPN Setup", isDarkMode = isDarkMode, onClick = {
-            try {
-                // Try to open the VPN settings directly
-                val intent = Intent("android.net.vpn.SETTINGS")
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+        var isAlwaysOnLoading by remember { mutableStateOf(false) }
+        TactileButton("Always-On VPN Setup", isDarkMode = isDarkMode, isLoading = isAlwaysOnLoading, onClick = {
+            scope.launch {
+                isAlwaysOnLoading = true
+                delay(300)
+                try {
+                    val intent = Intent("android.net.vpn.SETTINGS")
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+                }
+                isAlwaysOnLoading = false
             }
         })
 
@@ -263,8 +292,14 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         }
 
         if (autoStartTrigger) {
-            TactileButton("Auto-Connect-VPN-Apps", isDarkMode = isDarkMode, onClick = {
-                onOpenAutoStartPicker()
+            var isAutoAppsLoading by remember { mutableStateOf(false) }
+            TactileButton("Auto-Connect-VPN-Apps", isDarkMode = isDarkMode, isLoading = isAutoAppsLoading, onClick = {
+                scope.launch {
+                    isAutoAppsLoading = true
+                    delay(300)
+                    onOpenAutoStartPicker()
+                    isAutoAppsLoading = false
+                }
             })
         }
 
@@ -356,18 +391,28 @@ fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -
 }
 
 @Composable
-fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, onClick: () -> Unit) {
+fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, isLoading: Boolean = false, onClick: () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            delay(200)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .background(cardBg)
             .border(0.5.dp, wheat)
-            .clickable { onClick() }
+            .clickable(enabled = !isLoading) { onClick() }
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -381,13 +426,17 @@ fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, onClick
                 color = if (granted) Color(0xFF2E8B57) else Color.Red
             )
         }
-        Text(
-            if (granted) "[ OK ]" else "[ CONFIGURE ]",
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B)
-        )
+        if (showLoading) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B), strokeWidth = 2.dp)
+        } else {
+            Text(
+                if (granted) "[ OK ]" else "[ CONFIGURE ]",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B)
+            )
+        }
     }
 }
 
@@ -926,38 +975,74 @@ fun TerminalDashboard(
                     maxLines = 1
                 )
             }
+            var isSettingsLoading by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
                     .background(cardBg)
                     .border(0.5.dp, wheat)
-                    .clickable { onOpenSettings() },
+                    .clickable(enabled = !isSettingsLoading) {
+                        scope.launch {
+                            isSettingsLoading = true
+                            delay(300)
+                            onOpenSettings()
+                            isSettingsLoading = false
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Text("Settings", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                if (isSettingsLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
+                } else {
+                    Text("Settings", color = Color(0xFF4682B4), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
             }
+            var isAccountLoading by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
                     .background(cardBg)
                     .border(0.5.dp, wheat)
-                    .clickable { onOpenAccount() },
+                    .clickable(enabled = !isAccountLoading) {
+                        scope.launch {
+                            isAccountLoading = true
+                            delay(300)
+                            onOpenAccount()
+                            isAccountLoading = false
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Text("Account", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                if (isAccountLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
+                } else {
+                    Text("Account", color = Color(0xFFDAA520), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                }
             }
+            var isManualLoading by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .weight(0.4f)
                     .fillMaxHeight()
                     .background(cardBg)
                     .border(0.5.dp, wheat)
-                    .clickable { showManual = true },
+                    .clickable(enabled = !isManualLoading) {
+                        scope.launch {
+                            isManualLoading = true
+                            delay(300)
+                            showManual = true
+                            isManualLoading = false
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Text("?", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                if (isManualLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), color = deepGray, strokeWidth = 2.dp)
+                } else {
+                    Text("?", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                }
             }
         }
 
@@ -1008,45 +1093,79 @@ fun TerminalDashboard(
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
+                var isNormalLoading by remember { mutableStateOf(false) }
                 GridButton(
                     text = if (!isStealthMode) "Normal Focus: Active" else "Normal Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57)
+                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57),
+                    isLoading = isNormalLoading
                 ) {
-                    isStealthMode = false
-                    IgyPreferences.setStealthMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                    onOpenAppSelector()
+                    scope.launch {
+                        isNormalLoading = true
+                        delay(300)
+                        isStealthMode = false
+                        IgyPreferences.setStealthMode(context, false)
+                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                        onOpenAppSelector()
+                        isNormalLoading = false
+                    }
                 }
+                var isVpnLoading by remember { mutableStateOf(false) }
                 GridButton(
                     text = if (isStealthMode && isVpnTunnelGlobal) "VPN: Active" else "VPN",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2E8B57)
+                    color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2E8B57),
+                    isLoading = isVpnLoading
                 ) {
-                    isStealthMode = true
-                    isVpnTunnelGlobal = true
-                    IgyPreferences.setStealthMode(context, true)
-                    IgyPreferences.setVpnTunnelMode(context, true)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                    TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
+                    scope.launch {
+                        isVpnLoading = true
+                        delay(300)
+                        isStealthMode = true
+                        isVpnTunnelGlobal = true
+                        IgyPreferences.setStealthMode(context, true)
+                        IgyPreferences.setVpnTunnelMode(context, true)
+                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                        TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
+                        isVpnLoading = false
+                    }
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton("Activity Log", isDarkMode, Modifier.weight(1f)) { onShowLogs() }
+                var isLogLoading by remember { mutableStateOf(false) }
+                GridButton(
+                    text = "Activity Log",
+                    isDarkMode = isDarkMode,
+                    modifier = Modifier.weight(1f),
+                    isLoading = isLogLoading
+                ) {
+                    scope.launch {
+                        isLogLoading = true
+                        delay(300)
+                        onShowLogs()
+                        isLogLoading = false
+                    }
+                }
+                var isFocusLoading by remember { mutableStateOf(false) }
                 GridButton(
                     text = if (isStealthMode && !isVpnTunnelGlobal) "VPN Focus: Active" else "VPN Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57)
+                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57),
+                    isLoading = isFocusLoading
                 ) {
-                    isStealthMode = true
-                    isVpnTunnelGlobal = false
-                    IgyPreferences.setStealthMode(context, true)
-                    IgyPreferences.setVpnTunnelMode(context, false)
-                    if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                    onOpenAppPicker()
+                    scope.launch {
+                        isFocusLoading = true
+                        delay(300)
+                        isStealthMode = true
+                        isVpnTunnelGlobal = false
+                        IgyPreferences.setStealthMode(context, true)
+                        IgyPreferences.setVpnTunnelMode(context, false)
+                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                        onOpenAppPicker()
+                        isFocusLoading = false
+                    }
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
