@@ -5,9 +5,9 @@ mod scanner;
 #[cfg(test)]
 mod tests;
 
-use jni::objects::{JClass, JString, JValue, GlobalRef};
+use jni::objects::{JClass, JString, JValue, GlobalRef, JLongArray};
 use jni::{JNIEnv, JavaVM};
-use jni::sys::{jstring, jlong, jint, jboolean, jlongArray};
+use jni::sys::{jstring, jlong, jint, jboolean};
 use std::sync::atomic::Ordering;
 use crate::common::*;
 
@@ -99,7 +99,7 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedDomains(
 pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedUids(
     mut env: JNIEnv,
     _class: JClass,
-    uids: jlongArray,
+    uids: JLongArray,
 ) {
     if let Ok(len) = env.get_array_length(&uids) {
         let mut uids_vec = vec![0i64; len as usize];
