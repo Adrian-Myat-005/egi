@@ -115,30 +115,42 @@ class IgyVpnService : VpnService(), Runnable {
                 .setSession("IgyShield")
                 .addAddress("10.0.0.1", 24)
                 .addRoute("0.0.0.0", 0)
+                .addAddress("fd00::1", 128)
+                .addRoute("::", 0)
                 .setMtu(1280)
                 .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
 
             if (IgyPreferences.getLocalBypass(this)) builder.allowBypass()
             builder.addDnsServer("1.1.1.1")
+            builder.addDnsServer("2606:4700:4700::1111")
             
             // Safety: Disallow the app itself to prevent recursive loops
             try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
 
             val isStealth = IgyPreferences.isStealthMode(this)
             val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
+            val isSmartTrigger = IgyPreferences.isAutoStartTriggerEnabled(this)
+            val autoStartApps = IgyPreferences.getAutoStartApps(this)
 
             // --- MODE SELECTION & ROUTING ---
             when {
+                isSmartTrigger && autoStartApps.isNotEmpty() -> {
+                    // SMART FILTER (Native Architecture)
+                    TrafficEvent.log("SMART_FILTER >> ACTIVE")
+                    autoStartApps.forEach { pkg ->
+                        try { builder.addAllowedApplication(pkg) } catch (e: Exception) {
+                            TrafficEvent.log("SMART_FILTER >> MISSING: $pkg")
+                        }
+                    }
+                    TrafficEvent.log("SMART_FILTER >> WATCHING_${autoStartApps.size}_APPS")
+                }
                 !isStealth -> {
                     // NORMAL FOCUS (High-Speed Direct Path)
                     val vipList = IgyPreferences.getVipList(this)
                     TrafficEvent.log("NORMAL_FOCUS >> ACTIVE")
-                    TrafficEvent.log("NORMAL_FOCUS >> VIP_APPS_DIRECT_PATH: ${vipList.size}")
                     vipList.forEach { 
                         try { builder.addDisallowedApplication(it) } catch (e: Exception) {} 
                     }
-                    // Optimize for low latency with Cloudflare DNS even in direct mode
-                    builder.addDnsServer("1.1.1.1")
                 }
                 isStealth && !isGlobal -> {
                     // VPN FOCUS (LOCKDOWN MODE)
@@ -158,19 +170,14 @@ class IgyVpnService : VpnService(), Runnable {
                         if (IgyNetwork.isAvailable()) {
                             IgyNetwork.setAllowedUids(uids.toLongArray())
                         }
-                        TrafficEvent.log("VPN_FOCUS >> LOCKING_DOWN_${uids.size}_APPS")
                     }
-                    // IMPORTANT: To block ALL others, we do NOT use addAllowedApplication.
-                    // We route everything into the VPN, and Rust drops unauthorized traffic.
-                    TrafficEvent.log("VPN_FOCUS >> REDIRECTING_ALL_TRAFFIC_TO_CORE")
                 }
                 else -> {
                     // VPN GLOBAL MODE
                     TrafficEvent.log("VPN >> ACTIVE")
                     if (IgyNetwork.isAvailable()) {
-                        IgyNetwork.setAllowedUids(longArrayOf()) // Clear list for global
+                        IgyNetwork.setAllowedUids(longArrayOf())
                     }
-                    TrafficEvent.log("VPN >> PROTECTING_WHOLE_DEVICE")
                 }
             }
 

@@ -179,19 +179,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             }
         }
 
-        // 1.2 Usage Stats (for Auto-Connect)
-        val hasUsageAccess = hasUsageStatsPermission(context)
-        var isUsagePermLoading by remember { mutableStateOf(false) }
-        PermissionItem("App Usage Detection", hasUsageAccess, isDarkMode, isUsagePermLoading) {
-            scope.launch {
-                isUsagePermLoading = true
-                delay(300)
-                context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                isUsagePermLoading = false
-            }
-        }
-
-        // 1.3 Battery Optimization
+        // 1.2 Battery Optimization
         val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
         val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             pm.isIgnoringBatteryOptimizations(context.packageName)
@@ -284,7 +272,9 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             if (result.resultCode == android.app.Activity.RESULT_OK) {
                 autoStartTrigger = true
                 IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                context.startService(Intent(context, AutoTriggerService::class.java))
+                if (IgyVpnService.isRunning) {
+                    Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                }
                 TrafficEvent.log("USER >> AUTO_START_READY_WITH_PERM")
             } else {
                 autoStartTrigger = false
@@ -295,25 +285,23 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
         SettingsToggle("Auto-Connect-VPN", autoStartTrigger) { enabled ->
             if (enabled) {
-                if (!hasUsageStatsPermission(context)) {
-                    val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                    context.startActivity(intent)
-                    Toast.makeText(context, "PLEASE_ENABLE_USAGE_ACCESS", Toast.LENGTH_LONG).show()
+                // --- PRE-FLIGHT VPN CHECK ---
+                val vpnIntent = android.net.VpnService.prepare(context)
+                if (vpnIntent != null) {
+                    vpnLauncherForAuto.launch(vpnIntent)
                 } else {
-                    // --- PRE-FLIGHT VPN CHECK ---
-                    val vpnIntent = android.net.VpnService.prepare(context)
-                    if (vpnIntent != null) {
-                        vpnLauncherForAuto.launch(vpnIntent)
-                    } else {
-                        autoStartTrigger = true
-                        IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                        context.startService(Intent(context, AutoTriggerService::class.java))
+                    autoStartTrigger = true
+                    IgyPreferences.setAutoStartTriggerEnabled(context, true)
+                    if (IgyVpnService.isRunning) {
+                        Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
                     }
                 }
             } else {
                 autoStartTrigger = false
                 IgyPreferences.setAutoStartTriggerEnabled(context, false)
-                context.stopService(Intent(context, AutoTriggerService::class.java))
+                if (IgyVpnService.isRunning) {
+                    Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
@@ -417,17 +405,6 @@ private suspend fun checkForGithubUpdate(currentVersion: String): String? = with
         TrafficEvent.log("UPDATE >> ERR: ${e.message}")
     }
     null
-}
-
-private fun hasUsageStatsPermission(context: Context): Boolean {
-    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
-    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    } else {
-        @Suppress("DEPRECATION")
-        appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    }
-    return mode == android.app.AppOpsManager.MODE_ALLOWED
 }
 
 @Composable

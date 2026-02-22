@@ -45,16 +45,11 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun startVpnIfEnabled(context: Context) {
-        if (IgyPreferences.getAutoStart(context)) {
+        if (IgyPreferences.getAutoStart(context) || IgyPreferences.isAutoStartTriggerEnabled(context)) {
             val vpnIntent = VpnService.prepare(context)
             if (vpnIntent == null) {
                 ContextCompat.startForegroundService(context, Intent(context, IgyVpnService::class.java))
             }
-        }
-        
-        if (IgyPreferences.isAutoStartTriggerEnabled(context)) {
-            val autoIntent = Intent(context, AutoTriggerService::class.java)
-            context.startService(autoIntent)
         }
     }
 }
