@@ -16,7 +16,8 @@ Igy Shield is built on a two-tier architecture designed for maximum performance 
 ### A. Android Application (Kotlin & Jetpack Compose)
 *   **UI/UX:** A unique "Terminal Dashboard" aesthetic. Minimalist cream-colored background (`#FDF5E6`), tactile white buttons, and subtle ripple/pulse animations.
 *   **VPN Management:** Implements `VpnService` to establish a TUN interface.
-*   **Auto-Trigger System:** Uses the **Usage Stats API** via `AutoTriggerService` to automatically start the VPN when target apps (e.g., Banking/Crypto) are opened and stop it when they are closed.
+*   **Auto-Trigger System:** Uses the **Usage Events API** via `AutoTriggerService` for **instant**, battery-efficient VPN activation when target apps are opened.
+*   **Ghost Mode:** Implements a background "silent" monitoring state that keeps the status bar clean, only showing notifications when the VPN is actively waking up or protecting an app.
 *   **Security:** Uses `AndroidKeyStore` (via `SecurityUtils.kt`) to encrypt sensitive data like VPN keys at rest.
 
 ### B. Native Core (Rust Engine)

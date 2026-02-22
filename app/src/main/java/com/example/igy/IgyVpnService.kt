@@ -282,7 +282,7 @@ class IgyVpnService : VpnService(), Runnable {
         }
 
         builder.setContentTitle("Igy Shield Active")
-            .setSmallIcon(R.drawable.ic_shield_status)
+            .setSmallIcon(R.drawable.ic_dog_status)
             .setOngoing(true)
         
         if (stopAction != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
