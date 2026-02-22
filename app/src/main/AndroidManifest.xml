@@ -36,12 +36,7 @@
 
         <service
             android:name=".AutoTriggerService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Background app usage monitoring for automatic VPN triggering." />
-        </service>
+            android:exported="false" />
 
         <service
             android:name=".IgyVpnService"

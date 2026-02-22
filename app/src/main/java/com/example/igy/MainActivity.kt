@@ -284,8 +284,8 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             if (result.resultCode == android.app.Activity.RESULT_OK) {
                 autoStartTrigger = true
                 IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                ContextCompat.startForegroundService(context, Intent(context, AutoTriggerService::class.java))
-                TrafficEvent.log("USER >> AUTO_START_ARMED_WITH_PERM")
+                context.startService(Intent(context, AutoTriggerService::class.java))
+                TrafficEvent.log("USER >> AUTO_START_READY_WITH_PERM")
             } else {
                 autoStartTrigger = false
                 IgyPreferences.setAutoStartTriggerEnabled(context, false)
@@ -307,7 +307,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
                     } else {
                         autoStartTrigger = true
                         IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                        ContextCompat.startForegroundService(context, Intent(context, AutoTriggerService::class.java))
+                        context.startService(Intent(context, AutoTriggerService::class.java))
                     }
                 }
             } else {
@@ -318,6 +318,37 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         }
 
         if (autoStartTrigger) {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                pm.isIgnoringBatteryOptimizations(context.packageName)
+            } else true
+
+            var isBattLoading by remember { mutableStateOf(false) }
+            TactileButton(
+                text = if (isIgnoringBattery) "Battery-Saver: OK" else "Battery-Saver: Restricted",
+                isDarkMode = isDarkMode,
+                isLoading = isBattLoading,
+                onClick = {
+                    scope.launch {
+                        isBattLoading = true
+                        delay(300)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isIgnoringBattery) {
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = android.net.Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                            }
+                        } else {
+                            Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
+                        }
+                        isBattLoading = false
+                    }
+                }
+            )
+
             var isAutoAppsLoading by remember { mutableStateOf(false) }
             TactileButton("Auto-Connect-VPN-Apps", isDarkMode = isDarkMode, isLoading = isAutoAppsLoading, onClick = {
                 scope.launch {
@@ -1460,31 +1491,14 @@ fun TacticalManual(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("IGY >> FULL_USER_MANUAL", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+        title = { Text("IGY >> QUICK_START_GUIDE", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    ManualSection("1. GETTING STARTED / စတင်အသုံးပြုခြင်း", 
-                        "EN: First, go to 'Account' and login with your username. Once logged in, go back to the home screen and tap the big center button to start the VPN.\n" +
-                        "MM: အရင်ဆုံး Account ထဲမှာ အကောင့်ဝင်ပါ။ ပြီးရင် Home screen က အလယ်ခလုတ်ကြီးကို နှိပ်ပြီး VPN ကို စတင်အသုံးပြုနိုင်ပါပြီ။")
-                    
-                    ManualSection("2. AUTO-START VPN / အလိုအလျောက်စနစ်", 
-                        "EN: Go to Settings and turn on 'Auto-Connect-VPN'. Select the apps you want (like Games or Banking). Now, whenever you open those apps, the VPN will 'Wake Up' and protect you automatically!\n" +
-                        "MM: Settings ထဲက Auto-Connect-VPN ကိုဖွင့်ပြီး မိမိသုံးချင်တဲ့ App တွေကို ရွေးထားပါ။ အဲ့ဒီ App တွေကို ဖွင့်လိုက်တာနဲ့ VPN က အလိုအလျောက် ပွင့်လာပါလိမ့်မယ်။")
-                    
-                    ManualSection("3. CHOOSING YOUR MODE / ပုံစံရွေးချယ်ခြင်း", 
-                        "• [VPN]: Protects your entire phone. Best for full privacy.\n" +
-                        "• [VPN Focus]: Only protects the specific apps you choose. Saves battery and data.\n" +
-                        "• [Normal Focus]: Speeds up your selected apps by blocking all other background apps from stealing your internet.\n" +
-                        "MM: [VPN] က ဖုန်းတစ်ခုလုံးအတွက်၊ [VPN Focus] က ရွေးထားတဲ့ App တွေအတွက်ဖြစ်ပြီး [Normal Focus] ကတော့ ရွေးထားတဲ့ App တွေ အင်တာနက် ပိုမြန်အောင် လုပ်ပေးတာပါ။")
-                    
-                    ManualSection("4. SMART SLEEP & BATTERY / ဘက်ထရီချွေတာခြင်း", 
-                        "EN: Our 'Smart Sleep' system automatically saves battery when your screen is off. It stays silent but is always ready to wake up the second you open a protected app.\n" +
-                        "MM: Screen ပိတ်ထားချိန်မှာ ဘက်ထရီမကုန်အောင် Smart Sleep စနစ်က ထိန်းပေးထားပါတယ်။ App ဖွင့်လိုက်တာနဲ့ ချက်ချင်း ပြန်အလုပ်လုပ်မှာပါ။")
-                    
-                    ManualSection("5. TROUBLESHOOTING / အဆင်မပြေမှုများဖြေရှင်းခြင်း", 
-                        "EN: If the internet feels slow or stops working, just tap the 'Refresh' button on the main screen. For best results, enable 'Always-on VPN' in Settings.\n" +
-                        "MM: အင်တာနက်နှေးရင် သို့မဟုတ် မရတော့ရင် Home screen က Refresh ကို နှိပ်ပါ။ ပိုကောင်းအောင် Settings ထဲက Always-on VPN ကို ဖွင့်ထားပေးပါ။")
+                    ManualSection("1. HOW TO CONNECT", "EN: Simply click Connect to start. If it's your first time, click Account to sign in.\nMM: Connect ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် Account ထဲမှာ အကောင့်ဝင်ပါ။")
+                    ManualSection("2. THREE MODES EXPLAINED", "• [VPN]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN Focus]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [Normal Focus]: ACCELERATE your VIP apps by blocking all background data thieves for maximum speed.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (VPN)၊ app တစ်ခုချင်းသုံးမလား (VPN Focus) (သို့မဟုတ်) အင်တာနက်မြန်အောင် လုပ်မလား (Normal Focus) စိတ်ကြိုက်ရွေးပါ။")
+                    ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to Settings -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
+                    ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the refresh button on the main screen.\nMM: အင်တာနက်မရတော့ရင် refresh ခလုတ်ကို နှိပ်ပေးပါ။")
                 }
             }
         },

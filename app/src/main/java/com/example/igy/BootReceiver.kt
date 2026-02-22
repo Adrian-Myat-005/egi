@@ -54,7 +54,7 @@ class BootReceiver : BroadcastReceiver() {
         
         if (IgyPreferences.isAutoStartTriggerEnabled(context)) {
             val autoIntent = Intent(context, AutoTriggerService::class.java)
-            ContextCompat.startForegroundService(context, autoIntent)
+            context.startService(autoIntent)
         }
     }
 }
