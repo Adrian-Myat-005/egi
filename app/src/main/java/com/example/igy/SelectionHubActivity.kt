@@ -232,6 +232,8 @@ private fun activateMode(context: Context, mode: AppMode, isStealth: Boolean, is
     IgyPreferences.setVpnTunnelMode(context, isGlobal)
     IgyPreferences.setAutoStartTriggerEnabled(context, true)
     IgyPreferences.setSmartFilterActive(context, false)
+    
+    if (targetApp != null) {
         if (mode == AppMode.FOCUS) {
             IgyPreferences.saveFocusTarget(context, targetApp)
         }
