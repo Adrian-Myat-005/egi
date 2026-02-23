@@ -171,8 +171,31 @@ class IgyVpnService : VpnService(), Runnable {
         try {
             TrafficEvent.setVpnActive(true)
             
-            val isStealth = IgyPreferences.isStealthMode(this) // True = VPN, False = Normal/Local
-            val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
+            // A. PARALLEL KEY SYNC (ZERO-WAIT)
+            val (token, _, _) = IgyPreferences.getAuth(this)
+            val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
+            val ssKey = IgyPreferences.getOutlineKey(this)
+
+            if (token.isNotEmpty()) {
+                serviceScope.launch {
+                    val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
+                    if (latestKey != null && latestKey.startsWith("ss://")) {
+                        IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
+                    }
+                }
+            }
+
+            if (ssKey.isEmpty() && IgyPreferences.isStealthMode(this)) {
+                TrafficEvent.log("VPN >> SYNCING_INITIAL_KEY...")
+                val forceKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this))
+                if (forceKey == null || !forceKey.startsWith("ss://")) {
+                    isTunnelEstablished = false
+                    return
+                }
+                IgyPreferences.saveOutlineKey(this, forceKey)
+            }
+            
+            val activeKey = IgyPreferences.getOutlineKey(this)
             
             // B. ESTABLISH TUNNEL
             val builder = Builder()
@@ -180,14 +203,12 @@ class IgyVpnService : VpnService(), Runnable {
                 .setMtu(1280)
                 .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
 
-            // --- THE ARCHITECT'S LOGIC ---
+            val isStealth = IgyPreferences.isStealthMode(this) 
+            val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
             
             if (isStealth) {
-                // MODES: GLOBAL VPN or VPN FOCUS
-                builder.addAddress("10.0.0.1", 24)
-                builder.addRoute("0.0.0.0", 0)
-                builder.addAddress("fd00::1", 128)
-                builder.addRoute("::", 0)
+                builder.addAddress("10.0.0.1", 24).addRoute("0.0.0.0", 0)
+                builder.addAddress("fd00::1", 128).addRoute("::", 0)
                 builder.addDnsServer("1.1.1.1")
                 
                 if (isGlobal) {
@@ -201,23 +222,9 @@ class IgyVpnService : VpnService(), Runnable {
                     targetApps.filterNotNull().forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
                 }
             } else {
-                // MODE: NORMAL FOCUS (LOCAL ENHANCEMENT - NO VPN SERVER)
-                TrafficEvent.log("MODE >> NORMAL_ENHANCEMENT")
-                
-                // Address/Route required to make the TUN active
-                builder.addAddress("10.8.0.1", 32)
-                builder.addRoute("0.0.0.0", 0)
-                
-                // CRITICAL: Block EVERYTHING except the target apps
-                val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
-                    val focusTarget = IgyPreferences.getFocusTarget(this)
-                    if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
-                }
-                
-                // Allow the target app to BYPASS the VPN (Full ISP Speed)
-                targetApps.filterNotNull().forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
-                // Allow this app to bypass (Syncing/Logs)
-                try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
+                // NORMAL_ENHANCEMENT (SPEED)
+                builder.addAddress("10.8.0.1", 32).addRoute("0.0.0.0", 0)
+                targetAppsForNormal().forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
             }
 
             vpnInterface = builder.establish()
@@ -226,21 +233,15 @@ class IgyVpnService : VpnService(), Runnable {
                 return
             }
 
+            TrafficEvent.log("TUNNEL_LIVE")
+
             // C. HANDOVER
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
                 if (isStealth) {
-                    // Use Shadowsocks for VPN modes
-                    val ssKey = IgyPreferences.getOutlineKey(this)
-                    if (ssKey.isNotEmpty()) {
-                        IgyNetwork.setOutlineKey(ssKey)
-                        IgyNetwork.runVpnLoop(fd)
-                    } else {
-                        TrafficEvent.log("VPN_ERR >> NO_KEY")
-                        IgyNetwork.runPassiveShield(fd) // Kill traffic if no key
-                    }
+                    IgyNetwork.setOutlineKey(activeKey)
+                    IgyNetwork.runVpnLoop(fd)
                 } else {
-                    // Use Passive Shield as a "Black Hole" for background apps in Normal Mode
                     IgyNetwork.runPassiveShield(fd)
                 }
             }
@@ -251,6 +252,14 @@ class IgyVpnService : VpnService(), Runnable {
             TrafficEvent.setVpnActive(false)
             try { vpnInterface?.close() } catch (e: Exception) {}
         }
+    }
+
+    private fun targetAppsForNormal(): Set<String> {
+        val apps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
+            val focusTarget = IgyPreferences.getFocusTarget(this)
+            if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
+        }
+        return apps.filterNotNull().toSet() + packageName
     }
 
     private fun stopVpn() {
