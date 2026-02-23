@@ -22,47 +22,61 @@ class IgyTileService : TileService() {
         val isRunning = IgyVpnService.isRunning
         val (token, _, _) = IgyPreferences.getAuth(this)
         
-        // Check Usage Stats Permission for Auto Mode
-        if (!hasUsageStatsPermission()) {
-            Toast.makeText(this, "AUTO_MODE: USAGE PERMISSION REQUIRED", Toast.LENGTH_LONG).show()
-            val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+        // Check for Auth and Basic Permission
+        val vpnIntent = android.net.VpnService.prepare(this)
+        if (token.isEmpty() || vpnIntent != null) {
+            val intent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivityAndCollapse(intent)
+            Toast.makeText(this, "PLEASE SETUP IGY SHIELD FIRST", Toast.LENGTH_LONG).show()
             return
         }
 
         if (isRunning) {
             // STOP EVERYTHING
-            IgyPreferences.setAutoStartTriggerEnabled(this, false)
             val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             startService(stopIntent)
             TrafficEvent.log("USER >> SHIELD_OFF")
         } else {
-            // START AUTO MONITOR
-            val autoStartApps = IgyPreferences.getAutoStartApps(this)
-            if (autoStartApps.isEmpty()) {
-                Toast.makeText(this, "SELECT TARGET APPS IN SETTINGS FIRST", Toast.LENGTH_LONG).show()
-                val intent = Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // One-Tap Intelligence Switch
+            val isAutoModeSettingEnabled = IgyPreferences.isAutoStartTriggerEnabled(this)
+            
+            if (isAutoModeSettingEnabled) {
+                // S2 Logic: Start Background Monitor (Note 3)
+                if (!hasUsageStatsPermission()) {
+                    val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivityAndCollapse(intent)
+                    return
                 }
-                startActivityAndCollapse(intent)
-                return
-            }
-            
-            // Set Auto Mode Flag
-            IgyPreferences.setAutoStartTriggerEnabled(this, true)
-            IgyPreferences.setVpnTunnelMode(this, false) // Ensure global is off for auto mode
-            
-            val startIntent = Intent(this, IgyVpnService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(startIntent)
+                
+                IgyPreferences.setVpnTunnelMode(this, false) 
+                IgyPreferences.setStealthMode(this, true) // Default VPN Focus
+                
+                startIgyService()
+                TrafficEvent.log("USER >> AUTO_MONITOR_ON")
             } else {
-                startService(startIntent)
+                // Fallback Logic: Start Global VPN (Pillar 2)
+                IgyPreferences.setVpnTunnelMode(this, true) 
+                IgyPreferences.setStealthMode(this, true)
+                IgyPreferences.saveMode(this, AppMode.CASUAL)
+                
+                startIgyService()
+                TrafficEvent.log("USER >> GLOBAL_VPN_ON")
             }
-            TrafficEvent.log("USER >> AUTO_MONITOR_ON")
         }
         updateTileState()
+    }
+
+    private fun startIgyService() {
+        val startIntent = Intent(this, IgyVpnService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(startIntent)
+        } else {
+            startService(startIntent)
+        }
     }
 
     private fun hasUsageStatsPermission(): Boolean {
@@ -85,13 +99,9 @@ class IgyTileService : TileService() {
             tile.state = Tile.STATE_ACTIVE
             tile.label = "Igy Shield"
             if (isAuto) {
-                tile.subtitle = "AUTO: STANDBY"
-                // Check if VPN is actually tunneling or just monitoring
-                if (TrafficEvent.vpnActive.value) {
-                    tile.subtitle = "AUTO: PROTECTING"
-                }
+                tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: READY"
             } else {
-                tile.subtitle = "MANUAL: ACTIVE"
+                tile.subtitle = if (IgyPreferences.isVpnTunnelGlobal(this)) "GLOBAL: ACTIVE" else "FOCUS: ACTIVE"
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
