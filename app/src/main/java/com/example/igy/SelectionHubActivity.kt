@@ -83,9 +83,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     
-    // --- STATE ---
     var isMultiSelectEnabled by remember { mutableStateOf(false) }
     val selectedApps = remember { mutableStateListOf<String>() }
+    var searchQuery by remember { mutableStateOf("") }
     
     val installedApps = remember {
         val pm = context.packageManager
@@ -99,6 +99,11 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 )
             }
             .sortedBy { it.name }
+    }
+
+    val filteredApps = remember(searchQuery) {
+        if (searchQuery.isEmpty()) installedApps
+        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
     Card(
@@ -118,7 +123,6 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                     Text("SELECT_OPERATION_MODE", color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 }
                 
-                // MULTI-SELECT TOGGLE
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("MULTI", color = if(isMultiSelectEnabled) Color(0xFF2D42FF) else Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.width(4.dp))
@@ -135,8 +139,26 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             
             Spacer(modifier = Modifier.height(12.dp))
 
-            // GLOBAL VPN QUICK ACTION (Only if not multi-selecting)
-            if (!isMultiSelectEnabled) {
+            // SEARCH BAR
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                placeholder = { Text("Search app...", fontSize = 12.sp, color = Color.Gray) },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, size(18.dp), tint = Color.Gray) },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF2D42FF),
+                    unfocusedBorderColor = Color.Gray.copy(alpha = 0.3f)
+                ),
+                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // GLOBAL VPN QUICK ACTION
+            if (!isMultiSelectEnabled && searchQuery.isEmpty()) {
                 Surface(
                     onClick = {
                         activateMode(context, AppMode.CASUAL, isGlobal = true, isStealth = true, targetApp = null)
@@ -158,7 +180,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
             // APP LIST
             LazyColumn(modifier = Modifier.weight(1f)) {
-                itemsIndexed(installedApps) { index, app ->
+                itemsIndexed(filteredApps) { index, app ->
                     HubAppItem(
                         app = app,
                         isDarkMode = isDarkMode,
@@ -180,10 +202,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 }
             }
 
-            // BLAST FOOTER (Only if multi-select is on and apps are selected)
+            // BLAST FOOTER
             AnimatedVisibility(visible = isMultiSelectEnabled && selectedApps.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Start All Normal
                     Button(
                         onClick = {
                             IgyPreferences.saveCasualWhitelist(context, selectedApps.toSet())
@@ -197,7 +218,6 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                         Text("🚀 BOOST ALL", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                     }
                     
-                    // Start All VPN
                     Button(
                         onClick = {
                             IgyPreferences.saveCasualWhitelist(context, selectedApps.toSet())
@@ -215,6 +235,8 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
         }
     }
 }
+
+private fun Modifier.size(dp: androidx.compose.ui.unit.Dp): Modifier = this.size(dp)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -320,7 +342,4 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
             if (launchIntent != null) context.startActivity(launchIntent)
         } catch (e: Exception) {}
     }
-    
-    val msg = if (isStealth) "VPN_ACTIVE" else "SPEED_BOOST_ACTIVE"
-    Toast.makeText(context, "IGY >> $msg", Toast.LENGTH_SHORT).show()
 }

@@ -36,26 +36,18 @@ class IgyVpnService : VpnService(), Runnable {
     private var lastForegroundApp = ""
     @Volatile private var isTunnelEstablished = false
     
-    // ECO-SHIELD: Battery Optimization
     private var isScreenOn = true
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> {
-                    isScreenOn = false
-                    TrafficEvent.log("ECO >> RADAR_PAUSED")
-                }
-                Intent.ACTION_SCREEN_ON -> {
-                    isScreenOn = true
-                    TrafficEvent.log("ECO >> RADAR_RESUMED")
-                }
+                Intent.ACTION_SCREEN_OFF -> isScreenOn = false
+                Intent.ACTION_SCREEN_ON -> isScreenOn = true
             }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            TrafficEvent.log("USER >> STOP_SIGNAL")
             stopVpn()
             return START_NOT_STICKY
         }
@@ -64,10 +56,8 @@ class IgyVpnService : VpnService(), Runnable {
         promoteToForeground("Shield Active")
 
         if (isRunning) return START_STICKY
-
         isRunning = true
         
-        // Register Eco-Shield Listeners
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -79,10 +69,8 @@ class IgyVpnService : VpnService(), Runnable {
         isAutoModeActive = IgyPreferences.isAutoStartTriggerEnabled(this)
         
         if (isAutoModeActive) {
-            TrafficEvent.log("AUTO_PILOT >> ONLINE")
             startAutoMonitor()
         } else {
-            TrafficEvent.log("MANUAL_MODE >> ONLINE")
             startVpnTunnel()
         }
 
@@ -101,7 +89,7 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     private fun startAutoMonitor() {
-        updateNotification("IGY: Waiting for target app...")
+        updateNotification("🛡️ [IGY] READY: Watching apps")
         
         monitorJob?.cancel()
         monitorJob = serviceScope.launch {
@@ -109,7 +97,7 @@ class IgyVpnService : VpnService(), Runnable {
             
             while (isActive && isRunning && isAutoModeActive) {
                 if (!isScreenOn) {
-                    delay(5000) // Sleep radar while screen is off to save battery
+                    delay(3000)
                     continue
                 }
 
@@ -131,33 +119,52 @@ class IgyVpnService : VpnService(), Runnable {
                         
                         val currentApp = sortedStats.lastEntry()?.value?.packageName ?: ""
                         if (currentApp != lastForegroundApp) {
+                            val prevApp = lastForegroundApp
                             lastForegroundApp = currentApp
-                            handleAppSwitch(currentApp, targetApps)
+                            
+                            // GRACE PERIOD: Avoid jittery restarts if switching fast
+                            handleAppSwitchWithGrace(currentApp, prevApp, targetApps)
                         }
                     }
                 } catch (e: Exception) {}
-                delay(1000) // Eco-frequency: 1s polling is the balance point
+                delay(1000)
             }
         }
     }
 
-    private fun handleAppSwitch(currentApp: String, targetApps: Set<String>) {
+    private fun handleAppSwitchWithGrace(currentApp: String, prevApp: String, targetApps: Set<String>) {
         serviceScope.launch {
-            tunnelMutex.withLock {
-                if (targetApps.contains(currentApp)) {
-                    if (!isTunnelEstablished) {
-                        TrafficEvent.log("WAKING_UP >> $currentApp")
-                        establishTunnel()
-                    }
-                } else {
+            if (targetApps.contains(currentApp)) {
+                if (!isTunnelEstablished) {
+                    val appName = getAppName(currentApp)
+                    TrafficEvent.log("WAKING_UP >> $appName")
+                    tunnelMutex.withLock { establishTunnel() }
+                }
+            } else {
+                // Wait 300ms before killing - maybe user just checked notification or switched back
+                delay(300)
+                val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                val time = System.currentTimeMillis()
+                val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 500, time)
+                val checkApp = stats?.maxByOrNull { it.lastTimeUsed }?.packageName ?: ""
+                
+                if (!targetApps.contains(checkApp)) {
                     if (isTunnelEstablished) {
-                        TrafficEvent.log("EXITED >> SLEEPING")
-                        updateNotification("IGY: Waiting for target app...")
-                        tearDownTunnelOnly()
+                        TrafficEvent.log("EXITED >> STANDBY")
+                        updateNotification("🛡️ [IGY] READY: Watching apps")
+                        tunnelMutex.withLock { tearDownTunnelOnly() }
                     }
                 }
             }
         }
+    }
+
+    private fun getAppName(packageName: String): String {
+        return try {
+            val pm = packageManager
+            val info = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(info).toString()
+        } catch (e: Exception) { packageName.split(".").last() }
     }
 
     private fun startVpnTunnel() {
@@ -171,7 +178,6 @@ class IgyVpnService : VpnService(), Runnable {
     private fun establishTunnel() {
         if (isTunnelEstablished) return
         
-        // Clean cleanup of old thread
         if (vpnThread?.isAlive == true) {
             try { vpnInterface?.close() } catch (e: Exception) {}
             vpnThread = null
@@ -186,7 +192,6 @@ class IgyVpnService : VpnService(), Runnable {
         isTunnelEstablished = false
         TrafficEvent.setVpnActive(false)
         try {
-            // CRITICAL: Explicitly close interface to clear Android routing tables
             vpnInterface?.close()
             vpnInterface = null
         } catch (e: Exception) {}
@@ -194,7 +199,6 @@ class IgyVpnService : VpnService(), Runnable {
         withContext(Dispatchers.IO) {
             vpnThread?.join(500)
         }
-        TrafficEvent.log("STATE >> TUNNEL_RESET_SUCCESS")
     }
 
     override fun run() {
@@ -202,10 +206,14 @@ class IgyVpnService : VpnService(), Runnable {
             val isStealth = IgyPreferences.isStealthMode(this) 
             val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
             
+            // Dynamic Label Logic
+            val currentApp = lastForegroundApp
+            val appName = if (currentApp.isNotEmpty()) getAppName(currentApp) else ""
+            
             val activeLabel = when {
                 isStealth && isGlobal -> "🔒 [GLOBAL] VPN ACTIVE"
-                isStealth -> "🔒 [FOCUS] VPN ACTIVE"
-                else -> "🚀 [SPEED] BOOST ACTIVE"
+                isStealth -> if (appName.isNotEmpty()) "🔒 [VPN] >> $appName" else "🔒 [FOCUS] VPN ACTIVE"
+                else -> if (appName.isNotEmpty()) "🚀 [BOOST] >> $appName" else "🚀 [SPEED] BOOST ACTIVE"
             }
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
@@ -258,8 +266,6 @@ class IgyVpnService : VpnService(), Runnable {
                 isTunnelEstablished = false
                 return
             }
-
-            TrafficEvent.log("CORE >> LIVE")
 
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
