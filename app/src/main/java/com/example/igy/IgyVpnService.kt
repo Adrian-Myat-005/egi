@@ -262,6 +262,21 @@ class IgyVpnService : VpnService(), Runnable {
         return apps.filterNotNull().toSet() + packageName
     }
 
+    private fun fetchVpnConfigSync(serverUrl: String, token: String, nodeId: Int): String? {
+        try {
+            val url = java.net.URL("$serverUrl/api/vpn/config${if (nodeId != -1) "?nodeId=$nodeId" else ""}")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (conn.responseCode == 200) {
+                val res = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                return res.getString("config")
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
     private fun stopVpn() {
         if (!isRunning) return
         isRunning = false
