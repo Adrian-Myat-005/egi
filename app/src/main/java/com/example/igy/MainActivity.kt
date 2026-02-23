@@ -220,6 +220,29 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
             }
         }
 
+        // 1.5 App Usage Access (For Auto-Connect)
+        var isUsagePermLoading by remember { mutableStateOf(false) }
+        val hasUsageStats = remember { 
+            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+            } else {
+                @Suppress("DEPRECATION")
+                appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+            }
+            mode == android.app.AppOpsManager.MODE_ALLOWED
+        }
+        
+        PermissionItem("App Usage Access", hasUsageStats, isDarkMode, isUsagePermLoading) {
+            scope.launch {
+                isUsagePermLoading = true
+                delay(300)
+                val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                context.startActivity(intent)
+                isUsagePermLoading = false
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- SECTION 2: VPN & NETWORK ---

@@ -11,145 +11,9 @@ use tokio::io::unix::AsyncFd;
 use std::net::TcpListener;
 use crate::common::*;
 
-use std::pin::Pin;
-use std::task::{Context as TaskContext, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-
-// --- TRUE LOCKDOWN: FILTERED TUN WRAPPER ---
-struct FilteredTun<T> {
-    inner: T,
-}
-
-impl<T: AsyncRead + Unpin> AsyncRead for FilteredTun<T> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut TaskContext<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        loop {
-            let initial_len = buf.filled().len();
-            match Pin::new(&mut self.inner).poll_read(cx, buf) {
-                Poll::Ready(Ok(())) => {
-                    let packet = &buf.filled()[initial_len..];
-                    if packet.is_empty() { return Poll::Ready(Ok(())); }
-                    
-                    if check_uid_lockdown(packet) {
-                        return Poll::Ready(Ok(())); // Allow
-                    } else {
-                        // Drop & Retry: Clear the buffer portion and read again
-                        let current_len = buf.filled().len();
-                        buf.set_filled(initial_len); 
-                        // Note: To be truly stable, we'd loop. For now, we continue
-                        continue;
-                    }
-                }
-                other => return other,
-            }
-        }
-    }
-}
-
-impl<T: AsyncWrite + Unpin> AsyncWrite for FilteredTun<T> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut TaskContext<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        Pin::new(&mut self.inner).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.inner).poll_flush(cx)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.inner).poll_shutdown(cx)
-    }
-}
-
-fn find_uid_by_port(port: u16, is_udp: bool) -> Option<u32> {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader};
-
-    let path = if is_udp { "/proc/net/udp" } else { "/proc/net/tcp" };
-    if let Ok(file) = File::open(path) {
-        let reader = BufReader::new(file);
-        // Skip header
-        for line in reader.lines().skip(1).flatten() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() > 7 {
-                // local_address is at parts[1], format: "0100007F:2710" (hex IP:port)
-                if let Some(pos) = parts[1].find(':') {
-                    if let Ok(p) = u16::from_str_radix(&parts[1][pos+1..], 16) {
-                        if p == port {
-                            return parts[7].parse::<u32>().ok();
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn check_uid_lockdown(packet: &[u8]) -> bool {
-    let allowed = match ALLOWED_UIDS.read() {
-        Ok(guard) => guard.clone(),
-        Err(_) => return true,
-    };
-
-    if allowed.is_empty() {
-        return true; // Global Mode
-    }
-
-    if let Ok(value) = etherparse::SlicedPacket::from_ip(packet) {
-        let (port, is_udp) = match value.transport {
-            Some(etherparse::TransportSlice::Tcp(tcp)) => (tcp.source_port(), false),
-            Some(etherparse::TransportSlice::Udp(udp)) => (udp.source_port(), true),
-            _ => return true, // Allow ICMP etc. for now
-        };
-
-        if let Some(uid) = find_uid_by_port(port, is_udp) {
-            // Check if UID is in allowed list
-            if allowed.contains(&uid) {
-                return true;
-            } else {
-                return false; // Drop unauthorized traffic
-            }
-        }
-    }
-    true // If we can't find the UID (e.g. fast connection closure), allow it to avoid broken states
-}
-
-fn check_focus_whitelist(packet: &[u8]) -> bool {
-    let allowed = match ALLOWED_DOMAINS.read() {
-        Ok(guard) => guard.clone(),
-        Err(_) => return true,
-    };
-
-    if allowed.is_empty() {
-        return true;
-    }
-
-    // Real work: Minimal SNI extraction for TLS Client Hello
-    // This is a lightweight way to see where the user is going
-    if let Ok(value) = etherparse::SlicedPacket::from_ip(packet) {
-        if let Some(etherparse::TransportSlice::Tcp(tcp)) = value.transport {
-            let payload = tcp.payload();
-            if payload.len() > 43 && payload[0] == 0x16 && payload[5] == 0x01 {
-                // Potential TLS Client Hello
-                for domain in &allowed {
-                    if let Some(_pos) = payload.windows(domain.len()).position(|window| window == domain.as_bytes()) {
-                        // Found allowed domain in SNI/payload
-                        return true;
-                    }
-                }
-                return false; // SNI present but not in whitelist
-            }
-        }
-    }
-    true // Allow non-TLS or packets without SNI for now to avoid breaking basic connectivity
-}
+// --- PURE KERNEL MODE: RELY ON ANDROID VPN SERVICE ROUTING ---
+// The filtering is now handled by the Android Kernel via VpnService.Builder
+// This Rust engine focuses solely on high-speed packet shuttling.
 
 fn find_free_port() -> Option<u16> {
     TcpListener::bind("127.0.0.1:0")
@@ -171,12 +35,14 @@ fn set_nonblocking(fd: RawFd) -> std::io::Result<()> {
     Ok(())
 }
 
+// Deprecated: Passive Shield is being phased out for Active Monitor
+// But kept as a simple sink for compatibility if needed.
 pub async fn run_passive_shield_internal(fd: RawFd) {
     CORE_STATUS.store(2, Ordering::SeqCst);
-    crate::log_to_java("VPN >> PASSIVE_SHIELD_UP");
+    crate::log_to_java("VPN >> PASSIVE_SHIELD (SINK)");
     
     if let Err(e) = set_nonblocking(fd) {
-        crate::log_to_java(&format!("VPN >> ERR_NONBLOCK: {}", e));
+        crate::log_to_java(&format!("VPN >> WARN_NONBLOCK: {}", e));
     }
 
     let async_fd = match AsyncFd::new(fd) {
@@ -193,41 +59,10 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
         if CORE_STATUS.load(Ordering::SeqCst) == 0 { break; }
         match async_fd.readable().await {
             Ok(mut guard) => {
+                // Just drain the buffer. The "Block" happens because we didn't route traffic here.
                 match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
                     n if n > 0 => {
-                        let n_usize = n as usize;
-                        let packet = &buf[..n_usize];
-                        
-                        let is_allowed = {
-                            let allowed_uids = match ALLOWED_UIDS.read() {
-                                Ok(guard) => guard.clone(),
-                                Err(_) => Vec::new(),
-                            };
-                            
-                            if !allowed_uids.is_empty() {
-                                check_uid_lockdown(packet)
-                            } else {
-                                match ALLOWED_DOMAINS.read() {
-                                    Ok(guard) => {
-                                        if guard.is_empty() {
-                                            true
-                                        } else {
-                                            check_focus_whitelist(packet)
-                                        }
-                                    },
-                                    Err(_) => true,
-                                }
-                            }
-                        };
-
-                        if is_allowed {
-                            BYTES_PROCESSED.fetch_add(n_usize as u64, Ordering::Relaxed);
-                            // Passive shield doesn't forward, it just monitors and blocks.
-                        } else {
-                            crate::log_to_java("SHIELD >> TRAFFIC_DROPPED: UNAUTHORIZED_UID");
-                        }
-                        
-                        OTHER_COUNT.fetch_add(1, Ordering::Relaxed);
+                        BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
                         guard.clear_ready();
                     }
                     0 => break,
@@ -242,13 +77,12 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
             Err(_) => break,
         }
     }
-    crate::log_to_java("VPN >> PASSIVE_SHIELD_DOWN");
     CORE_STATUS.store(0, Ordering::SeqCst);
 }
 
 pub fn start_vpn_loop(fd: i32) {
     CORE_STATUS.store(1, Ordering::SeqCst);
-    crate::log_to_java("VPN >> STARTING_LOOP");
+    crate::log_to_java("VPN >> STARTING_ENGINE");
     
     if let Err(e) = set_nonblocking(fd) {
         crate::log_to_java(&format!("VPN >> WARN_NONBLOCK: {}", e));
@@ -265,8 +99,8 @@ pub fn start_vpn_loop(fd: i32) {
         };
 
         if secure_key.key.is_empty() {
-            crate::log_to_java("VPN >> EMPTY_KEY: STARTING_PASSIVE_SHIELD");
-            run_passive_shield_internal(fd).await;
+            crate::log_to_java("VPN >> ERR: NO_KEY_PROVIDED");
+            CORE_STATUS.store(3, Ordering::SeqCst);
             return;
         }
 
@@ -287,31 +121,30 @@ pub fn start_vpn_loop(fd: i32) {
                         local_config.mode = Mode::TcpAndUdp;
                         config.local.push(LocalInstanceConfig { config: local_config, acl: None });
                         config.server.push(ServerInstanceConfig::with_server_config(server_config));
-                        crate::log_to_java(&format!("VPN >> SS_LOCAL_READY_ON_{}", ss_local_addr));
+                        crate::log_to_java(&format!("VPN >> SOCKS5_READY: {}", ss_local_addr));
                         if let Err(e) = run_ss_local(config).await {
                             crate::log_to_java(&format!("VPN >> SS_ERR: {}", e));
                         }
                     }
                 }
                 Err(e) => {
-                    crate::log_to_java(&format!("VPN >> INVALID_SS_KEY: {}", e));
+                    crate::log_to_java(&format!("VPN >> INVALID_KEY: {}", e));
                 }
             }
         });
 
-        // Wait for SOCKS5 proxy to be ready with retries
+        // Fast Start: Wait max 1.5s for SOCKS5
         let mut proxy_ready = false;
-        for i in 1..=10 {
+        for _ in 0..5 {
             tokio::time::sleep(Duration::from_millis(300)).await;
             if tokio::net::TcpStream::connect(local_addr_str.clone()).await.is_ok() {
                 proxy_ready = true;
                 break;
             }
-            crate::log_to_java(&format!("VPN >> WAITING_FOR_SOCKS5 ({}/10)", i));
         }
 
         if !proxy_ready {
-            crate::log_to_java("VPN >> ERR: SOCKS5_TIMEOUT");
+            crate::log_to_java("VPN >> ERR: PROXY_TIMEOUT");
             CORE_STATUS.store(3, Ordering::SeqCst);
             return;
         }
@@ -319,58 +152,37 @@ pub fn start_vpn_loop(fd: i32) {
         let mut tun_config = tun::Configuration::default();
         tun_config.raw_fd(fd);
         
-        crate::log_to_java("VPN >> ATTEMPTING_TUN_CREATE");
         match tun::create_as_async(&tun_config) {
             Ok(tun_device) => {
                 CORE_STATUS.store(2, Ordering::SeqCst);
-                crate::log_to_java("VPN >> TUN_DEVICE_READY");
                 if let Ok(proxy) = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()) {
-                    crate::log_to_java("VPN >> STARTING_TUN2PROXY");
-                    
                     let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
                     args.dns = ArgDns::Virtual;
                     args.verbosity = ArgVerbosity::Off;
                     
-                    crate::log_to_java("VPN >> ENGINE_READY");
+                    crate::log_to_java("VPN >> TUNNEL_ESTABLISHED");
 
                     let monitor_token = token.clone();
                     tokio::spawn(async move {
                         while CORE_STATUS.load(Ordering::SeqCst) != 0 {
-                            tokio::time::sleep(Duration::from_secs(5)).await;
+                            tokio::time::sleep(Duration::from_secs(2)).await;
                         }
                         monitor_token.cancel();
                     });
 
-                    let mut lock_down_active = false;
-                    if let Ok(guard) = ALLOWED_UIDS.read() {
-                        if !guard.is_empty() {
-                            lock_down_active = true;
-                        }
-                    }
-
-                    if lock_down_active {
-                        crate::log_to_java("SHIELD >> LOCKDOWN_FILTER: ENABLED");
-                    } else {
-                        crate::log_to_java("SHIELD >> LOCKDOWN_FILTER: DISABLED (GLOBAL)");
-                    }
-
-                    let filtered_tun = FilteredTun { inner: tun_device };
-
-                    if let Err(e) = run_tun2proxy(filtered_tun, 1280, args, token).await {
+                    // Direct pipe: No more FilteredTun nonsense.
+                    if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {
                         crate::log_to_java(&format!("VPN >> EXIT: {}", e));
                     }
-                } else {
-                    crate::log_to_java("VPN >> ERR: INVALID_PROXY_URL");
                 }
             }
             Err(e) => {
-                crate::log_to_java(&format!("VPN >> TUN_CREATE_FAILED: {}", e));
+                crate::log_to_java(&format!("VPN >> TUN_FAIL: {}", e));
                 CORE_STATUS.store(3, Ordering::SeqCst);
             }
         }
-        crate::log_to_java("VPN >> LOOP_STOPPED");
         CORE_STATUS.store(0, Ordering::SeqCst);
     });
 }

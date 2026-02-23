@@ -6,6 +6,9 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.net.VpnService
+import android.widget.Toast
+import android.app.AppOpsManager
+import android.os.Process
 
 class IgyTileService : TileService() {
 
@@ -19,69 +22,81 @@ class IgyTileService : TileService() {
         val isRunning = IgyVpnService.isRunning
         val (token, _, _) = IgyPreferences.getAuth(this)
         
+        // Check Usage Stats Permission for Auto Mode
+        if (!hasUsageStatsPermission()) {
+            Toast.makeText(this, "AUTO_MODE: USAGE PERMISSION REQUIRED", Toast.LENGTH_LONG).show()
+            val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivityAndCollapse(intent)
+            return
+        }
+
         if (isRunning) {
-            // Master Toggle: Kill everything if anything is running
+            // STOP EVERYTHING
             IgyPreferences.setAutoStartTriggerEnabled(this, false)
-            IgyPreferences.setSmartFilterActive(this, false)
             val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             startService(stopIntent)
-            TrafficEvent.log("USER >> SHIELD_SHUTDOWN")
+            TrafficEvent.log("USER >> SHIELD_OFF")
         } else {
-            // Start Default: Pillar 4 (Smart Guard)
-            val vpnIntent = android.net.VpnService.prepare(this)
-            if (vpnIntent != null || token.isEmpty()) {
+            // START AUTO MONITOR
+            val autoStartApps = IgyPreferences.getAutoStartApps(this)
+            if (autoStartApps.isEmpty()) {
+                Toast.makeText(this, "SELECT TARGET APPS IN SETTINGS FIRST", Toast.LENGTH_LONG).show()
                 val intent = Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivityAndCollapse(intent)
-            } else {
-                val autoStartApps = IgyPreferences.getAutoStartApps(this)
-                if (autoStartApps.isEmpty()) {
-                    android.widget.Toast.makeText(this, "PLEASE SELECT TARGET APPS IN SETTINGS", android.widget.Toast.LENGTH_LONG).show()
-                    val intent = Intent(this, MainActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivityAndCollapse(intent)
-                    return
-                }
-                
-                // Set default Pillar 4 state
-                IgyPreferences.setAutoStartTriggerEnabled(this, true)
-                IgyPreferences.setSmartFilterActive(this, true)
-                IgyPreferences.setStealthMode(this, false)
-                IgyPreferences.setVpnTunnelMode(this, false)
-                
-                val startIntent = Intent(this, IgyVpnService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(startIntent)
-                } else {
-                    startService(startIntent)
-                }
-                TrafficEvent.log("USER >> 24/7_GUARD_ON")
+                return
             }
+            
+            // Set Auto Mode Flag
+            IgyPreferences.setAutoStartTriggerEnabled(this, true)
+            IgyPreferences.setVpnTunnelMode(this, false) // Ensure global is off for auto mode
+            
+            val startIntent = Intent(this, IgyVpnService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(startIntent)
+            } else {
+                startService(startIntent)
+            }
+            TrafficEvent.log("USER >> AUTO_MONITOR_ON")
         }
         updateTileState()
     }
 
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(AppOpsManager::class.java)
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName)
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName)
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
     private fun updateTileState() {
         val tile = qsTile ?: return
-        val isTunnelActive = TrafficEvent.vpnActive.value
-        val isSmartTrigger = IgyPreferences.isAutoStartTriggerEnabled(this)
+        val isRunning = IgyVpnService.isRunning
+        val isAuto = IgyPreferences.isAutoStartTriggerEnabled(this)
         
-        // Tile reflects the GUARD state primarily
-        if (isSmartTrigger) {
+        if (isRunning) {
             tile.state = Tile.STATE_ACTIVE
-            tile.label = "Igy Shield: ACTIVE"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // ACTIVE means the guard is on. If tunnel is off, it's in the 1-hour sleep mode.
-                tile.subtitle = if (isTunnelActive) "GUARD: ON" else "GUARD: SLEEP"
+            tile.label = "Igy Shield"
+            if (isAuto) {
+                tile.subtitle = "AUTO: STANDBY"
+                // Check if VPN is actually tunneling or just monitoring
+                if (TrafficEvent.vpnActive.value) {
+                    tile.subtitle = "AUTO: PROTECTING"
+                }
+            } else {
+                tile.subtitle = "MANUAL: ACTIVE"
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
             tile.label = "Igy Shield"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                tile.subtitle = "GUARD: OFF"
-            }
+            tile.subtitle = "OFF"
         }
         tile.updateTile()
     }

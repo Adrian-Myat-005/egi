@@ -17,8 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +34,7 @@ class SelectionHubActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Ensure popup appears over everything
+        // Ensure popup appears over everything (Lockscreen compatible)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -52,7 +51,7 @@ class SelectionHubActivity : ComponentActivity() {
             IgyTerminalTheme(isDarkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.Black.copy(alpha = 0.5f) // Dimmed background
+                    color = Color.Black.copy(alpha = 0.6f) 
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -71,8 +70,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    
+    // State to toggle between Main Menu and App Selection
+    var currentView by remember { mutableStateOf("MAIN") } // MAIN, APP_SELECT_FOCUS, APP_SELECT_NORMAL
     
     val installedApps = remember {
         val pm = context.packageManager
@@ -90,105 +90,77 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
     Card(
         modifier = Modifier
-            .fillMaxWidth(0.95f)
-            .fillMaxHeight(0.8f)
+            .fillMaxWidth(0.85f)
+            .wrapContentHeight()
             .clickable(enabled = false) {}, // Prevent closing when clicking card
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = creamColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E8B57))
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            
             // HEADER
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .background(Color(0xFF2E8B57).copy(alpha = 0.1f))
-                    .border(0.5.dp, Color(0xFF2E8B57)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("IGY >> COMMAND_CENTER", color = Color(0xFF2E8B57), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
+            Text("IGY >> COMMAND_CENTER", 
+                color = Color(0xFF2E8B57), 
+                fontFamily = FontFamily.Monospace, 
+                fontWeight = FontWeight.Bold, 
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-            // TWO COLUMNS
-            Row(modifier = Modifier.weight(1f)) {
-                // --- LEFT COLUMN: NORMAL FOCUS ---
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .border(0.5.dp, wheat)
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth().background(deepGray.copy(alpha = 0.05f)).padding(8.dp), contentAlignment = Alignment.Center) {
-                        Text("NORMAL_FOCUS", color = Color(0xFFB8860B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(installedApps) { app ->
-                            HubAppRow(app, isDarkMode) {
-                                activateMode(context, AppMode.FOCUS, isStealth = false, isGlobal = false, app.packageName)
-                                onAction()
-                            }
-                        }
-                    }
-                }
-
-                // --- RIGHT COLUMN: VPN MODES ---
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .border(0.5.dp, wheat)
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth().background(deepGray.copy(alpha = 0.05f)).padding(8.dp), contentAlignment = Alignment.Center) {
-                        Text("VPN_MODES", color = Color(0xFF20B2AA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    
-                    // GLOBAL VPN BUTTON
-                    Surface(
-                        onClick = { 
-                            activateMode(context, AppMode.CASUAL, isStealth = true, isGlobal = true, null)
-                            onAction()
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(4.dp).height(80.dp),
-                        color = Color(0xFF2E8B57).copy(alpha = 0.1f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E8B57)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF2E8B57))
-                            Text("GLOBAL_VPN", color = Color(0xFF2E8B57), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Text("VPN_FOCUS_LIST", color = Color.Gray, fontSize = 9.sp, modifier = Modifier.padding(4.dp), fontFamily = FontFamily.Monospace)
-                    
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(installedApps) { app ->
-                            HubAppRow(app, isDarkMode) {
-                                activateMode(context, AppMode.FOCUS, isStealth = true, isGlobal = false, app.packageName)
-                                onAction()
-                            }
-                        }
-                    }
-                }
-            }
-
-            // FOOTER: MASTER KILL
-            Surface(
-                onClick = { 
-                    context.startService(Intent(context, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP })
-                    IgyPreferences.setAutoStartTriggerEnabled(context, false)
+            if (currentView == "MAIN") {
+                // BUTTON 1: GLOBAL VPN
+                ActionButton("GLOBAL VPN", Icons.Default.Language, Color(0xFF2E8B57)) {
+                    activateMode(context, AppMode.CASUAL, isGlobal = true, isAuto = false, targetApp = null)
                     onAction()
-                },
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                color = Color.Red.copy(alpha = 0.1f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = Color.Red)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("STOP_ALL_SHIELDS", color = Color.Red, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // BUTTON 2: VPN FOCUS
+                ActionButton("VPN FOCUS", Icons.Default.FilterCenterFocus, Color(0xFF20B2AA)) {
+                    currentView = "APP_SELECT_FOCUS"
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // BUTTON 3: NORMAL MODE
+                ActionButton("NORMAL MODE", Icons.Default.Shield, Color(0xFFB8860B)) {
+                    currentView = "APP_SELECT_NORMAL"
+                }
+            } else {
+                // APP SELECTION LIST
+                Text(
+                    if (currentView == "APP_SELECT_FOCUS") "SELECT TARGET >> FOCUS" else "SELECT TARGET >> NORMAL", 
+                    color = Color.Gray, 
+                    fontSize = 10.sp, 
+                    fontFamily = FontFamily.Monospace
+                )
+                
+                LazyColumn(modifier = Modifier.height(300.dp).fillMaxWidth()) {
+                    items(installedApps) { app ->
+                        HubAppRow(app, isDarkMode) {
+                            if (currentView == "APP_SELECT_FOCUS") {
+                                activateMode(context, AppMode.FOCUS, isGlobal = false, isAuto = false, targetApp = app.packageName)
+                            } else {
+                                // Normal Mode: Ensure app is in whitelist
+                                val currentList = IgyPreferences.getCasualWhitelist(context).toMutableSet()
+                                currentList.add(app.packageName)
+                                IgyPreferences.saveCasualWhitelist(context, currentList)
+                                activateMode(context, AppMode.CASUAL, isGlobal = false, isAuto = false, targetApp = app.packageName)
+                            }
+                            onAction()
+                        }
                     }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { currentView = "MAIN" },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+                ) {
+                    Text("BACK", fontSize = 12.sp)
                 }
             }
         }
@@ -196,47 +168,65 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 }
 
 @Composable
+fun ActionButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(60.dp),
+        color = color.copy(alpha = 0.1f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = color)
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
 fun HubAppRow(app: AppInfo, isDarkMode: Boolean, onClick: () -> Unit) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(6.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painter = rememberDrawablePainter(app.icon), contentDescription = null, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(app.name, color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+        Image(painter = rememberDrawablePainter(app.icon), contentDescription = null, modifier = Modifier.size(32.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(app.name, color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
     }
 }
 
-private fun activateMode(context: Context, mode: AppMode, isStealth: Boolean, isGlobal: Boolean, targetApp: String?) {
+private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isAuto: Boolean, targetApp: String?) {
     val (token, _, _) = IgyPreferences.getAuth(context)
     val vpnIntent = android.net.VpnService.prepare(context)
     
     if (token.isEmpty() || vpnIntent != null) {
-        // Missing Auth or Permission: Redirect to Main
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-        val msg = if (token.isEmpty()) "PLEASE LOGIN FIRST" else "VPN PERMISSION REQUIRED"
-        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "SETUP_REQUIRED", Toast.LENGTH_SHORT).show()
         return
     }
 
+    // Save State
     IgyPreferences.saveMode(context, mode)
-    IgyPreferences.setStealthMode(context, isStealth)
     IgyPreferences.setVpnTunnelMode(context, isGlobal)
-    IgyPreferences.setAutoStartTriggerEnabled(context, true)
-    IgyPreferences.setSmartFilterActive(context, false)
+    IgyPreferences.setAutoStartTriggerEnabled(context, isAuto)
+    IgyPreferences.setSmartFilterActive(context, false) // Reset legacy flag
     
     if (targetApp != null) {
-        if (mode == AppMode.FOCUS) {
-            IgyPreferences.saveFocusTarget(context, targetApp)
-        }
+        IgyPreferences.saveFocusTarget(context, targetApp)
+        // For Normal/Focus mode, we might want to also save to VIP list if logic requires
+        // But the new service logic uses getFocusTarget() primarily for single-app tunneling
     }
 
     // Start Service
@@ -247,7 +237,7 @@ private fun activateMode(context: Context, mode: AppMode, isStealth: Boolean, is
         context.startService(startIntent)
     }
 
-    // Launch App if specified
+    // Launch App
     if (targetApp != null) {
         try {
             val launchIntent = context.packageManager.getLaunchIntentForPackage(targetApp)

@@ -675,26 +675,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egi_core"
-version = "0.1.0"
-dependencies = [
- "base64 0.21.7",
- "etherparse 0.14.3",
- "futures",
- "jni",
- "lazy_static",
- "libc",
- "serde",
- "serde_json",
- "shadowsocks",
- "shadowsocks-service",
- "tokio",
- "tun",
- "tun2proxy",
- "zeroize",
-]
-
-[[package]]
 name = "enum-as-inner"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1247,6 +1227,26 @@ checksum = "3acae9609540aa318d1bc588455225fb2085b9ed0c4f6bd0d9d5bcd86f1a0344"
 dependencies = [
  "icu_normalizer",
  "icu_properties",
+]
+
+[[package]]
+name = "igy_core"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.7",
+ "etherparse 0.14.3",
+ "futures",
+ "jni",
+ "lazy_static",
+ "libc",
+ "serde",
+ "serde_json",
+ "shadowsocks",
+ "shadowsocks-service",
+ "tokio",
+ "tun",
+ "tun2proxy",
+ "zeroize",
 ]
 
 [[package]]
