@@ -50,7 +50,7 @@ class IgyTileService : TileService() {
             val isAutoModeSettingEnabled = IgyPreferences.isAutoStartTriggerEnabled(this)
             
             if (isAutoModeSettingEnabled) {
-                // S2 Logic: Start Background Monitor (Note 3)
+                // AUTO MODE ON: Start Background Monitor
                 if (!hasUsageStatsPermission()) {
                     val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -60,18 +60,18 @@ class IgyTileService : TileService() {
                 }
                 
                 IgyPreferences.setVpnTunnelMode(this, false) 
-                IgyPreferences.setStealthMode(this, true) // Default VPN Focus
+                IgyPreferences.setStealthMode(this, true)
                 
                 startIgyService()
-                TrafficEvent.log("USER >> AUTO_MONITOR_ON")
+                TrafficEvent.log("USER >> MONITOR_ACTIVE")
             } else {
-                // Fallback Logic: Start Global VPN (Pillar 2)
+                // AUTO MODE OFF: Start Global VPN (True Encryption)
                 IgyPreferences.setVpnTunnelMode(this, true) 
                 IgyPreferences.setStealthMode(this, true)
                 IgyPreferences.saveMode(this, AppMode.CASUAL)
                 
                 startIgyService()
-                TrafficEvent.log("USER >> GLOBAL_VPN_ON")
+                TrafficEvent.log("USER >> GLOBAL_VPN_ACTIVE")
             }
         }
         updateTileState()
@@ -106,9 +106,9 @@ class IgyTileService : TileService() {
             tile.state = Tile.STATE_ACTIVE
             tile.label = "Igy Shield"
             if (isAuto) {
-                tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: READY"
+                tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: STANDBY"
             } else {
-                tile.subtitle = if (IgyPreferences.isVpnTunnelGlobal(this)) "GLOBAL: ACTIVE" else "FOCUS: ACTIVE"
+                tile.subtitle = if (IgyPreferences.isVpnTunnelGlobal(this)) "GLOBAL VPN" else "FOCUS VPN"
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
