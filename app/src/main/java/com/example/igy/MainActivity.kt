@@ -380,7 +380,7 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         // --- SECTION 3: SOFTWARE UPDATE ---
         SettingsHeader("3. SOFTWARE UPDATE")
         Text("BUILD_VERSION: $currentVersion", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Text("STATUS: $updateStatus", color = if (updateStatus.contains("FOUND")) Color(0xFF2E8B57) else Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Text("STATUS: $updateStatus", color = if (updateStatus.contains("FOUND")) Color(0xFF2D42FF) else Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(12.dp))
         
         TactileButton(
@@ -484,18 +484,18 @@ fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, isLoadi
                 if (granted) "STATUS: GRANTED" else "STATUS: RESTRICTED",
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
-                color = if (granted) Color(0xFF2E8B57) else Color.Red
+                color = if (granted) Color(0xFF2D42FF) else Color.Red
             )
         }
         if (showLoading) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B), strokeWidth = 2.dp)
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = if (granted) Color(0xFF2D42FF) else Color(0xFFB8860B), strokeWidth = 2.dp)
         } else {
             Text(
                 if (granted) "[ OK ]" else "[ CONFIGURE ]",
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = if (granted) Color(0xFF2E8B57) else Color(0xFFB8860B)
+                color = if (granted) Color(0xFF2D42FF) else Color(0xFFB8860B)
             )
         }
     }
@@ -609,11 +609,11 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         
         Text(
             text = if (isAuthenticating) "Waking up server ($countdown s)..." else "STATUS: $status",
-            color = if (isPremium) Color(0xFF2E8B57) else Color.Gray,
+            color = if (isPremium) Color(0xFF2D42FF) else Color.Gray,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace
         )
-        if (isPremium && !isAuthenticating) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        if (isPremium && !isAuthenticating) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -642,7 +642,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 text = "Login",
                 isDarkMode = isDarkMode,
                 isLoading = isAuthenticating,
-                contentColor = Color(0xFF2E8B57),
+                contentColor = Color(0xFF2D42FF),
                 onClick = {
                     if (isAuthenticating) return@TactileButton
                     scope.launch {
@@ -694,7 +694,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(name, color = if (selectedNodeId == id) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                        if (selectedNodeId == id) Text("Active", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        if (selectedNodeId == id) Text("Active", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
                 
@@ -713,7 +713,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Default Server", color = if (selectedNodeId == -1) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    if (selectedNodeId == -1) Text("Selected", color = Color(0xFF2E8B57), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    if (selectedNodeId == -1) Text("Selected", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -1107,9 +1107,9 @@ fun TerminalDashboard(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2E8B57) else Color.Red, isDarkMode)
+            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2D42FF) else Color.Red, isDarkMode)
             StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA), isDarkMode)
-            StatsTile("STATUS", if (isSecure) "CONNECTED" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2E8B57) else Color.Gray, isDarkMode)
+            StatsTile("STATUS", if (isSecure) "CONNECTED" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2D42FF) else Color.Gray, isDarkMode)
         }
 
         Box(
@@ -1130,7 +1130,7 @@ fun TerminalDashboard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = String.format("%,d", blockedCount),
-                    color = if (isSecure) Color(0xFF2E8B57) else deepGray.copy(alpha = 0.3f),
+                    color = if (isSecure) Color(0xFF2D42FF) else deepGray.copy(alpha = 0.3f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 64.sp,
                     fontWeight = FontWeight.ExtraBold
@@ -1154,7 +1154,7 @@ fun TerminalDashboard(
                     text = if (!isStealthMode) "Normal Focus: Active" else "Normal Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2E8B57),
+                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2D42FF),
                     isLoading = isNormalLoading
                 ) {
                     scope.launch {
@@ -1172,7 +1172,7 @@ fun TerminalDashboard(
                     text = if (isStealthMode && isVpnTunnelGlobal) "VPN: Active" else "VPN",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2E8B57),
+                    color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2D42FF),
                     isLoading = isVpnLoading
                 ) {
                     scope.launch {
@@ -1208,7 +1208,7 @@ fun TerminalDashboard(
                     text = if (isStealthMode && !isVpnTunnelGlobal) "VPN Focus: Active" else "VPN Focus",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2E8B57),
+                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2D42FF),
                     isLoading = isFocusLoading
                 ) {
                     scope.launch {
@@ -1229,7 +1229,7 @@ fun TerminalDashboard(
                     text = if (isBatteryOptimized) "Battery-Saver: OK" else "Battery-Saver: Restricted",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (isBatteryOptimized) Color(0xFF2E8B57) else Color.Red
+                    color = if (isBatteryOptimized) Color(0xFF2D42FF) else Color.Red
                 ) {
                     val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
@@ -1280,7 +1280,7 @@ fun TerminalDashboard(
                     .size(if (isBooting) 90.dp else 80.dp) // Pulse size
                     .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                     .background(
-                        color = if (isSecure) Color(0xFF2E8B57).copy(alpha = 0.2f) else Color.Transparent,
+                        color = if (isSecure) Color(0xFF2D42FF).copy(alpha = 0.2f) else Color.Transparent,
                         shape = androidx.compose.foundation.shape.CircleShape
                     )
             )
@@ -1295,14 +1295,14 @@ fun TerminalDashboard(
                     .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f),
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = cardBg,
-                border = BorderStroke(2.dp, if (isSecure) Color(0xFF2E8B57) else wheat),
+                border = BorderStroke(2.dp, if (isSecure) Color(0xFF2D42FF) else wheat),
                 shadowElevation = 8.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (isBooting) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(40.dp),
-                            color = Color(0xFF2E8B57),
+                            color = Color(0xFF2D42FF),
                             strokeWidth = 3.dp
                         )
                     } else {
@@ -1311,7 +1311,7 @@ fun TerminalDashboard(
                             Icon(
                                 imageVector = Icons.Default.Sync, // Placeholder for Power icon
                                 contentDescription = "Power",
-                                tint = if (isSecure) Color(0xFF2E8B57) else if (isStrictBlocking && !isStealthMode) Color.Red else Color.Gray,
+                                tint = if (isSecure) Color(0xFF2D42FF) else if (isStrictBlocking && !isStealthMode) Color.Red else Color.Gray,
                                 modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -1319,7 +1319,7 @@ fun TerminalDashboard(
                                 text = if (isSecure) "ON" else "OFF",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSecure) Color(0xFF2E8B57) else Color.Gray
+                                color = if (isSecure) Color(0xFF2D42FF) else Color.Gray
                             )
                         }
                     }
@@ -1337,7 +1337,7 @@ fun TerminalDashboard(
                 isStrictBlocking && !isStealthMode -> "LOCKED: CONFIG VPN"
                 else -> "TAP TO CONNECT"
             },
-            color = if (isSecure) Color(0xFF2E8B57) else deepGray,
+            color = if (isSecure) Color(0xFF2D42FF) else deepGray,
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1381,7 +1381,7 @@ fun RowScope.GridButton(
     text: String,
     isDarkMode: Boolean,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFF2E8B57),
+    color: Color = Color(0xFF2D42FF),
     isLoading: Boolean = false,
     onClick: () -> Unit
 ) {
@@ -1503,7 +1503,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
         TactileButton(
             text = "Install Smart Button (One-Tap)",
             isDarkMode = isDarkMode,
-            contentColor = Color(0xFF2E8B57),
+            contentColor = Color(0xFF2D42FF),
             onClick = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val statusBarManager = context.getSystemService(android.app.StatusBarManager::class.java)
@@ -1584,7 +1584,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
         Icon(
             imageVector = Icons.Default.Sync,
             contentDescription = null,
-            tint = Color(0xFF2E8B57).copy(alpha = iconAlpha),
+            tint = Color(0xFF2D42FF).copy(alpha = iconAlpha),
             modifier = Modifier.size(24.dp).offset(y = (fingerY + 10).dp)
         )
 
@@ -1615,7 +1615,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK", color = Color.Green, fontFamily = FontFamily.Monospace) }
+            TextButton(onClick = onDismiss) { Text("OK", color = Color(0xFF2D42FF), fontFamily = FontFamily.Monospace) }
         }
     )
 }
@@ -1623,7 +1623,7 @@ fun TacticalManual(onDismiss: () -> Unit) {
 @Composable
 fun ManualSection(title: String, desc: String) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text("> $title", color = Color.Green, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Text("> $title", color = Color(0xFF2D42FF), fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
         Text(desc, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Divider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(top = 4.dp))
     }

@@ -163,7 +163,7 @@ fun AppSelectorScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 .fillMaxWidth()
                 .height(70.dp)
                 .background(cardBg)
-                .border(1.dp, Color(0xFF2E8B57))
+                .border(1.dp, Color(0xFF2D42FF))
                 .clickable {
                     IgyPreferences.saveMode(context, currentMode)
                     IgyPreferences.saveFocusTarget(context, focusTarget)
@@ -175,7 +175,7 @@ fun AppSelectorScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         ) {
             Text(
                 "[ CONFIRM SELECTION ]",
-                color = Color(0xFF2E8B57),
+                color = Color(0xFF2D42FF),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp

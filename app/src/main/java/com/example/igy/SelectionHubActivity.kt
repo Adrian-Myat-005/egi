@@ -108,19 +108,19 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             .clickable(enabled = false) {}, 
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = creamColor),
-        border = BorderStroke(1.dp, Color(0xFF2E8B57).copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, Color(0xFF2D42FF).copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // HEADER
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("IGY >> COMMAND_CENTER", color = Color(0xFF2E8B57), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("IGY >> COMMAND_CENTER", color = Color(0xFF2D42FF), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text("SELECT_OPERATION_MODE", color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 }
                 
                 // MULTI-SELECT TOGGLE
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("MULTI", color = if(isMultiSelectEnabled) Color(0xFF2E8B57) else Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text("MULTI", color = if(isMultiSelectEnabled) Color(0xFF2D42FF) else Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.width(4.dp))
                     Switch(
                         checked = isMultiSelectEnabled,
@@ -128,7 +128,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                             isMultiSelectEnabled = it 
                             if (!it) selectedApps.clear()
                         },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF2E8B57), checkedTrackColor = Color(0xFF2E8B57).copy(alpha = 0.3f))
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF2D42FF), checkedTrackColor = Color(0xFF2D42FF).copy(alpha = 0.3f))
                     )
                 }
             }
@@ -143,14 +143,14 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                         onAction()
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                    color = Color(0xFF2E8B57).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFF2E8B57)),
+                    color = Color(0xFF2D42FF).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF2D42FF)),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF2E8B57))
+                        Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF2D42FF))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("ACTIVATE GLOBAL VPN", color = Color(0xFF2E8B57), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
+                        Text("ACTIVATE GLOBAL VPN", color = Color(0xFF2D42FF), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -205,7 +205,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                             onAction()
                         },
                         modifier = Modifier.weight(1f).height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E8B57).copy(alpha = 0.8f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2D42FF).copy(alpha = 0.8f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("🔒 VPN ALL", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
@@ -256,7 +256,7 @@ fun HubAppItem(
                 Checkbox(
                     checked = isSelected,
                     onCheckedChange = { onToggleSelect() },
-                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2E8B57))
+                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2D42FF))
                 )
             } else {
                 Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))

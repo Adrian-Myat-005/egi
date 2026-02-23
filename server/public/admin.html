@@ -10,7 +10,7 @@
             --wheat: #F5DEB3;
             --deep-gray: #2F4F4F;
             --gold: #B8860B;
-            --green: #2E8B57;
+            --blue: #2D42FF;
             --red: #8B0000;
             --blue: #4682B4;
             --bg-color: var(--cream);
@@ -146,7 +146,7 @@
         button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--wheat); }
         button:hover { background: var(--wheat); }
 
-        .btn-promote { color: var(--green); border-color: var(--green); }
+        .btn-promote { color: var(--blue); border-color: var(--blue); }
         .btn-reset { color: var(--red); border-color: var(--red); }
         .btn-primary { background: var(--gold); color: white; border-color: var(--gold); }
 
@@ -312,7 +312,7 @@
 
             if (diffMs < 0) return `<span style="color: var(--red)">EXPIRED (${Math.abs(diffDays)} days ago)</span>`;
             if (diffDays === 0) return `<span style="color: var(--gold)">EXPIRES_TODAY</span>`;
-            return `<span style="color: var(--green)">${diffDays} DAYS REMAINING</span>`;
+            return `<span style="color: var(--blue)">${diffDays} DAYS REMAINING</span>`;
         }
 
         function filterUsers() {
@@ -330,7 +330,7 @@
                 card.innerHTML = `
                     <div class="user-header">
                         <span>@${user.username}</span>
-                        <span style="color: ${user.isPremium ? 'var(--green)' : 'var(--blue)'}">
+                        <span style="color: ${user.isPremium ? 'var(--blue)' : 'var(--blue)'}">
                             [${user.isPremium ? 'PREMIUM' : 'GUEST'}]
                         </span>
                     </div>

@@ -75,7 +75,7 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             ) {
                 Text(
                     text = "IGY >> AUTO_START_TARGETS",
-                    color = Color(0xFF2E8B57),
+                    color = Color(0xFF2D42FF),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -147,7 +147,7 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                 .fillMaxWidth()
                 .height(70.dp)
                 .background(cardBg)
-                .border(1.dp, Color(0xFF2E8B57))
+                .border(1.dp, Color(0xFF2D42FF))
                 .clickable {
                     IgyPreferences.setAutoStartApps(context, selectedApps)
                     Toast.makeText(context, "AUTO_START_APPS_SAVED", Toast.LENGTH_SHORT).show()
@@ -156,7 +156,7 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         ) {
             Text(
                 "[ SAVE AUTO_TRIGGER_LIST ]",
-                color = Color(0xFF2E8B57),
+                color = Color(0xFF2D42FF),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
@@ -188,7 +188,7 @@ fun MatrixAutoStartRow(app: AppInfo, isDarkMode: Boolean, isSelected: Boolean, o
         }
         Text(
             text = if (isSelected) "[ TRIGGER ]" else "[ IGNORE ]",
-            color = if (isSelected) Color(0xFF2E8B57) else Color.Gray,
+            color = if (isSelected) Color(0xFF2D42FF) else Color.Gray,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold

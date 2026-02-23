@@ -27,7 +27,7 @@ fun MatrixTab(
     isSelected: Boolean,
     isDarkMode: Boolean,
     modifier: Modifier = Modifier,
-    activeColor: Color = Color(0xFF2E8B57),
+    activeColor: Color = Color(0xFF2D42FF),
     onClick: () -> Unit
 ) {
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)

@@ -52,7 +52,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
                 .fillMaxWidth()
                 .height(50.dp)
                 .background(cardBg)
-                .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                .border(0.5.dp, Color(0xFF2D42FF).copy(alpha = 0.5f))
         ) {
             Box(
                 modifier = Modifier
@@ -63,7 +63,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
             ) {
                 Text(
                     text = "IGY >> DNS_CONFIG",
-                    color = Color.Green,
+                    color = Color(0xFF2D42FF),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -73,7 +73,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
                 modifier = Modifier
                     .width(80.dp)
                     .fillMaxHeight()
-                    .border(0.5.dp, Color.Green.copy(alpha = 0.5f))
+                    .border(0.5.dp, Color(0xFF2D42FF).copy(alpha = 0.5f))
                     .clickable { onBack(null) },
                 contentAlignment = Alignment.Center
             ) {
@@ -88,7 +88,7 @@ fun DnsPickerScreen(isDarkMode: Boolean, onBack: (String?) -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .border(0.5.dp, Color.Green.copy(alpha = 0.3f))
+                .border(0.5.dp, Color(0xFF2D42FF).copy(alpha = 0.3f))
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(dnsProviders) { provider ->
@@ -131,7 +131,7 @@ fun MatrixDnsRow(isDarkMode: Boolean, cardBg: Color, provider: DnsProvider, isSe
         modifier = Modifier
             .fillMaxWidth()
             .height(70.dp)
-            .border(0.2.dp, Color.Green.copy(alpha = 0.1f))
+            .border(0.2.dp, Color(0xFF2D42FF).copy(alpha = 0.1f))
             .background(if (isSelected) Color.Cyan.copy(alpha = 0.05f) else cardBg)
             .clickable { onSelect() }
             .padding(horizontal = 12.dp),
@@ -144,7 +144,7 @@ fun MatrixDnsRow(isDarkMode: Boolean, cardBg: Color, provider: DnsProvider, isSe
         ) {
             Text(
                 text = provider.name,
-                color = if (isSelected) Color.Cyan else if (isDarkMode) Color.Green else Color(0xFF2E8B57),
+                color = if (isSelected) Color.Cyan else if (isDarkMode) Color(0xFF2D42FF) else Color(0xFF2D42FF),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
