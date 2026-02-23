@@ -224,6 +224,25 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
         // --- SECTION 2: VPN & NETWORK ---
         SettingsHeader("2. VPN & NETWORK CONTROL")
+        
+        // --- NEW: QUICK TOGGLE HELP ---
+        var showTileHelp by remember { mutableStateOf(false) }
+        TactileButton("Quick Toggle Help", isDarkMode = isDarkMode, onClick = { showTileHelp = true })
+        
+        if (showTileHelp) {
+            AlertDialog(
+                onDismissRequest = { showTileHelp = false },
+                title = { Text("HOW TO ADD BUTTON", color = deepGray, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace) },
+                text = {
+                    Text("1. Swipe down twice from top.\n2. Click the Pencil (Edit) icon.\n3. Scroll down and drag 'Igy Shield' up into your active menu.\n4. Click Done.", 
+                        color = Color.Gray, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTileHelp = false }) { Text("OK", color = Color(0xFF2E8B57)) }
+                },
+                containerColor = cardBg
+            )
+        }
         SettingsToggle("Dark Theme", isDarkMode) {
             onThemeChange(it)
         }
