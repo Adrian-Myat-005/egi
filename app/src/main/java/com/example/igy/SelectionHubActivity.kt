@@ -146,7 +146,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 placeholder = { Text("Search app...", fontSize = 12.sp, color = Color.Gray) },
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, size(18.dp), tint = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Gray) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF2D42FF),
@@ -235,8 +235,6 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
         }
     }
 }
-
-private fun Modifier.size(dp: androidx.compose.ui.unit.Dp): Modifier = this.size(dp)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
