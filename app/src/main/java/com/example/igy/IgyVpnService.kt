@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
@@ -30,11 +32,26 @@ class IgyVpnService : VpnService(), Runnable {
     private var monitorJob: Job? = null
     private val tunnelMutex = Mutex()
 
-    // State Tracking
     private var isAutoModeActive = false
     private var lastForegroundApp = ""
     @Volatile private var isTunnelEstablished = false
-    private var currentModeTitle = "Igy Shield"
+    
+    // ECO-SHIELD: Battery Optimization
+    private var isScreenOn = true
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenOn = false
+                    TrafficEvent.log("ECO >> RADAR_PAUSED")
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenOn = true
+                    TrafficEvent.log("ECO >> RADAR_RESUMED")
+                }
+            }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -44,20 +61,28 @@ class IgyVpnService : VpnService(), Runnable {
         }
 
         createNotificationChannel()
-        promoteToForeground("Initializing...")
+        promoteToForeground("Shield Active")
 
         if (isRunning) return START_STICKY
 
         isRunning = true
+        
+        // Register Eco-Shield Listeners
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(screenReceiver, filter)
+
         android.service.quicksettings.TileService.requestListeningState(this, android.content.ComponentName(this, IgyTileService::class.java))
 
         isAutoModeActive = IgyPreferences.isAutoStartTriggerEnabled(this)
         
         if (isAutoModeActive) {
-            TrafficEvent.log("AUTO_MONITOR >> START")
+            TrafficEvent.log("AUTO_PILOT >> ONLINE")
             startAutoMonitor()
         } else {
-            TrafficEvent.log("MANUAL_MODE >> START")
+            TrafficEvent.log("MANUAL_MODE >> ONLINE")
             startVpnTunnel()
         }
 
@@ -72,9 +97,7 @@ class IgyVpnService : VpnService(), Runnable {
             } else {
                 startForeground(1, notification)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "FG promotion failed", e)
-        }
+        } catch (e: Exception) {}
     }
 
     private fun startAutoMonitor() {
@@ -85,15 +108,20 @@ class IgyVpnService : VpnService(), Runnable {
             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             
             while (isActive && isRunning && isAutoModeActive) {
+                if (!isScreenOn) {
+                    delay(5000) // Sleep radar while screen is off to save battery
+                    continue
+                }
+
                 try {
                     val targetApps = IgyPreferences.getAutoStartApps(this@IgyVpnService)
                     if (targetApps.isEmpty()) {
-                        delay(2000)
+                        delay(5000)
                         continue
                     }
 
                     val time = System.currentTimeMillis()
-                    val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 5, time)
+                    val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 2, time)
                     
                     if (stats != null && stats.isNotEmpty()) {
                         val sortedStats = TreeMap<Long, android.app.usage.UsageStats>()
@@ -108,7 +136,7 @@ class IgyVpnService : VpnService(), Runnable {
                         }
                     }
                 } catch (e: Exception) {}
-                delay(500)
+                delay(1000) // Eco-frequency: 1s polling is the balance point
             }
         }
     }
@@ -123,7 +151,7 @@ class IgyVpnService : VpnService(), Runnable {
                     }
                 } else {
                     if (isTunnelEstablished) {
-                        TrafficEvent.log("EXITED >> SLEEP_MODE")
+                        TrafficEvent.log("EXITED >> SLEEPING")
                         updateNotification("IGY: Waiting for target app...")
                         tearDownTunnelOnly()
                     }
@@ -143,6 +171,7 @@ class IgyVpnService : VpnService(), Runnable {
     private fun establishTunnel() {
         if (isTunnelEstablished) return
         
+        // Clean cleanup of old thread
         if (vpnThread?.isAlive == true) {
             try { vpnInterface?.close() } catch (e: Exception) {}
             vpnThread = null
@@ -157,13 +186,15 @@ class IgyVpnService : VpnService(), Runnable {
         isTunnelEstablished = false
         TrafficEvent.setVpnActive(false)
         try {
+            // CRITICAL: Explicitly close interface to clear Android routing tables
             vpnInterface?.close()
             vpnInterface = null
         } catch (e: Exception) {}
         
         withContext(Dispatchers.IO) {
-            vpnThread?.join(300)
+            vpnThread?.join(500)
         }
+        TrafficEvent.log("STATE >> TUNNEL_RESET_SUCCESS")
     }
 
     override fun run() {
@@ -171,7 +202,6 @@ class IgyVpnService : VpnService(), Runnable {
             val isStealth = IgyPreferences.isStealthMode(this) 
             val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
             
-            // 1. SET NOTIFICATION LABEL
             val activeLabel = when {
                 isStealth && isGlobal -> "🔒 [GLOBAL] VPN ACTIVE"
                 isStealth -> "🔒 [FOCUS] VPN ACTIVE"
@@ -180,7 +210,7 @@ class IgyVpnService : VpnService(), Runnable {
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
 
-            // 2. PARALLEL KEY SYNC
+            // Parallel Key Sync
             val (token, _, _) = IgyPreferences.getAuth(this)
             val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
             val ssKey = IgyPreferences.getOutlineKey(this)
@@ -194,24 +224,19 @@ class IgyVpnService : VpnService(), Runnable {
                 }
             }
 
-            // 3. BUILDER
             val builder = Builder()
                 .setSession("IgyShield")
                 .setMtu(1280)
                 .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
 
             if (isStealth) {
-                // MODES: VPN (Global or Focus)
                 builder.addAddress("10.0.0.1", 24).addRoute("0.0.0.0", 0)
                 builder.addAddress("fd00::1", 128).addRoute("::", 0)
                 builder.addDnsServer("1.1.1.1")
                 
                 if (isGlobal) {
-                    // NO FILTERS = GLOBAL
-                    TrafficEvent.log("CORE >> GLOBAL_VPN_ESTABLISHED")
                     try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
                 } else {
-                    // SPLIT TUNNEL FOR FOCUS
                     val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
                         val focusTarget = IgyPreferences.getFocusTarget(this)
                         if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
@@ -219,10 +244,7 @@ class IgyVpnService : VpnService(), Runnable {
                     targetApps.filterNotNull().forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
                 }
             } else {
-                // MODE: NORMAL ENHANCEMENT (SPEED BOOST)
                 builder.addAddress("10.8.0.1", 32).addRoute("0.0.0.0", 0)
-                
-                // Block background apps (route to TUN), Let selected app BYPASS (Raw ISP Speed)
                 val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
                     val focusTarget = IgyPreferences.getFocusTarget(this)
                     if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
@@ -237,7 +259,8 @@ class IgyVpnService : VpnService(), Runnable {
                 return
             }
 
-            // 4. HANDOVER TO NATIVE
+            TrafficEvent.log("CORE >> LIVE")
+
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
                 if (isStealth) {
@@ -249,7 +272,6 @@ class IgyVpnService : VpnService(), Runnable {
                         IgyNetwork.runPassiveShield(fd)
                     }
                 } else {
-                    // Normal Mode: Native engine acts as a packet sink for background noise
                     IgyNetwork.runPassiveShield(fd)
                 }
             }
@@ -279,6 +301,8 @@ class IgyVpnService : VpnService(), Runnable {
         if (!isRunning) return
         isRunning = false
         isAutoModeActive = false
+        
+        try { unregisterReceiver(screenReceiver) } catch (e: Exception) {}
         
         monitorJob?.cancel()
         serviceScope.launch {
