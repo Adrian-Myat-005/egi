@@ -83,6 +83,10 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     
+    // --- STATE ---
+    var isMultiSelectEnabled by remember { mutableStateOf(false) }
+    val selectedApps = remember { mutableStateListOf<String>() }
+    
     val installedApps = remember {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -99,8 +103,8 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
     Card(
         modifier = Modifier
-            .fillMaxWidth(0.92f)
-            .fillMaxHeight(0.75f)
+            .fillMaxWidth(0.95f)
+            .fillMaxHeight(0.85f)
             .clickable(enabled = false) {}, 
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = creamColor),
@@ -110,64 +114,101 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             // HEADER
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("IGY >> COMMAND_CENTER", 
-                        color = Color(0xFF2E8B57), 
-                        fontFamily = FontFamily.Monospace, 
-                        fontWeight = FontWeight.Bold, 
-                        fontSize = 14.sp
-                    )
+                    Text("IGY >> COMMAND_CENTER", color = Color(0xFF2E8B57), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text("SELECT_OPERATION_MODE", color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 }
-                IconButton(onClick = onAction) {
-                    Icon(Icons.Default.Close, contentDescription = null, tint = Color.Gray)
+                
+                // MULTI-SELECT TOGGLE
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("MULTI", color = if(isMultiSelectEnabled) Color(0xFF2E8B57) else Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Switch(
+                        checked = isMultiSelectEnabled,
+                        onCheckedChange = { 
+                            isMultiSelectEnabled = it 
+                            if (!it) selectedApps.clear()
+                        },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF2E8B57), checkedTrackColor = Color(0xFF2E8B57).copy(alpha = 0.3f))
+                    )
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // GLOBAL VPN QUICK ACTION
-            Surface(
-                onClick = {
-                    activateMode(context, AppMode.CASUAL, isGlobal = true, isStealth = true, targetApp = null)
-                    onAction()
-                },
-                modifier = Modifier.fillMaxWidth().height(55.dp),
-                color = Color(0xFF2E8B57).copy(alpha = 0.15f),
-                border = BorderStroke(1.dp, Color(0xFF2E8B57)),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF2E8B57))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("ACTIVATE GLOBAL VPN", color = Color(0xFF2E8B57), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
+            // GLOBAL VPN QUICK ACTION (Only if not multi-selecting)
+            if (!isMultiSelectEnabled) {
+                Surface(
+                    onClick = {
+                        activateMode(context, AppMode.CASUAL, isGlobal = true, isStealth = true, targetApp = null)
+                        onAction()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    color = Color(0xFF2E8B57).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF2E8B57)),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(Icons.Default.Language, contentDescription = null, tint = Color(0xFF2E8B57))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("ACTIVATE GLOBAL VPN", color = Color(0xFF2E8B57), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // APP LIST
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                itemsIndexed(installedApps) { index, app ->
+                    HubAppItem(
+                        app = app,
+                        isDarkMode = isDarkMode,
+                        isMultiSelect = isMultiSelectEnabled,
+                        isSelected = selectedApps.contains(app.packageName),
+                        onToggleSelect = {
+                            if (selectedApps.contains(app.packageName)) selectedApps.remove(app.packageName)
+                            else selectedApps.add(app.packageName)
+                        },
+                        onFocusMode = {
+                            activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
+                            onAction()
+                        },
+                        onNormalMode = {
+                            activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = false, targetApp = app.packageName)
+                            onAction()
+                        }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // APP LIST WITH STAGGERED ENTRANCE
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                itemsIndexed(installedApps) { index, app ->
-                    var isVisible by remember { mutableStateOf(false) }
-                    LaunchedEffect(Unit) {
-                        delay(index * 30L)
-                        isVisible = true
+            // BLAST FOOTER (Only if multi-select is on and apps are selected)
+            AnimatedVisibility(visible = isMultiSelectEnabled && selectedApps.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Start All Normal
+                    Button(
+                        onClick = {
+                            IgyPreferences.saveCasualWhitelist(context, selectedApps.toSet())
+                            activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = false, targetApp = null)
+                            onAction()
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB8860B).copy(alpha = 0.8f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("🚀 BOOST ALL", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                     }
                     
-                    AnimatedVisibility(
-                        visible = isVisible,
-                        enter = slideInVertically { it / 2 } + fadeIn()
+                    // Start All VPN
+                    Button(
+                        onClick = {
+                            IgyPreferences.saveCasualWhitelist(context, selectedApps.toSet())
+                            activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = true, targetApp = null)
+                            onAction()
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E8B57).copy(alpha = 0.8f)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        HubAppItem(app, isDarkMode, 
-                            onFocusMode = {
-                                activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
-                                onAction()
-                            },
-                            onNormalMode = {
-                                activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = false, targetApp = app.packageName)
-                                onAction()
-                            }
-                        )
+                        Text("🔒 VPN ALL", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -177,7 +218,15 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HubAppItem(app: AppInfo, isDarkMode: Boolean, onFocusMode: () -> Unit, onNormalMode: () -> Unit) {
+fun HubAppItem(
+    app: AppInfo, 
+    isDarkMode: Boolean, 
+    isMultiSelect: Boolean,
+    isSelected: Boolean,
+    onToggleSelect: () -> Unit,
+    onFocusMode: () -> Unit, 
+    onNormalMode: () -> Unit
+) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     var showMenu by remember { mutableStateOf(false) }
     
@@ -186,24 +235,32 @@ fun HubAppItem(app: AppInfo, isDarkMode: Boolean, onFocusMode: () -> Unit, onNor
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = onFocusMode,
-                    onLongClick = { showMenu = true }
+                    onClick = { if (isMultiSelect) onToggleSelect() else onFocusMode() },
+                    onLongClick = { if (!isMultiSelect) showMenu = true }
                 )
-                .padding(vertical = 10.dp, horizontal = 4.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = rememberDrawablePainter(app.icon), 
                 contentDescription = null, 
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(10.dp))
             )
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(app.name, color = deepGray, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                Text(app.packageName, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(app.name, color = deepGray, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(app.packageName, color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.3f))
+            
+            if (isMultiSelect) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelect() },
+                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF2E8B57))
+                )
+            } else {
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))
+            }
         }
 
         DropdownMenu(
@@ -264,6 +321,6 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
         } catch (e: Exception) {}
     }
     
-    val msg = if (isStealth) "VPN_FOCUS_ACTIVE" else "SPEED_BOOST_ACTIVE"
+    val msg = if (isStealth) "VPN_ACTIVE" else "SPEED_BOOST_ACTIVE"
     Toast.makeText(context, "IGY >> $msg", Toast.LENGTH_SHORT).show()
 }
