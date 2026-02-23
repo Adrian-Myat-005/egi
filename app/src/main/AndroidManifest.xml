@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -33,6 +32,17 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SelectionHubActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".IgyVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
@@ -46,12 +56,16 @@
                 android:value="VPN service for network security and traffic analysis." />
         </service>
 
-        <receiver android:name=".BootReceiver" android:exported="true">
+        <service
+            android:name=".IgyTileService"
+            android:label="Igy Shield"
+            android:icon="@drawable/ic_shield_status"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
-        </receiver>
+        </service>
 
     </application>
 

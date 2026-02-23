@@ -1457,6 +1457,8 @@ private fun handleExecuteToggle(
             vpnLauncher.launch(intent)
         } else {
             startIgyVpnService(context)
+            // Sync Tile immediately
+            android.service.quicksettings.TileService.requestListeningState(context, android.content.ComponentName(context, IgyTileService::class.java))
         }
         delay(1500)
         setBooting(false)

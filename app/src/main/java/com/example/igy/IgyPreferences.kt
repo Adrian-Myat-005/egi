@@ -16,7 +16,6 @@ object IgyPreferences {
     private const val KEY_VPN_TUNNEL_MODE = "vpn_tunnel_mode"
     private const val KEY_OUTLINE_KEY = "outline_key"
     private const val KEY_LOCAL_BYPASS = "local_bypass"
-    private const val KEY_AUTO_START = "auto_start"
     private const val KEY_ALLOWED_DOMAINS = "allowed_domains"
     private const val KEY_AUTH_TOKEN = "auth_token"
     private const val KEY_USERNAME = "username"
@@ -26,6 +25,17 @@ object IgyPreferences {
     private const val KEY_SELECTED_NODE_ID = "selected_node_id"
     private const val KEY_AUTO_START_TRIGGER = "auto_start_trigger"
     private const val KEY_AUTO_START_APPS = "auto_start_apps"
+    private const val KEY_SMART_FILTER_ACTIVE = "smart_filter_active"
+
+    fun isSmartFilterActive(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SMART_FILTER_ACTIVE, false)
+    }
+
+    fun setSmartFilterActive(context: Context, active: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SMART_FILTER_ACTIVE, active).apply()
+    }
 
     fun isAutoStartTriggerEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -136,16 +146,6 @@ object IgyPreferences {
     fun getLocalBypass(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_LOCAL_BYPASS, false)
-    }
-
-    fun setAutoStart(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
-    }
-
-    fun getAutoStart(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_AUTO_START, false)
     }
 
     fun saveSyncEndpoint(context: Context, url: String) {
