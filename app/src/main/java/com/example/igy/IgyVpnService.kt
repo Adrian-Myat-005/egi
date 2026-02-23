@@ -177,6 +177,10 @@ class IgyVpnService : VpnService(), Runnable {
             }
 
             val ssKey = IgyPreferences.getOutlineKey(this)
+            if (ssKey.isEmpty() && (isStealth || isGlobal)) {
+                TrafficEvent.log("VPN >> ERR: NO_KEY_FOUND")
+                return
+            }
             
             // B. ESTABLISH TUNNEL
             val builder = Builder()

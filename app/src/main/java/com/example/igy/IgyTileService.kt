@@ -16,18 +16,18 @@ class IgyTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val isSmartTrigger = IgyPreferences.isAutoStartTriggerEnabled(this)
         val isRunning = IgyVpnService.isRunning
         val (token, _, _) = IgyPreferences.getAuth(this)
         
-        if (isSmartTrigger && isRunning) {
-            // Tap: Toggle Off
+        if (isRunning) {
+            // Master Toggle: Kill everything if anything is running
             IgyPreferences.setAutoStartTriggerEnabled(this, false)
+            IgyPreferences.setSmartFilterActive(this, false)
             val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             startService(stopIntent)
-            TrafficEvent.log("USER >> 24/7_GUARD_OFF")
+            TrafficEvent.log("USER >> SHIELD_SHUTDOWN")
         } else {
-            // Tap: Toggle On
+            // Start Default: Pillar 4 (Smart Guard)
             val vpnIntent = android.net.VpnService.prepare(this)
             if (vpnIntent != null || token.isEmpty()) {
                 val intent = Intent(this, MainActivity::class.java).apply {
@@ -44,6 +44,8 @@ class IgyTileService : TileService() {
                     startActivityAndCollapse(intent)
                     return
                 }
+                
+                // Set default Pillar 4 state
                 IgyPreferences.setAutoStartTriggerEnabled(this, true)
                 IgyPreferences.setSmartFilterActive(this, true)
                 IgyPreferences.setStealthMode(this, false)
