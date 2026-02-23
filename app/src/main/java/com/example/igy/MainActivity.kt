@@ -245,27 +245,12 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- SECTION 2: VPN & NETWORK ---
+        // --- SECTION 2: VPN & NETWORK CONTROL ---
         SettingsHeader("2. VPN & NETWORK CONTROL")
         
-        // --- NEW: QUICK TOGGLE HELP ---
-        var showTileHelp by remember { mutableStateOf(false) }
-        TactileButton("Quick Toggle Help", isDarkMode = isDarkMode, onClick = { showTileHelp = true })
+        // --- NEW: SMART TILE INSTALLER ---
+        TileInstallerSection(isDarkMode)
         
-        if (showTileHelp) {
-            AlertDialog(
-                onDismissRequest = { showTileHelp = false },
-                title = { Text("HOW TO ADD BUTTON", color = deepGray, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace) },
-                text = {
-                    Text("1. Swipe down twice from top.\n2. Click the Pencil (Edit) icon.\n3. Scroll down and drag 'Igy Shield' up into your active menu.\n4. Click Done.", 
-                        color = Color.Gray, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                },
-                confirmButton = {
-                    TextButton(onClick = { showTileHelp = false }) { Text("OK", color = Color(0xFF2E8B57)) }
-                },
-                containerColor = cardBg
-            )
-        }
         SettingsToggle("Dark Theme", isDarkMode) {
             onThemeChange(it)
         }
@@ -1504,6 +1489,112 @@ private fun handleExecuteToggle(
         }
         delay(1500)
         setBooting(false)
+    }
+}
+
+@Composable
+fun TileInstallerSection(isDarkMode: Boolean) {
+    val context = LocalContext.current
+    var showAnimation by remember { mutableStateOf(false) }
+    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TactileButton(
+            text = "Install Smart Button (One-Tap)",
+            isDarkMode = isDarkMode,
+            contentColor = Color(0xFF2E8B57),
+            onClick = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val statusBarManager = context.getSystemService(android.app.StatusBarManager::class.java)
+                    val componentName = android.content.ComponentName(context, IgyTileService::class.java)
+                    val icon = android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_shield_status)
+                    statusBarManager.requestAddTileService(
+                        componentName,
+                        "Igy Shield",
+                        icon,
+                        { it.run() },
+                        { _ -> }
+                    )
+                } else {
+                    showAnimation = !showAnimation
+                }
+            }
+        )
+
+        if (showAnimation) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = BorderStroke(1.dp, Color(0xFFB8860B).copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("MANUAL INSTALLATION GUIDE", color = Color(0xFFB8860B), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TileInstallationAnimation(isDarkMode)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("1. Swipe down twice from top status bar.\n2. Click the Pencil (Edit) icon.\n3. Find 'Igy Shield' and drag it up to your active buttons.", 
+                        color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TileInstallationAnimation(isDarkMode: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "TileAnim")
+    
+    val fingerY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 100f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 3000
+                0f at 0
+                0f at 500
+                100f at 1500
+                100f at 3000
+            }
+        ), label = "FingerMove"
+    )
+
+    val iconAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 3000
+                0.3f at 1500
+                1f at 2000
+                1f at 3000
+            }
+        ), label = "IconPop"
+    )
+
+    Box(modifier = Modifier.size(200.dp, 120.dp).background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.TopCenter) {
+        // Status Bar Representation
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp).background(Color.Gray.copy(alpha = 0.2f)))
+        
+        // Notification Panel
+        Box(modifier = Modifier.size(160.dp, fingerY.dp).background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)))
+        
+        // Igy Icon dragging
+        Icon(
+            imageVector = Icons.Default.Sync,
+            contentDescription = null,
+            tint = Color(0xFF2E8B57).copy(alpha = iconAlpha),
+            modifier = Modifier.size(24.dp).offset(y = (fingerY + 10).dp)
+        )
+
+        // Hand/Finger
+        Icon(
+            imageVector = Icons.Default.Person, // Using person as proxy for finger icon
+            contentDescription = null,
+            tint = if (isDarkMode) Color.White else Color.Black,
+            modifier = Modifier.size(32.dp).offset(y = fingerY.dp)
+        )
     }
 }
 
