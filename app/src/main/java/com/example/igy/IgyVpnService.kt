@@ -206,12 +206,13 @@ class IgyVpnService : VpnService(), Runnable {
                 } else {
                     // Normal Focus / VPN Focus
                     val focusTarget = IgyPreferences.getFocusTarget(this)
-                    if (focusTarget.isNotEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
+                    if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
                 }
 
-                if (targetApps.isNotEmpty()) {
-                    TrafficEvent.log("MODE >> SPLIT_TUNNEL (${targetApps.size} Apps)")
-                    targetApps.forEach { pkg ->
+                val nonNullApps = targetApps.filterNotNull()
+                if (nonNullApps.isNotEmpty()) {
+                    TrafficEvent.log("MODE >> SPLIT_TUNNEL (${nonNullApps.size} Apps)")
+                    nonNullApps.forEach { pkg ->
                         try { builder.addAllowedApplication(pkg) } catch (e: Exception) {
                             Log.e(TAG, "Failed to allow $pkg", e)
                         }
