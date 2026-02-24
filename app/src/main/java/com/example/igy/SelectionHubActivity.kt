@@ -132,13 +132,11 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
         else -> cyan
     }
 
-    var searchQuery by remember { mutableStateOf("") }
     var isLibraryExpanded by remember { mutableStateOf(false) }
     var isMultiSelectMode by remember { mutableStateOf(false) }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
     var pendingStealthMode by remember { mutableStateOf<Boolean?>(null) }
     var recentAppsVersion by remember { mutableStateOf(0) }
-    val focusRequester = remember { FocusRequester() }
 
     val installedApps = remember {
         try {
@@ -157,14 +155,6 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 .sortedBy { it.name }
         } catch (e: Exception) {
             emptyList<AppInfo>()
-        }
-    }
-
-    val filteredApps = remember(searchQuery, installedApps) {
-        if (searchQuery.isEmpty()) installedApps
-        else installedApps.filter { 
-            it.name.contains(searchQuery, ignoreCase = true) || 
-            it.packageName.contains(searchQuery, ignoreCase = true) 
         }
     }
 
@@ -289,38 +279,19 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // 4. BOTTOM TIER: THE LIBRARY (Search & List)
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { 
-                        searchQuery = it 
-                        if (it.isNotEmpty()) isLibraryExpanded = true
-                    },
-                    modifier = Modifier.weight(1f).height(52.dp).focusRequester(focusRequester),
-                    placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = gold.copy(alpha = 0.6f))
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = gold,
-                        unfocusedBorderColor = gold.copy(alpha = 0.2f),
-                        focusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
-                        unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
-                        focusedTextColor = deepGray,
-                        unfocusedTextColor = deepGray
-                    ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+            // 4. BOTTOM TIER: THE LIBRARY (List)
+            Row(
+                modifier = Modifier.fillMaxWidth(), 
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (isMultiSelectMode) "MULTI_SELECT_MODE_ACTIVE" else "SYSTEM_APP_LIBRARY",
+                    color = gold.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
                 )
-                
-                Spacer(modifier = Modifier.width(8.dp))
                 
                 IconButton(onClick = { 
                     isMultiSelectMode = !isMultiSelectMode
@@ -335,11 +306,11 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 }
             }
 
-            AnimatedVisibility(visible = isLibraryExpanded || searchQuery.isNotEmpty()) {
+            AnimatedVisibility(visible = isLibraryExpanded) {
                 Column {
                     Spacer(modifier = Modifier.height(12.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                        itemsIndexed(filteredApps) { _, app ->
+                        itemsIndexed(installedApps) { _, app ->
                             HubAppItem(
                                 app = app,
                                 isDarkMode = isDarkMode,
@@ -383,7 +354,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 }
             }
 
-            if (!isLibraryExpanded && searchQuery.isEmpty()) {
+            if (!isLibraryExpanded) {
                 TextButton(onClick = { isLibraryExpanded = true }) {
                     Text("EXPAND_FULL_LIBRARY ▾", color = gold, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
