@@ -38,6 +38,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.view.WindowManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import kotlinx.coroutines.delay
 
@@ -45,6 +48,8 @@ class SelectionHubActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         }
@@ -133,6 +138,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
     var pendingStealthMode by remember { mutableStateOf<Boolean?>(null) }
     var recentAppsVersion by remember { mutableStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
 
     val installedApps = remember {
         try {
@@ -290,7 +296,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                         searchQuery = it 
                         if (it.isNotEmpty()) isLibraryExpanded = true
                     },
-                    modifier = Modifier.weight(1f).height(52.dp),
+                    modifier = Modifier.weight(1f).height(52.dp).focusRequester(focusRequester),
                     placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
