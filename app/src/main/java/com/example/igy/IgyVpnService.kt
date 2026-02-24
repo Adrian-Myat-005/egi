@@ -118,8 +118,13 @@ class IgyVpnService : VpnService(), Runnable {
     }
 
     private fun startVpnProcess() {
+        val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
         isAutoModeActive = IgyPreferences.isAutoStartTriggerEnabled(this)
-        if (isAutoModeActive) {
+        
+        if (isGlobal) {
+            TrafficEvent.log("CORE >> GLOBAL_MODE_OVERRIDE")
+            startVpnTunnel()
+        } else if (isAutoModeActive) {
             startAutoMonitor()
         } else {
             startVpnTunnel()
@@ -313,18 +318,24 @@ class IgyVpnService : VpnService(), Runnable {
                 if (isGlobal) {
                     try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
                 } else {
-                    val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
+                    val targetApps = if (isAutoModeActive) {
+                        IgyPreferences.getAutoStartApps(this)
+                    } else {
                         val focusTarget = IgyPreferences.getFocusTarget(this)
                         if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
                     }
+                    // STRICT SPLIT TUNNEL: Only selected apps get VPN
                     targetApps.filterNotNull().forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
                 }
             } else {
                 builder.addAddress("172.19.0.1", 32).addRoute("0.0.0.0", 0)
-                val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
+                val targetApps = if (isAutoModeActive) {
+                    IgyPreferences.getAutoStartApps(this)
+                } else {
                     val focusTarget = IgyPreferences.getFocusTarget(this)
                     if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
                 }
+                // BOOST MODE: Passive shield allows selected apps to bypass
                 targetApps.filterNotNull().forEach { try { builder.addDisallowedApplication(it) } catch (e: Exception) {} }
                 try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
             }

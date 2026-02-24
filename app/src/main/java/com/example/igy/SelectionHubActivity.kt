@@ -64,31 +64,30 @@ class SelectionHubActivity : ComponentActivity() {
             }
 
             IgyTerminalTheme(isDarkMode) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Black.copy(alpha = 0.5f) 
-                ) {
-                    Box(
-                        contentAlignment = Alignment.TopCenter,
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Background Dim & Dismiss
+                    Surface(
                         modifier = Modifier.fillMaxSize().clickable { 
                             showContent = false
                             finish() 
-                        }
+                        },
+                        color = Color.Black.copy(alpha = 0.5f)
+                    ) {}
+
+                    AnimatedVisibility(
+                        visible = showContent,
+                        enter = slideInVertically(
+                            initialOffsetY = { -it },
+                            animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)
+                        ) + fadeIn(),
+                        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                        modifier = Modifier.align(Alignment.TopCenter)
                     ) {
-                        AnimatedVisibility(
-                            visible = showContent,
-                            enter = slideInVertically(
-                                initialOffsetY = { -it },
-                                animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)
-                            ) + fadeIn(),
-                            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
-                        ) {
-                            Box(modifier = Modifier.padding(top = 24.dp)) {
-                                HubPopup(isDarkMode, onAction = { 
-                                    showContent = false
-                                    finish() 
-                                })
-                            }
+                        Box(modifier = Modifier.padding(top = 24.dp)) {
+                            HubPopup(isDarkMode, onAction = { 
+                                showContent = false
+                                finish() 
+                            })
                         }
                     }
                 }
@@ -130,7 +129,10 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
     var searchQuery by remember { mutableStateOf("") }
     var isLibraryExpanded by remember { mutableStateOf(false) }
-    var recentAppsVersion by remember { mutableStateOf(0) } // Local state to trigger refresh
+    var isMultiSelectMode by remember { mutableStateOf(false) }
+    var selectedApps by remember { mutableStateOf(setOf<String>()) }
+    var pendingStealthMode by remember { mutableStateOf<Boolean?>(null) }
+    var recentAppsVersion by remember { mutableStateOf(0) }
 
     val installedApps = remember {
         try {
@@ -205,8 +207,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     isDarkMode = isDarkMode
                 ) {
-                    activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = false, targetApp = null)
-                    onAction()
+                    pendingStealthMode = false
+                    isLibraryExpanded = true
+                    Toast.makeText(context, "SELECT BOOST APP BELOW", Toast.LENGTH_SHORT).show()
                 }
 
                 TactileTile(
@@ -232,8 +235,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                     isDarkMode = isDarkMode
                 ) {
                     if (isPremium) {
+                        pendingStealthMode = true
                         isLibraryExpanded = true
-                        Toast.makeText(context, "SELECT TARGET APP BELOW", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "SELECT FOCUS APP BELOW", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "PREMIUM_REQUIRED", Toast.LENGTH_SHORT).show()
                     }
@@ -243,7 +247,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             // 3. MIDDLE TIER: APP DOCK
-            if (recentApps.isNotEmpty()) {
+            if (recentApps.isNotEmpty() && !isMultiSelectMode) {
                 Text("RECENT_TARGETS (Hold to Remove)", color = gold.copy(alpha = 0.6f), fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
@@ -279,34 +283,50 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             }
 
             // 4. BOTTOM TIER: THE LIBRARY (Search & List)
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { 
-                    searchQuery = it 
-                    if (it.isNotEmpty()) isLibraryExpanded = true
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = gold.copy(alpha = 0.6f))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { 
+                        searchQuery = it 
+                        if (it.isNotEmpty()) isLibraryExpanded = true
+                    },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = gold.copy(alpha = 0.6f))
+                            }
                         }
-                    }
-                },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = gold,
-                    unfocusedBorderColor = gold.copy(alpha = 0.2f),
-                    focusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
-                    unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
-                    focusedTextColor = deepGray,
-                    unfocusedTextColor = deepGray
-                ),
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
-            )
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = gold,
+                        unfocusedBorderColor = gold.copy(alpha = 0.2f),
+                        focusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
+                        unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
+                        focusedTextColor = deepGray,
+                        unfocusedTextColor = deepGray
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                IconButton(onClick = { 
+                    isMultiSelectMode = !isMultiSelectMode
+                    if (!isMultiSelectMode) selectedApps = emptySet()
+                    else isLibraryExpanded = true
+                }) {
+                    Icon(
+                        if (isMultiSelectMode) Icons.Default.Checklist else Icons.Default.List, 
+                        contentDescription = "Multi Select",
+                        tint = if (isMultiSelectMode) blue else gold
+                    )
+                }
+            }
 
             AnimatedVisibility(visible = isLibraryExpanded || searchQuery.isNotEmpty()) {
                 Column {
@@ -317,8 +337,16 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                                 app = app,
                                 isDarkMode = isDarkMode,
                                 isPremium = isPremium,
+                                isSelected = selectedApps.contains(app.packageName),
+                                isMultiSelectMode = isMultiSelectMode,
+                                onToggleSelect = {
+                                    val current = selectedApps.toMutableSet()
+                                    if (current.contains(app.packageName)) current.remove(app.packageName) else current.add(app.packageName)
+                                    selectedApps = current
+                                },
                                 onFocusMode = {
-                                    activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
+                                    val stealth = pendingStealthMode ?: true
+                                    activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = stealth, targetApp = app.packageName)
                                     onAction()
                                 },
                                 onNormalMode = {
@@ -326,6 +354,23 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                                     onAction()
                                 }
                             )
+                        }
+                    }
+                    
+                    if (isMultiSelectMode && selectedApps.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                // Multi-select always uses CASUAL whitelist for now or Auto-start list
+                                IgyPreferences.saveCasualWhitelist(context, selectedApps)
+                                activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = true, targetApp = null)
+                                onAction()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = blue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("START PROTECTION (${selectedApps.size} APPS)", fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -432,10 +477,14 @@ fun HubAppItem(
     app: AppInfo, 
     isDarkMode: Boolean, 
     isPremium: Boolean,
+    isSelected: Boolean = false,
+    isMultiSelectMode: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onFocusMode: () -> Unit, 
     onNormalMode: () -> Unit
 ) {
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val blue = Color(0xFF2D42FF)
     var showMenu by remember { mutableStateOf(false) }
     
     Box {
@@ -443,9 +492,14 @@ fun HubAppItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = { if (isPremium) onFocusMode() else onNormalMode() },
-                    onLongClick = { showMenu = true }
+                    onClick = { 
+                        if (isMultiSelectMode) onToggleSelect()
+                        else if (isPremium) onFocusMode() 
+                        else onNormalMode() 
+                    },
+                    onLongClick = { if (!isMultiSelectMode) showMenu = true }
                 )
+                .background(if (isSelected) blue.copy(alpha = 0.1f) else Color.Transparent)
                 .padding(vertical = 10.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -456,12 +510,16 @@ fun HubAppItem(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(app.name, color = deepGray, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(app.name, color = if (isSelected) blue else deepGray, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(app.packageName, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
             }
             
-            if (!isPremium) Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
-            else Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))
+            if (isMultiSelectMode) {
+                Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() })
+            } else {
+                if (!isPremium) Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
+                else Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))
+            }
         }
 
         DropdownMenu(
@@ -500,7 +558,6 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
     val vpnIntent = android.net.VpnService.prepare(context)
     
     if (token.isEmpty() || vpnIntent != null) {
-        // Only open main app if we actually need setup (Auth or Permission)
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -510,7 +567,6 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
 
     if (isStealth && !isPremium) {
         Toast.makeText(context, "PREMIUM_REQUIRED", Toast.LENGTH_SHORT).show()
-        // Here we open account screen because user tried to use premium feature
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra("FORCE_ACCOUNT", true)
@@ -522,14 +578,18 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
     IgyPreferences.saveMode(context, mode)
     IgyPreferences.setVpnTunnelMode(context, isGlobal)
     IgyPreferences.setStealthMode(context, isStealth)
-    IgyPreferences.setAutoStartTriggerEnabled(context, false)
+    
+    // Only disable auto-start if we are explicitly choosing a single focus app
+    // If it's global, we want to KEEP the auto-start setting as it was (per user request)
+    if (!isGlobal) {
+        IgyPreferences.setAutoStartTriggerEnabled(context, false)
+    }
     
     if (targetApp != null) {
         IgyPreferences.saveFocusTarget(context, targetApp)
         IgyPreferences.addRecentApp(context, targetApp)
     }
 
-    // Always trigger the service to re-read preferences and restart the tunnel
     val startIntent = Intent(context, IgyVpnService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(startIntent)

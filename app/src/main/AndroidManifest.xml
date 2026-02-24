@@ -38,7 +38,8 @@
             android:exported="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true"
-            android:launchMode="singleTask">
+            android:taskAffinity="com.example.igy.popup"
+            android:launchMode="singleInstance">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
