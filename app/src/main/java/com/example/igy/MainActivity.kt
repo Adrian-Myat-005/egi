@@ -20,12 +20,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -1034,7 +1036,7 @@ fun TerminalDashboard(
                     modifier = Modifier.padding(horizontal = 12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Sync, // Placeholder for Wifi icon
+                        imageVector = Sync, // Placeholder for Wifi icon
                         contentDescription = "Wifi",
                         tint = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
                         modifier = Modifier.size(14.dp)
@@ -1064,7 +1066,7 @@ fun TerminalDashboard(
                     if (isSettingsLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
+                        Icon(imageVector = Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
                     }
                 }
 
@@ -1080,7 +1082,7 @@ fun TerminalDashboard(
                     if (isAccountLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Icons.Filled.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
+                        Icon(imageVector = Person, contentDescription = "Account", tint = Color(0xFFDAA520))
                     }
                 }
 
@@ -1096,7 +1098,7 @@ fun TerminalDashboard(
                     if (isManualLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = deepGray, strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Icons.Filled.Info, contentDescription = "Help", tint = deepGray)
+                        Icon(imageVector = Info, contentDescription = "Help", tint = deepGray)
                     }
                 }
             }
@@ -1238,7 +1240,7 @@ fun TerminalDashboard(
                     .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                     .background(
                         color = if (isSecure) Color(0xFF2D42FF).copy(alpha = 0.2f) else Color.Transparent,
-                        shape = androidx.compose.foundation.shape.CircleShape
+                        shape = CircleShape
                     )
             )
 
@@ -1260,7 +1262,7 @@ fun TerminalDashboard(
                         CircularProgressIndicator(color = if (isSecure) Color.White else Color(0xFF2D42FF), modifier = Modifier.size(40.dp))
                     } else {
                         Icon(
-                            imageVector = if (isSecure) Icons.Default.Shield else Icons.Default.Shield,
+                            imageVector = Shield,
                             contentDescription = "Shield",
                             tint = if (isSecure) Color.White else Color(0xFF2D42FF),
                             modifier = Modifier.size(32.dp)
@@ -1525,7 +1527,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
         
         // Igy Icon dragging
         Icon(
-            imageVector = Icons.Default.Sync,
+            imageVector = Sync,
             contentDescription = null,
             tint = Color(0xFF2D42FF).copy(alpha = iconAlpha),
             modifier = Modifier.size(24.dp).offset(y = (fingerY + 10).dp)
@@ -1533,7 +1535,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
 
         // Hand/Finger
         Icon(
-            imageVector = Icons.Default.Person, // Using person as proxy for finger icon
+            imageVector = Person, // Using person as proxy for finger icon
             contentDescription = null,
             tint = if (isDarkMode) Color.White else Color.Black,
             modifier = Modifier.size(32.dp).offset(y = fingerY.dp)
