@@ -2,6 +2,7 @@ package com.example.igy
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -129,25 +130,34 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     var isLibraryExpanded by remember { mutableStateOf(false) }
 
     val installedApps = remember {
-        val pm = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
-        pm.queryIntentActivities(intent, 0)
-            .map { 
-                AppInfo(
-                    name = it.loadLabel(pm).toString(),
-                    packageName = it.activityInfo.packageName,
-                    icon = it.loadIcon(pm)
-                )
-            }
-            .sortedBy { it.name }
+        try {
+            val pm = context.packageManager
+            val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PackageManager.MATCH_ALL else 0
+            pm.queryIntentActivities(intent, flags)
+                .map { 
+                    AppInfo(
+                        name = it.loadLabel(pm).toString(),
+                        packageName = it.activityInfo.packageName,
+                        icon = it.loadIcon(pm)
+                    )
+                }
+                .distinctBy { it.packageName }
+                .sortedBy { it.name }
+        } catch (e: Exception) {
+            emptyList<AppInfo>()
+        }
     }
 
-    val filteredApps = remember(searchQuery) {
-        if (searchQuery.isEmpty()) emptyList()
-        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    val filteredApps = remember(searchQuery, installedApps) {
+        if (searchQuery.isEmpty()) installedApps
+        else installedApps.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) || 
+            it.packageName.contains(searchQuery, ignoreCase = true) 
+        }
     }
 
-    val recentApps = remember {
+    val recentApps = remember(installedApps) {
         val pkgs = IgyPreferences.getRecentApps(context)
         pkgs.mapNotNull { pkg ->
             installedApps.find { it.packageName == pkg }
@@ -269,22 +279,30 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = null, tint = gold.copy(alpha = 0.6f))
+                        }
+                    }
+                },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = gold,
                     unfocusedBorderColor = gold.copy(alpha = 0.2f),
                     focusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
-                    unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White
+                    unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
+                    focusedTextColor = deepGray,
+                    unfocusedTextColor = deepGray
                 ),
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = deepGray)
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
             )
 
             AnimatedVisibility(visible = isLibraryExpanded || searchQuery.isNotEmpty()) {
                 Column {
                     Spacer(modifier = Modifier.height(12.dp))
                     LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                        val displayList = if (searchQuery.isEmpty()) installedApps else filteredApps
-                        itemsIndexed(displayList) { _, app ->
+                        itemsIndexed(filteredApps) { _, app ->
                             HubAppItem(
                                 app = app,
                                 isDarkMode = isDarkMode,
