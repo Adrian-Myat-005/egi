@@ -23,11 +23,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -1036,7 +1032,7 @@ fun TerminalDashboard(
                     modifier = Modifier.padding(horizontal = 12.dp)
                 ) {
                     Icon(
-                        imageVector = Sync, // Placeholder for Wifi icon
+                        imageVector = Icons.Default.Sync, // Placeholder for Wifi icon
                         contentDescription = "Wifi",
                         tint = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
                         modifier = Modifier.size(14.dp)
@@ -1066,7 +1062,7 @@ fun TerminalDashboard(
                     if (isSettingsLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
+                        Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
                     }
                 }
 
@@ -1082,7 +1078,7 @@ fun TerminalDashboard(
                     if (isAccountLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Person, contentDescription = "Account", tint = Color(0xFFDAA520))
+                        Icon(imageVector = Icons.Default.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
                     }
                 }
 
@@ -1098,7 +1094,7 @@ fun TerminalDashboard(
                     if (isManualLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = deepGray, strokeWidth = 2.dp)
                     } else {
-                        Icon(imageVector = Info, contentDescription = "Help", tint = deepGray)
+                        Icon(imageVector = Icons.Default.Info, contentDescription = "Help", tint = deepGray)
                     }
                 }
             }
@@ -1262,7 +1258,7 @@ fun TerminalDashboard(
                         CircularProgressIndicator(color = if (isSecure) Color.White else Color(0xFF2D42FF), modifier = Modifier.size(40.dp))
                     } else {
                         Icon(
-                            imageVector = Shield,
+                            imageVector = Icons.Default.Shield,
                             contentDescription = "Shield",
                             tint = if (isSecure) Color.White else Color(0xFF2D42FF),
                             modifier = Modifier.size(32.dp)
@@ -1527,7 +1523,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
         
         // Igy Icon dragging
         Icon(
-            imageVector = Sync,
+            imageVector = Icons.Default.Sync,
             contentDescription = null,
             tint = Color(0xFF2D42FF).copy(alpha = iconAlpha),
             modifier = Modifier.size(24.dp).offset(y = (fingerY + 10).dp)
@@ -1535,7 +1531,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
 
         // Hand/Finger
         Icon(
-            imageVector = Person, // Using person as proxy for finger icon
+            imageVector = Icons.Default.Person, // Using person as proxy for finger icon
             contentDescription = null,
             tint = if (isDarkMode) Color.White else Color.Black,
             modifier = Modifier.size(32.dp).offset(y = fingerY.dp)

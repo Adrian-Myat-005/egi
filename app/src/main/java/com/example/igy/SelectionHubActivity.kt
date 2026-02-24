@@ -18,12 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.FilterCenterFocus
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -191,7 +186,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TactileTile(
                     label = "BOOST",
-                    icon = Speed,
+                    icon = Icons.Default.Speed,
                     color = gold,
                     isActive = isVpnActive && !isStealth,
                     modifier = Modifier.weight(1f),
@@ -203,7 +198,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
                 TactileTile(
                     label = "GLOBAL",
-                    icon = Language,
+                    icon = Icons.Default.Language,
                     color = blue,
                     isActive = isVpnActive && isStealth && isGlobal,
                     isPremium = isPremium,
@@ -216,7 +211,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
                 TactileTile(
                     label = "FOCUS",
-                    icon = FilterCenterFocus,
+                    icon = Icons.Default.FilterCenterFocus,
                     color = cyan,
                     isActive = isVpnActive && isStealth && !isGlobal,
                     isPremium = isPremium,
@@ -273,7 +268,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 placeholder = { Text("Search System Library...", color = Color.Gray, fontSize = 12.sp) },
                 singleLine = true,
-                leadingIcon = { Icon(Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = gold.copy(alpha = 0.6f)) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = gold,
@@ -387,7 +382,7 @@ fun TactileTile(
         ) {
             if (!isPremium) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.03f)), contentAlignment = Alignment.TopEnd) {
-                    Icon(Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(14.dp).padding(4.dp))
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(14.dp).padding(4.dp))
                 }
             }
             
@@ -437,8 +432,8 @@ fun HubAppItem(
                 Text(app.packageName, color = Color.Gray, fontSize = 8.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
             }
             
-            if (!isPremium) Icon(Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
-            else Icon(ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))
+            if (!isPremium) Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Gray.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
+            else Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray.copy(alpha = 0.2f))
         }
 
         DropdownMenu(
@@ -459,7 +454,7 @@ fun HubAppItem(
                         Text("🔒 Launch Focus Mode (VPN)", fontSize = 12.sp, fontFamily = FontFamily.Monospace) 
                         if (!isPremium) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Lock, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
                         }
                     }
                 },
