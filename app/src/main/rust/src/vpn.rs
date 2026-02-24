@@ -108,7 +108,11 @@ pub fn start_vpn_loop(fd: i32) {
         PROXY_PORT.store(port, Ordering::Relaxed);
         
         let local_addr_str = format!("127.0.0.1:{}", port);
-        let ss_key = secure_key.key.clone();
+        // Robust trimming and remark removal
+        let mut ss_key = secure_key.key.trim().to_string();
+        if let Some(pos) = ss_key.find('#') {
+            ss_key.truncate(pos);
+        }
 
         let ss_local_addr = local_addr_str.clone();
         tokio::spawn(async move {
@@ -119,6 +123,7 @@ pub fn start_vpn_loop(fd: i32) {
                         let mut local_config = LocalConfig::new(ProtocolType::Socks);
                         local_config.addr = Some(local_addr);
                         local_config.mode = Mode::TcpAndUdp;
+                        local_config.udp_timeout = Some(Duration::from_secs(300));
                         config.local.push(LocalInstanceConfig { config: local_config, acl: None });
                         config.server.push(ServerInstanceConfig::with_server_config(server_config));
                         crate::log_to_java(&format!("VPN >> SOCKS5_READY: {}", ss_local_addr));
@@ -133,9 +138,9 @@ pub fn start_vpn_loop(fd: i32) {
             }
         });
 
-        // Fast Start: Wait max 1.5s for SOCKS5
+        // Fast Start: Wait max 3s for SOCKS5 (increased from 1.5s)
         let mut proxy_ready = false;
-        for _ in 0..5 {
+        for _ in 0..10 {
             tokio::time::sleep(Duration::from_millis(300)).await;
             if tokio::net::TcpStream::connect(local_addr_str.clone()).await.is_ok() {
                 proxy_ready = true;

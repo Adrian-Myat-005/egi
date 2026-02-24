@@ -270,15 +270,33 @@ class IgyVpnService : VpnService(), Runnable {
             // Parallel Key Sync
             val (token, _, _) = IgyPreferences.getAuth(this)
             val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
-            val ssKey = IgyPreferences.getOutlineKey(this)
+            var activeKey = IgyPreferences.getOutlineKey(this)
 
             if (token.isNotEmpty()) {
-                serviceScope.launch {
+                // If key is empty, do a blocking fetch to ensure connection works
+                if (activeKey.isEmpty()) {
+                    TrafficEvent.log("VPN >> FETCHING_INITIAL_KEY")
                     val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
                     if (latestKey != null && latestKey.startsWith("ss://")) {
                         IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
+                        activeKey = latestKey
+                        TrafficEvent.log("VPN >> KEY_SYNCED_SUCCESS")
+                    } else {
+                        TrafficEvent.log("VPN >> KEY_SYNC_FAILED")
+                    }
+                } else {
+                    // Refresh in background if we already have one
+                    serviceScope.launch {
+                        val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
+                        if (latestKey != null && latestKey.startsWith("ss://")) {
+                            IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
+                        }
                     }
                 }
+            }
+
+            if (activeKey.isEmpty()) {
+                TrafficEvent.log("VPN >> ABORT: NO_SS_KEY_FOUND")
             }
 
             val builder = Builder()
@@ -287,8 +305,9 @@ class IgyVpnService : VpnService(), Runnable {
                 .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
 
             if (isStealth) {
-                builder.addAddress("10.0.0.1", 24).addRoute("0.0.0.0", 0)
-                builder.addAddress("fd00::1", 128).addRoute("::", 0)
+                // Use a more common non-conflicting range
+                builder.addAddress("172.19.0.1", 24).addRoute("0.0.0.0", 0)
+                builder.addAddress("fd00:1::1", 128).addRoute("::", 0)
                 builder.addDnsServer("1.1.1.1")
                 
                 if (isGlobal) {
@@ -301,7 +320,7 @@ class IgyVpnService : VpnService(), Runnable {
                     targetApps.filterNotNull().forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
                 }
             } else {
-                builder.addAddress("10.8.0.1", 32).addRoute("0.0.0.0", 0)
+                builder.addAddress("172.19.0.1", 32).addRoute("0.0.0.0", 0)
                 val targetApps = if (isAutoModeActive) IgyPreferences.getAutoStartApps(this) else {
                     val focusTarget = IgyPreferences.getFocusTarget(this)
                     if (!focusTarget.isNullOrEmpty()) setOf(focusTarget) else IgyPreferences.getVipList(this)
@@ -319,7 +338,6 @@ class IgyVpnService : VpnService(), Runnable {
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
                 if (isStealth) {
-                    val activeKey = IgyPreferences.getOutlineKey(this)
                     if (activeKey.isNotEmpty()) {
                         IgyNetwork.setOutlineKey(activeKey)
                         IgyNetwork.runVpnLoop(fd)
