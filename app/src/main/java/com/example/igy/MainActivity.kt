@@ -88,16 +88,20 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     // --- PRE-WARM SERVER (Render Wake-up) ---
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
-            try {
-                val url = java.net.URL("$serverUrl/api/ping")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                conn.responseCode // Triggers the wake-up request
-                TrafficEvent.log("CORE >> PRE_WARM_SIGNAL_SENT")
-            } catch (e: Exception) {
-                // Ignore errors; this is just a best-effort wake-up
+            val urls = listOf("$serverUrl/api/ping", "$serverUrl/api/auth/login", "$serverUrl/api/vpn/test-key") // Multiple endpoints to force routing
+            repeat(3) { // Triple-Burst to ensure LB wakes up
+                urls.forEach { endpoint ->
+                    try {
+                        val url = java.net.URL(endpoint)
+                        val conn = url.openConnection() as java.net.HttpURLConnection
+                        conn.connectTimeout = 30000 // 30s allowance for cold start
+                        conn.readTimeout = 30000
+                        conn.responseCode
+                    } catch (e: Exception) {}
+                }
+                delay(1000)
             }
+            TrafficEvent.log("CORE >> PRE_WARM_SIGNAL_BURST_COMPLETE")
         }
     }
 

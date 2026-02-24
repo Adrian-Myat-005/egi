@@ -361,7 +361,8 @@ class IgyVpnService : VpnService(), Runnable {
         try {
             val url = java.net.URL("$serverUrl/api/vpn/config${if (nodeId != -1) "?nodeId=$nodeId" else ""}")
             val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 5000
+            conn.connectTimeout = 30000
+            conn.readTimeout = 30000
             conn.setRequestProperty("Authorization", "Bearer $token")
             if (conn.responseCode == 200) {
                 return org.json.JSONObject(conn.inputStream.bufferedReader().readText()).getString("config")

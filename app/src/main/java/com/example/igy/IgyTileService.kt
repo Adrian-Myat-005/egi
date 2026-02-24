@@ -23,10 +23,18 @@ class IgyTileService : TileService() {
         val isRunning = IgyVpnService.isRunning
         val (token, _, isPremium) = IgyPreferences.getAuth(this)
         
-        // --- INSTANT-LOCK: GHOST PING SERVER ---
+        // --- INSTANT-LOCK: GHOST PING SERVER (TRIPLE-BURST) ---
         val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try { java.net.URL("$serverUrl/api/ping").openConnection().apply { connectTimeout = 2000 }.inputStream } catch (e: Exception) {}
+            repeat(3) {
+                try { 
+                    java.net.URL("$serverUrl/api/ping").openConnection().apply { 
+                        connectTimeout = 30000 
+                        readTimeout = 30000
+                    }.inputStream.close()
+                } catch (e: Exception) {}
+                delay(1000)
+            }
         }
 
         // Check for Auth and Basic Permission
