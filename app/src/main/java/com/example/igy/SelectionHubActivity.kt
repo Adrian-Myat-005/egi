@@ -227,6 +227,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     isDarkMode = isDarkMode
                 ) {
+                    IgyPreferences.saveFocusTarget(context, "") // Clear target for global mode
                     activateMode(context, AppMode.CASUAL, isGlobal = true, isStealth = true, targetApp = null)
                     onAction()
                 }
@@ -584,12 +585,6 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
     IgyPreferences.saveMode(context, mode)
     IgyPreferences.setVpnTunnelMode(context, isGlobal)
     IgyPreferences.setStealthMode(context, isStealth)
-    
-    // Only disable auto-start if we are explicitly choosing a single focus app
-    // If it's global, we want to KEEP the auto-start setting as it was (per user request)
-    if (!isGlobal) {
-        IgyPreferences.setAutoStartTriggerEnabled(context, false)
-    }
     
     if (targetApp != null) {
         IgyPreferences.saveFocusTarget(context, targetApp)

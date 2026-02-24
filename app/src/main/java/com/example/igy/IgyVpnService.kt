@@ -119,10 +119,14 @@ class IgyVpnService : VpnService(), Runnable {
 
     private fun startVpnProcess() {
         val isGlobal = IgyPreferences.isVpnTunnelGlobal(this)
+        val focusTarget = IgyPreferences.getFocusTarget(this) ?: ""
         isAutoModeActive = IgyPreferences.isAutoStartTriggerEnabled(this)
         
         if (isGlobal) {
             TrafficEvent.log("CORE >> GLOBAL_MODE_OVERRIDE")
+            startVpnTunnel()
+        } else if (focusTarget.isNotEmpty()) {
+            TrafficEvent.log("CORE >> MANUAL_TARGET_OVERRIDE")
             startVpnTunnel()
         } else if (isAutoModeActive) {
             startAutoMonitor()

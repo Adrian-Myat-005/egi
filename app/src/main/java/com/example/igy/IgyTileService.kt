@@ -76,8 +76,11 @@ class IgyTileService : TileService() {
                     return
                 }
                 
+                // RESET TO GUARD MODE (Ensure manual Global/Focus is cleared)
                 IgyPreferences.setVpnTunnelMode(this, false) 
                 IgyPreferences.setStealthMode(this, true)
+                IgyPreferences.saveMode(this, AppMode.FOCUS)
+                IgyPreferences.saveFocusTarget(this, "") // Clear explicit target to let monitor decide
                 
                 startIgyService()
                 TrafficEvent.log("USER >> MONITOR_ACTIVE")
