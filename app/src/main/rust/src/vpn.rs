@@ -123,7 +123,6 @@ pub fn start_vpn_loop(fd: i32) {
                         let mut local_config = LocalConfig::new(ProtocolType::Socks);
                         local_config.addr = Some(local_addr);
                         local_config.mode = Mode::TcpAndUdp;
-                        local_config.udp_timeout = Some(Duration::from_secs(300));
                         config.local.push(LocalInstanceConfig { config: local_config, acl: None });
                         config.server.push(ServerInstanceConfig::with_server_config(server_config));
                         crate::log_to_java(&format!("VPN >> SOCKS5_READY: {}", ss_local_addr));

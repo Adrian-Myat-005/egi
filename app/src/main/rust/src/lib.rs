@@ -96,7 +96,7 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedDomains(
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_igy_IgyNetwork_setAllowedUids(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     uids: JLongArray,
 ) {
