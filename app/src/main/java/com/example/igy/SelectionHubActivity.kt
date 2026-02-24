@@ -128,6 +128,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
     var searchQuery by remember { mutableStateOf("") }
     var isLibraryExpanded by remember { mutableStateOf(false) }
+    var recentAppsVersion by remember { mutableStateOf(0) } // Local state to trigger refresh
 
     val installedApps = remember {
         try {
@@ -157,7 +158,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
         }
     }
 
-    val recentApps = remember(installedApps) {
+    val recentApps = remember(installedApps, recentAppsVersion) {
         val pkgs = IgyPreferences.getRecentApps(context)
         pkgs.mapNotNull { pkg ->
             installedApps.find { it.packageName == pkg }
@@ -241,7 +242,7 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
             // 3. MIDDLE TIER: APP DOCK
             if (recentApps.isNotEmpty()) {
-                Text("RECENT_TARGETS", color = gold.copy(alpha = 0.6f), fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.Start))
+                Text("RECENT_TARGETS (Hold to Remove)", color = gold.copy(alpha = 0.6f), fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -250,10 +251,17 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                     items(recentApps) { app ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable {
-                                activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
-                                onAction()
-                            }
+                            modifier = Modifier.combinedClickable(
+                                onClick = {
+                                    activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
+                                    onAction()
+                                },
+                                onLongClick = {
+                                    IgyPreferences.removeRecentApp(context, app.packageName)
+                                    recentAppsVersion++
+                                    Toast.makeText(context, "Removed ${app.name}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         ) {
                             Image(
                                 painter = rememberDrawablePainter(app.icon),
@@ -490,6 +498,7 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
     val vpnIntent = android.net.VpnService.prepare(context)
     
     if (token.isEmpty() || vpnIntent != null) {
+        // Only open main app if we actually need setup (Auth or Permission)
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -499,6 +508,7 @@ private fun activateMode(context: Context, mode: AppMode, isGlobal: Boolean, isS
 
     if (isStealth && !isPremium) {
         Toast.makeText(context, "PREMIUM_REQUIRED", Toast.LENGTH_SHORT).show()
+        // Here we open account screen because user tried to use premium feature
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra("FORCE_ACCOUNT", true)

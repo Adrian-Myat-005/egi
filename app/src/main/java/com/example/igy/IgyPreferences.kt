@@ -44,6 +44,13 @@ object IgyPreferences {
             .putString(KEY_RECENT_APPS, limited.joinToString(",")).apply()
     }
 
+    fun removeRecentApp(context: Context, packageName: String) {
+        val current = getRecentApps(context).toMutableList()
+        current.remove(packageName)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RECENT_APPS, current.joinToString(",")).apply()
+    }
+
     fun isSmartFilterActive(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SMART_FILTER_ACTIVE, false)
@@ -76,7 +83,7 @@ object IgyPreferences {
 
     fun isDarkMode(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_DARK_MODE, true)
+        return prefs.getBoolean(KEY_DARK_MODE, false)
     }
 
     fun setDarkMode(context: Context, enabled: Boolean) {
