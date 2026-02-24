@@ -30,6 +30,7 @@ class IgyVpnService : VpnService(), Runnable {
     private var vpnThread: Thread? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var monitorJob: Job? = null
+    private var watchdogJob: Job? = null
     private val tunnelMutex = Mutex()
 
     private var isAutoModeActive = false
@@ -37,11 +38,29 @@ class IgyVpnService : VpnService(), Runnable {
     @Volatile private var isTunnelEstablished = false
     
     private var isScreenOn = true
+    private val connectivityManager by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager }
+    
+    private val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: android.net.Network) {
+            TrafficEvent.log("CORE >> NETWORK_RESTORED")
+            if (isRunning && !isTunnelEstablished && !isAutoModeActive) {
+                startVpnTunnel()
+            }
+        }
+        override fun onLost(network: android.net.Network) {
+            TrafficEvent.log("CORE >> NETWORK_LOST")
+        }
+    }
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> isScreenOn = false
-                Intent.ACTION_SCREEN_ON -> isScreenOn = true
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenOn = true
+                    // Poke the watchdog on wake
+                    startWatchdog()
+                }
             }
         }
     }
@@ -52,29 +71,59 @@ class IgyVpnService : VpnService(), Runnable {
             return START_NOT_STICKY
         }
 
+        // --- CLEAN SLATE LOGIC ---
+        if (isRunning && intent?.action != "RESTART") {
+            TrafficEvent.log("CORE >> RESTARTING_FOR_NEW_MODE")
+            serviceScope.launch {
+                tunnelMutex.withLock {
+                    tearDownTunnelOnly()
+                    delay(500)
+                    startVpnProcess()
+                }
+            }
+            return START_STICKY
+        }
+
         createNotificationChannel()
         promoteToForeground("Shield Active")
 
-        if (isRunning) return START_STICKY
-        isRunning = true
-        
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
+        if (!isRunning) {
+            isRunning = true
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            }
+            registerReceiver(screenReceiver, filter)
+            startWatchdog()
         }
-        registerReceiver(screenReceiver, filter)
 
         android.service.quicksettings.TileService.requestListeningState(this, android.content.ComponentName(this, IgyTileService::class.java))
 
+        startVpnProcess()
+        return START_STICKY
+    }
+
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = serviceScope.launch {
+            while (isActive && isRunning) {
+                delay(15000) // Check every 15s
+                if (!isAutoModeActive && !isTunnelEstablished) {
+                    TrafficEvent.log("WATCHDOG >> DETECTED_DROP_RECOVERING")
+                    startVpnTunnel()
+                }
+            }
+        }
+    }
+
+    private fun startVpnProcess() {
         isAutoModeActive = IgyPreferences.isAutoStartTriggerEnabled(this)
-        
         if (isAutoModeActive) {
             startAutoMonitor()
         } else {
             startVpnTunnel()
         }
-
-        return START_STICKY
     }
 
     private fun promoteToForeground(title: String) {
@@ -309,8 +358,10 @@ class IgyVpnService : VpnService(), Runnable {
         isAutoModeActive = false
         
         try { unregisterReceiver(screenReceiver) } catch (e: Exception) {}
+        try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (e: Exception) {}
         
         monitorJob?.cancel()
+        watchdogJob?.cancel()
         serviceScope.launch {
             tunnelMutex.withLock {
                 tearDownTunnelOnly()

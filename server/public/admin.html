@@ -331,7 +331,7 @@
                     <div class="user-header">
                         <span>@${user.username}</span>
                         <span style="color: ${user.isPremium ? 'var(--blue)' : 'var(--blue)'}">
-                            [${user.isPremium ? 'PREMIUM' : 'GUEST'}]
+                            [${user.isPremium ? 'PREMIUM' : 'NON_PREMIUM'}]
                         </span>
                     </div>
                     <small>STATUS: ${getExpiryStatus(user.subscriptionExpiry)}</small>
@@ -431,7 +431,7 @@
             });
 
             if (res.ok) {
-                log(`USER ${username} RESET TO GUEST`);
+                log(`USER ${username} RESET TO PENDING`);
                 fetchUsers();
             }
         }

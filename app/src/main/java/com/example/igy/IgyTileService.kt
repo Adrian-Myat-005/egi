@@ -21,7 +21,7 @@ class IgyTileService : TileService() {
     override fun onClick() {
         super.onClick()
         val isRunning = IgyVpnService.isRunning
-        val (token, _, _) = IgyPreferences.getAuth(this)
+        val (token, _, isPremium) = IgyPreferences.getAuth(this)
         
         // --- INSTANT-LOCK: GHOST PING SERVER ---
         val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
@@ -50,6 +50,14 @@ class IgyTileService : TileService() {
             val isAutoModeSettingEnabled = IgyPreferences.isAutoStartTriggerEnabled(this)
             
             if (isAutoModeSettingEnabled) {
+                // PREMIUM CHECK FOR MONITOR
+                if (!isPremium) {
+                    Toast.makeText(this, "PREMIUM_REQUIRED FOR AUTO_PROTECT", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    startActivityAndCollapse(intent)
+                    return
+                }
+
                 // AUTO MODE ON: Start Background Monitor
                 if (!hasUsageStatsPermission()) {
                     val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
@@ -65,6 +73,14 @@ class IgyTileService : TileService() {
                 startIgyService()
                 TrafficEvent.log("USER >> MONITOR_ACTIVE")
             } else {
+                // PREMIUM CHECK FOR GLOBAL VPN
+                if (!isPremium) {
+                    Toast.makeText(this, "PREMIUM_REQUIRED FOR VPN_TUNNEL", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    startActivityAndCollapse(intent)
+                    return
+                }
+
                 // AUTO MODE OFF: Start Global VPN (True Encryption)
                 IgyPreferences.setVpnTunnelMode(this, true) 
                 IgyPreferences.setStealthMode(this, true)

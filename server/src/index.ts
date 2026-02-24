@@ -32,7 +32,7 @@ app.post('/api/auth/register', async (req, res) => {
     const normalizedUsername = username.toLowerCase().trim();
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ username: normalizedUsername, password: hashedPassword });
-    res.json({ token: generateToken(user), user: { username: normalizedUsername, isPremium: false, expiry: 0 } });
+    res.json({ token: generateToken(user), message: "USER_REGISTERED_SUCCESSFULLY_PREMIUM_REQUIRED" });
   } catch (error: any) {
     if (error.name === 'SequelizeUniqueConstraintError') {
       res.status(400).json({ error: 'USER_ALREADY_EXISTS' });
@@ -90,12 +90,6 @@ app.post('/api/admin/nodes/delete', authenticateAdmin, async (req, res) => {
     const { id } = req.body;
     await Node.destroy({ where: { id } });
     res.json({ success: true });
-});
-
-// Public test key for users who haven't bought a VPS yet
-app.get('/api/vpn/test-key', (req, res) => {
-  const testKey = "ss://YWVzLTEyOC1nY206RWdpU2VjcmV0UGFzc3dvcmQyMDI2@159.223.1.1:8388";
-  res.json({ config: testKey, message: "SAMPLE_TEST_KEY_FOR_IGY_SHIELD" });
 });
 
 // Admin-only: List all users for the control panel

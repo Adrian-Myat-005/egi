@@ -26,6 +26,23 @@ object IgyPreferences {
     private const val KEY_AUTO_START_TRIGGER = "auto_start_trigger"
     private const val KEY_AUTO_START_APPS = "auto_start_apps"
     private const val KEY_SMART_FILTER_ACTIVE = "smart_filter_active"
+    private const val KEY_RECENT_APPS = "recent_apps"
+
+    fun getRecentApps(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_RECENT_APPS, "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        return raw.split(",")
+    }
+
+    fun addRecentApp(context: Context, packageName: String) {
+        val current = getRecentApps(context).toMutableList()
+        current.remove(packageName)
+        current.add(0, packageName)
+        val limited = current.take(5)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_RECENT_APPS, limited.joinToString(",")).apply()
+    }
 
     fun isSmartFilterActive(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -80,7 +97,7 @@ object IgyPreferences {
     fun getAuth(context: Context): Triple<String, String, Boolean> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val token = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
-        val user = prefs.getString(KEY_USERNAME, "Guest") ?: "Guest"
+        val user = prefs.getString(KEY_USERNAME, "Unknown") ?: "Unknown"
         val isPremium = prefs.getBoolean(KEY_IS_PREMIUM, false)
         return Triple(token, user, isPremium)
     }

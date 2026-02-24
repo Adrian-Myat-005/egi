@@ -47,7 +47,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, APP_PICKER, DNS_PICKER, APP_SELECTOR, ACCOUNT, SETTINGS, AUTO_START_PICKER
+    TERMINAL, ACCOUNT, SETTINGS, AUTO_START_PICKER
 }
 
 class MainActivity : ComponentActivity() {
@@ -77,6 +77,15 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
+    val authData = remember { mutableStateOf(IgyPreferences.getAuth(context)) }
+    val (_, _, isPremium) = authData.value
+
+    // Refresh auth on screen return
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.TERMINAL) {
+            authData.value = IgyPreferences.getAuth(context)
+        }
+    }
 
     // --- PRE-WARM SERVER (Render Wake-up) ---
     LaunchedEffect(Unit) {
@@ -121,28 +130,27 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
         label = "ScreenTransition"
     ) { screen ->
         when (screen) {
-            Screen.APP_PICKER -> AppPickerScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.DNS_PICKER -> DnsPickerScreen(isDarkMode, onBack = { msg ->
-                dnsLogMessage = msg
-                currentScreen = Screen.TERMINAL
-            })
-            Screen.APP_SELECTOR -> AppSelectorScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.TERMINAL -> TerminalDashboard(isDarkMode,
-                onOpenAppPicker = { currentScreen = Screen.APP_PICKER },
-                onOpenAppSelector = { currentScreen = Screen.APP_SELECTOR },
+            Screen.TERMINAL -> TerminalDashboard(isDarkMode, isPremium,
+                onOpenHub = { 
+                    context.startActivity(Intent(context, SelectionHubActivity::class.java))
+                },
                 onOpenAccount = { currentScreen = Screen.ACCOUNT },
                 onOpenSettings = { currentScreen = Screen.SETTINGS },
                 onShowLogs = { showLogs = true }
             )
             Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, onThemeChange, onBack = { currentScreen = Screen.TERMINAL }, onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER })
+            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, isPremium, onThemeChange, 
+                onBack = { currentScreen = Screen.TERMINAL }, 
+                onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER },
+                onOpenAccount = { currentScreen = Screen.ACCOUNT }
+            )
             Screen.AUTO_START_PICKER -> AutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
         }
     }
 }
 
 @Composable
-fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit) {
+fun TerminalSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit, onOpenAccount: () -> Unit) {
     val context = LocalContext.current
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
@@ -311,6 +319,11 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit
         }
 
         SettingsToggle("Auto-Connect-VPN", autoStartTrigger) { enabled ->
+            if (enabled && !isPremium) {
+                Toast.makeText(context, "PREMIUM_REQUIRED", Toast.LENGTH_SHORT).show()
+                onOpenAccount()
+                return@SettingsToggle
+            }
             if (enabled) {
                 // --- PRE-FLIGHT VPN CHECK ---
                 val vpnIntent = android.net.VpnService.prepare(context)
@@ -571,7 +584,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
     var authData by remember { mutableStateOf(IgyPreferences.getAuth(context)) }
     val (savedToken, savedUser, isPremium) = authData
-    var status by remember { mutableStateOf(if (savedToken.isEmpty()) "GUEST_MODE" else "LOGGED_IN: $savedUser") }
+    var status by remember { mutableStateOf(if (savedToken.isEmpty()) "UNAUTHORIZED" else "LOGGED_IN: $savedUser") }
     val scope = rememberCoroutineScope()
 
     // Countdown State
@@ -726,7 +739,7 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     if (isAuthenticating) return@TactileButton
                     IgyPreferences.clearAuth(context)
                     authData = IgyPreferences.getAuth(context)
-                    status = "GUEST_MODE"
+                    status = "UNAUTHORIZED"
                 }
             )
         }
@@ -746,20 +759,6 @@ fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
         Text("Back", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
-}
-
-private suspend fun fetchTestKey(serverUrl: String): String? = withContext(Dispatchers.IO) {
-    try {
-        val url = java.net.URL("$serverUrl/api/vpn/test-key")
-        val conn = url.openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 5000
-        if (conn.responseCode == 200) {
-            val res = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).readText())
-            return@withContext res.getString("config")
-        }
-    } catch (e: Exception) {}
-    null
 }
 
 private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObject> = withContext(Dispatchers.IO) {
@@ -804,7 +803,7 @@ private suspend fun performAuth(serverUrl: String, user: String, pass: String, i
             val userObj = res.optJSONObject("user") ?: return@withContext null
             return@withContext AuthResult(
                 res.optString("token", ""),
-                userObj.optString("username", "Guest"),
+                userObj.optString("username", "Unknown"),
                 userObj.optBoolean("isPremium", false),
                 userObj.optLong("expiry", 0L)
             )
@@ -850,8 +849,8 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 @Composable
 fun TerminalDashboard(
     isDarkMode: Boolean,
-    onOpenAppPicker: () -> Unit,
-    onOpenAppSelector: () -> Unit,
+    isPremium: Boolean,
+    onOpenHub: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,
     onShowLogs: () -> Unit
@@ -861,6 +860,7 @@ fun TerminalDashboard(
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+    val gold = Color(0xFFB8860B)
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     var isBooting by remember { mutableStateOf(false) }
@@ -1148,43 +1148,20 @@ fun TerminalDashboard(
         }
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                var isNormalLoading by remember { mutableStateOf(false) }
+            Row(modifier = Modifier.fillMaxWidth().height(65.dp)) {
+                var isHubLoading by remember { mutableStateOf(false) }
                 GridButton(
-                    text = if (!isStealthMode) "Normal Focus: Active" else "Normal Focus",
+                    text = "IGY >> COMMAND_CENTER",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
-                    color = if (!isStealthMode) Color(0xFFB8860B) else Color(0xFF2D42FF),
-                    isLoading = isNormalLoading
+                    color = gold,
+                    isLoading = isHubLoading
                 ) {
                     scope.launch {
-                        isNormalLoading = true
+                        isHubLoading = true
                         delay(300)
-                        isStealthMode = false
-                        IgyPreferences.setStealthMode(context, false)
-                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                        onOpenAppSelector()
-                        isNormalLoading = false
-                    }
-                }
-                var isVpnLoading by remember { mutableStateOf(false) }
-                GridButton(
-                    text = if (isStealthMode && isVpnTunnelGlobal) "VPN: Active" else "VPN",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && isVpnTunnelGlobal) Color(0xFF20B2AA) else Color(0xFF2D42FF),
-                    isLoading = isVpnLoading
-                ) {
-                    scope.launch {
-                        isVpnLoading = true
-                        delay(300)
-                        isStealthMode = true
-                        isVpnTunnelGlobal = true
-                        IgyPreferences.setStealthMode(context, true)
-                        IgyPreferences.setVpnTunnelMode(context, true)
-                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                        TrafficEvent.log("USER >> ARMED_VPN_GLOBAL")
-                        isVpnLoading = false
+                        onOpenHub()
+                        isHubLoading = false
                     }
                 }
             }
@@ -1203,30 +1180,8 @@ fun TerminalDashboard(
                         isLogLoading = false
                     }
                 }
-                var isFocusLoading by remember { mutableStateOf(false) }
                 GridButton(
-                    text = if (isStealthMode && !isVpnTunnelGlobal) "VPN Focus: Active" else "VPN Focus",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    color = if (isStealthMode && !isVpnTunnelGlobal) Color(0xFF8B008B) else Color(0xFF2D42FF),
-                    isLoading = isFocusLoading
-                ) {
-                    scope.launch {
-                        isFocusLoading = true
-                        delay(300)
-                        isStealthMode = true
-                        isVpnTunnelGlobal = false
-                        IgyPreferences.setStealthMode(context, true)
-                        IgyPreferences.setVpnTunnelMode(context, false)
-                        if (isSecure) Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                        onOpenAppPicker()
-                        isFocusLoading = false
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton(
-                    text = if (isBatteryOptimized) "Battery-Saver: OK" else "Battery-Saver: Restricted",
+                    text = if (isBatteryOptimized) "Battery: OK" else "Battery: FIX",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     color = if (isBatteryOptimized) Color(0xFF2D42FF) else Color.Red
@@ -1240,14 +1195,16 @@ fun TerminalDashboard(
                             }
                             context.startActivity(intent)
                         } catch (e: Exception) {
-                            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                            context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
                         }
                     } else {
                         Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
                 GridButton(
-                    text = "refresh",
+                    text = "System Refresh",
                     isDarkMode = isDarkMode,
                     modifier = Modifier.weight(1f),
                     isLoading = isRefreshing
@@ -1257,7 +1214,7 @@ fun TerminalDashboard(
                     scope.launch {
                         isRefreshing = true
                         IgyPreferences.setSelectedNodeId(context, -1)
-                        delay(1000) // Visual feedback for refresh
+                        delay(1000)
                         isRefreshing = false
                         TrafficEvent.log("CORE >> REFRESH_SUCCESS")
                         Toast.makeText(context, "SYSTEM_REFRESHED", Toast.LENGTH_SHORT).show()
@@ -1270,14 +1227,14 @@ fun TerminalDashboard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp) // Increased height for prominence
+                .height(120.dp) 
                 .padding(top = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             // Pulse Effect Layer
             Box(
                 modifier = Modifier
-                    .size(if (isBooting) 90.dp else 80.dp) // Pulse size
+                    .size(if (isBooting) 90.dp else 80.dp)
                     .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
                     .background(
                         color = if (isSecure) Color(0xFF2D42FF).copy(alpha = 0.2f) else Color.Transparent,
@@ -1288,10 +1245,32 @@ fun TerminalDashboard(
             // Main Button Surface
             Surface(
                 onClick = {
-                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenAppPicker, vpnLauncher) { isBooting = it }
+                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenHub, vpnLauncher) { isBooting = it }
                 },
                 modifier = Modifier
                     .size(80.dp)
+                    .graphicsLayer(scaleX = activePulseScale, scaleY = activePulseScale),
+                shape = CircleShape,
+                color = if (isSecure) Color(0xFF2D42FF) else Color.White,
+                border = BorderStroke(2.dp, if (isSecure) Color.Transparent else wheat),
+                shadowElevation = 8.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isBooting) {
+                        CircularProgressIndicator(color = if (isSecure) Color.White else Color(0xFF2D42FF), modifier = Modifier.size(40.dp))
+                    } else {
+                        Icon(
+                            imageVector = if (isSecure) Icons.Default.Shield else Icons.Default.Shield,
+                            contentDescription = "Shield",
+                            tint = if (isSecure) Color.White else Color(0xFF2D42FF),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
                     .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f),
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = cardBg,
@@ -1454,7 +1433,7 @@ private fun handleExecuteToggle(
     isBooting: Boolean,
     isStealthMode: Boolean,
     isGlobal: Boolean,
-    onOpenAppPicker: () -> Unit,
+    onOpenHub: () -> Unit,
     vpnLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
     setBooting: (Boolean) -> Unit
 ) {
@@ -1471,7 +1450,7 @@ private fun handleExecuteToggle(
     val vipList = IgyPreferences.getVipList(context)
     if (!isGlobal && vipList.isEmpty() && isStealthMode) {
         Toast.makeText(context, "PICK A FOCUS APP!", Toast.LENGTH_SHORT).show()
-        onOpenAppPicker()
+        onOpenHub()
         return
     }
 
