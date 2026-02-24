@@ -67,13 +67,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Composable
 fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val forceAccount = (context as? androidx.activity.ComponentActivity)?.intent?.getBooleanExtra("FORCE_ACCOUNT", false) ?: false
     var currentScreen by remember { mutableStateOf(if (forceAccount) Screen.ACCOUNT else Screen.TERMINAL) }
     var dnsLogMessage by remember { mutableStateOf<String?>(null) }
     var showLogs by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
     val authData = remember { mutableStateOf(IgyPreferences.getAuth(context)) }
