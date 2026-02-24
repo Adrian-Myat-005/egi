@@ -1269,42 +1269,6 @@ fun TerminalDashboard(
                 }
             }
         }
-    }
-}
-                    .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f),
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = cardBg,
-                border = BorderStroke(2.dp, if (isSecure) Color(0xFF2D42FF) else wheat),
-                shadowElevation = 8.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isBooting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(40.dp),
-                            color = Color(0xFF2D42FF),
-                            strokeWidth = 3.dp
-                        )
-                    } else {
-                        // Power Icon or Text
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Sync, // Placeholder for Power icon
-                                contentDescription = "Power",
-                                tint = if (isSecure) Color(0xFF2D42FF) else if (isStrictBlocking && !isStealthMode) Color.Red else Color.Gray,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isSecure) "ON" else "OFF",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSecure) Color(0xFF2D42FF) else Color.Gray
-                            )
-                        }
-                    }
-                }
-            }
-        }
         
         Spacer(modifier = Modifier.height(16.dp))
         

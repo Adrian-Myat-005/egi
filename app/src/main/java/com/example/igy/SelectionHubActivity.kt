@@ -273,7 +273,8 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = gold,
                     unfocusedBorderColor = gold.copy(alpha = 0.2f),
-                    containerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White
+                    focusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White,
+                    unfocusedContainerColor = if (isDarkMode) Color.Black.copy(alpha = 0.3f) else Color.White
                 ),
                 textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = deepGray)
             )
