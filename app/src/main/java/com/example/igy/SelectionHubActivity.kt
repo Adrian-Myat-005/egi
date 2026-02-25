@@ -137,6 +137,8 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
     var pendingStealthMode by remember { mutableStateOf<Boolean?>(null) }
     var recentAppsVersion by remember { mutableStateOf(0) }
+    var isDeleteMode by remember { mutableStateOf(false) }
+    var appToDelete by remember { mutableStateOf<String?>(null) }
 
     val installedApps = remember {
         try {
@@ -164,6 +166,9 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
             installedApps.find { it.packageName == pkg }
         }
     }
+
+    // Use current stealth/global state as base for recent app clicks
+    val currentStealth = IgyPreferences.isStealthMode(context)
 
     Card(
         modifier = Modifier
@@ -245,34 +250,81 @@ fun HubPopup(isDarkMode: Boolean, onAction: () -> Unit) {
 
             // 3. MIDDLE TIER: APP DOCK
             if (recentApps.isNotEmpty() && !isMultiSelectMode) {
-                Text("RECENT_TARGETS (Hold to Remove)", color = gold.copy(alpha = 0.6f), fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.Start))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isDeleteMode) "TAP_ICON_TO_REMOVE" else "RECENT_TARGETS (Hold to Edit)", color = gold.copy(alpha = 0.6f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    if (isDeleteMode) {
+                        Text(
+                            "[ CANCEL ]", 
+                            color = Color.Red, 
+                            fontSize = 9.sp, 
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.clickable { 
+                                isDeleteMode = false 
+                                appToDelete = null
+                            }
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(recentApps) { app ->
+                        val isSelectedForDelete = appToDelete == app.packageName
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.combinedClickable(
                                 onClick = {
-                                    activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = true, targetApp = app.packageName)
-                                    onAction()
+                                    if (isDeleteMode) {
+                                        if (isSelectedForDelete) {
+                                            IgyPreferences.removeRecentApp(context, app.packageName)
+                                            recentAppsVersion++
+                                            appToDelete = null
+                                            if (IgyPreferences.getRecentApps(context).isEmpty()) isDeleteMode = false
+                                        } else {
+                                            appToDelete = app.packageName
+                                        }
+                                    } else {
+                                        val stealth = pendingStealthMode ?: currentStealth
+                                        activateMode(context, AppMode.FOCUS, isGlobal = false, isStealth = stealth, targetApp = app.packageName)
+                                        onAction()
+                                    }
                                 },
                                 onLongClick = {
-                                    IgyPreferences.removeRecentApp(context, app.packageName)
-                                    recentAppsVersion++
-                                    Toast.makeText(context, "Removed ${app.name}", Toast.LENGTH_SHORT).show()
+                                    if (!isDeleteMode) {
+                                        isDeleteMode = true
+                                        appToDelete = app.packageName
+                                    }
                                 }
                             )
                         ) {
-                            Image(
-                                painter = rememberDrawablePainter(app.icon),
-                                contentDescription = null,
-                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, wheat(isDarkMode), RoundedCornerShape(12.dp))
-                            )
+                            Box(contentAlignment = Alignment.TopEnd) {
+                                Image(
+                                    painter = rememberDrawablePainter(app.icon),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(
+                                            width = if (isSelectedForDelete) 2.dp else 1.dp, 
+                                            color = if (isSelectedForDelete) Color.Red else wheat(isDarkMode), 
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .graphicsLayer(alpha = if (isDeleteMode && !isSelectedForDelete) 0.5f else 1f)
+                                )
+                                if (isDeleteMode) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Red,
+                                        modifier = Modifier.size(14.dp).offset(x = 4.dp, y = (-4).dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.padding(2.dp))
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(app.name.take(6), color = deepGray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                            Text(app.name.take(6), color = if (isSelectedForDelete) Color.Red else deepGray, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }

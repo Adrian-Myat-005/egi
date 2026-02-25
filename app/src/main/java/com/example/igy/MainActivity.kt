@@ -106,48 +106,60 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
         }
     }
 
-    if (showLogs) {
-        AlertDialog(
-            onDismissRequest = { showLogs = false },
-            containerColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6) ,
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            text = { TerminalLog(isDarkMode, onClose = { showLogs = false }) },
-            confirmButton = {
-                TextButton(onClick = { showLogs = false }) {
-                    Text("X", color = Color.Red, fontFamily = FontFamily.Monospace)
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedContent(
+            targetState = currentScreen,
+            transitionSpec = {
+                if (targetState != Screen.TERMINAL) {
+                    (slideInHorizontally { width -> width } + fadeIn()).togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
+                } else {
+                    (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(slideOutHorizontally { width -> width } + fadeOut())
+                }.using(SizeTransform(clip = false))
+            },
+            label = "ScreenTransition"
+        ) { screen ->
+            when (screen) {
+                Screen.TERMINAL -> TerminalDashboard(isDarkMode, isPremium,
+                    onOpenHub = { 
+                        context.startActivity(Intent(context, SelectionHubActivity::class.java))
+                    },
+                    onOpenAccount = { currentScreen = Screen.ACCOUNT },
+                    onOpenSettings = { currentScreen = Screen.SETTINGS },
+                    onShowLogs = { showLogs = true }
+                )
+                Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
+                Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, isPremium, onThemeChange, 
+                    onBack = { currentScreen = Screen.TERMINAL }, 
+                    onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER },
+                    onOpenAccount = { currentScreen = Screen.ACCOUNT }
+                )
+                Screen.AUTO_START_PICKER -> AutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
+            }
+        }
+
+        // Animated Log Pop-up
+        AnimatedVisibility(
+            visible = showLogs,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { showLogs = false }
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxSize(0.95f).clickable(enabled = false) {},
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)),
+                    border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.5f))
+                ) {
+                    TerminalLog(isDarkMode, onClose = { showLogs = false })
                 }
             }
-        )
-    }
-
-    AnimatedContent(
-        targetState = currentScreen,
-        transitionSpec = {
-            if (targetState != Screen.TERMINAL) {
-                (slideInHorizontally { width -> width } + fadeIn()).togetherWith(slideOutHorizontally { width -> -width } + fadeOut())
-            } else {
-                (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(slideOutHorizontally { width -> width } + fadeOut())
-            }.using(SizeTransform(clip = false))
-        },
-        label = "ScreenTransition"
-    ) { screen ->
-        when (screen) {
-            Screen.TERMINAL -> TerminalDashboard(isDarkMode, isPremium,
-                onOpenHub = { 
-                    context.startActivity(Intent(context, SelectionHubActivity::class.java))
-                },
-                onOpenAccount = { currentScreen = Screen.ACCOUNT },
-                onOpenSettings = { currentScreen = Screen.SETTINGS },
-                onShowLogs = { showLogs = true }
-            )
-            Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-            Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, isPremium, onThemeChange, 
-                onBack = { currentScreen = Screen.TERMINAL }, 
-                onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER },
-                onOpenAccount = { currentScreen = Screen.ACCOUNT }
-            )
-            Screen.AUTO_START_PICKER -> AutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
         }
     }
 }
