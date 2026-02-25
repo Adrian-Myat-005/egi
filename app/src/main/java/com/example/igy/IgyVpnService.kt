@@ -276,36 +276,29 @@ class IgyVpnService : VpnService(), Runnable {
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
 
-            // Parallel Key Sync
+            // LOCAL-FIRST KEY STRATEGY (Instant Connection)
             val (token, _, _) = IgyPreferences.getAuth(this)
             val serverUrl = IgyPreferences.getSyncEndpoint(this) ?: "https://egi-67tg.onrender.com"
             var activeKey = IgyPreferences.getOutlineKey(this)
 
+            // ASYNC REFRESH: Always update in background, never block the tunnel
             if (token.isNotEmpty()) {
-                // If key is empty, do a blocking fetch to ensure connection works
-                if (activeKey.isEmpty()) {
-                    TrafficEvent.log("VPN >> FETCHING_INITIAL_KEY")
-                    val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
-                    if (latestKey != null && latestKey.startsWith("ss://")) {
-                        IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
-                        activeKey = latestKey
-                        TrafficEvent.log("VPN >> KEY_SYNCED_SUCCESS")
-                    } else {
-                        TrafficEvent.log("VPN >> KEY_SYNC_FAILED")
-                    }
-                } else {
-                    // Refresh in background if we already have one
-                    serviceScope.launch {
+                serviceScope.launch {
+                    try {
                         val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
                         if (latestKey != null && latestKey.startsWith("ss://")) {
                             IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
+                            TrafficEvent.log("VPN >> KEY_REFRESHED_BACKGROUND")
                         }
+                    } catch (e: Exception) {
+                        TrafficEvent.log("VPN >> KEY_REFRESH_SILENT_FAIL")
                     }
                 }
             }
 
             if (activeKey.isEmpty()) {
-                TrafficEvent.log("VPN >> ABORT: NO_SS_KEY_FOUND")
+                TrafficEvent.log("VPN >> ABORT: NO_LOCAL_KEY_FOUND_LOGIN_REQUIRED")
+                return
             }
 
             val builder = Builder()

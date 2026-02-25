@@ -116,6 +116,7 @@ object IgyPreferences {
             remove(KEY_USERNAME)
             remove(KEY_IS_PREMIUM)
             remove(KEY_PREMIUM_EXPIRY)
+            remove(KEY_OUTLINE_KEY)
         }.apply()
     }
 
