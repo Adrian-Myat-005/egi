@@ -21,30 +21,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.lifecycle.*
-import androidx.savedstate.*
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
-import android.view.WindowManager.LayoutParams.*
+import android.widget.TextView
 import java.util.TreeMap
 
 class IgyVpnService : VpnService(), Runnable {
@@ -493,7 +470,7 @@ class IgyVpnService : VpnService(), Runnable {
             removeIsland()
 
             val isStealth = IgyPreferences.isStealthMode(this@IgyVpnService)
-            val islandColor = if (isStealth) Color(0xFF20B2AA) else Color(0xFFB8860B)
+            val islandColor = if (isStealth) 0xFF20B2AA.toInt() else 0xFFB8860B.toInt()
 
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -510,60 +487,18 @@ class IgyVpnService : VpnService(), Runnable {
                 windowAnimations = android.R.style.Animation_Toast
             }
 
-            val composeView = ComposeView(this@IgyVpnService).apply {
-                setContent {
-                    Surface(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .wrapContentWidth()
-                            .height(40.dp)
-                            .border(1.dp, islandColor.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
-                        color = Color.Black.copy(alpha = 0.9f),
-                        shape = RoundedCornerShape(20.dp),
-                        shadowElevation = 8.dp
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(islandColor, CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "CONNECTED: $appName",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Fake Lifecycle for ComposeView in Service
-            val lifecycleOwner = object : LifecycleOwner {
-                override val lifecycle: Lifecycle = LifecycleRegistry(this)
-            }
-            (lifecycleOwner.lifecycle as LifecycleRegistry).handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-            
-            composeView.setViewTreeLifecycleOwner(lifecycleOwner)
-            composeView.setViewTreeSavedStateRegistryOwner(object : SavedStateRegistryOwner {
-                override val lifecycle: Lifecycle = lifecycleOwner.lifecycle
-                override val savedStateRegistry: SavedStateRegistry = SavedStateRegistryController.create(this).apply {
-                    performRestore(null)
-                }.savedStateRegistry
-            })
-            composeView.setViewTreeViewModelStoreOwner(object : ViewModelStoreOwner {
-                override val viewModelStore: ViewModelStore = ViewModelStore()
-            })
-
             try {
-                windowManager.addView(composeView, params)
-                islandView = composeView
+                val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+                val view = inflater.inflate(R.layout.island_popup, null)
+                
+                val textView = view.findViewById<TextView>(R.id.island_text)
+                val dotView = view.findViewById<View>(R.id.island_dot)
+                
+                textView.text = "CONNECTED: $appName"
+                dotView.background.setTint(islandColor)
+
+                windowManager.addView(view, params)
+                islandView = view
                 
                 delay(2500)
                 removeIsland()
