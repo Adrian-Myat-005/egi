@@ -35,9 +35,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.lifecycle.*
 import androidx.savedstate.*
-import androidx.lifecycle.ViewTreeLifecycleOwner
-import androidx.savedstate.ViewTreeSavedStateRegistryOwner
-import androidx.lifecycle.ViewTreeViewModelStoreOwner
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -550,14 +547,14 @@ class IgyVpnService : VpnService(), Runnable {
             }
             (lifecycleOwner.lifecycle as LifecycleRegistry).handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
             
-            ViewTreeLifecycleOwner.set(composeView, lifecycleOwner)
-            ViewTreeSavedStateRegistryOwner.set(composeView, object : SavedStateRegistryOwner {
+            androidx.lifecycle.ViewTreeLifecycleOwner.set(composeView, lifecycleOwner)
+            androidx.savedstate.ViewTreeSavedStateRegistryOwner.set(composeView, object : SavedStateRegistryOwner {
                 override val lifecycle: Lifecycle = lifecycleOwner.lifecycle
                 override val savedStateRegistry: SavedStateRegistry = SavedStateRegistryController.create(this).apply {
                     performRestore(null)
                 }.savedStateRegistry
             })
-            ViewTreeViewModelStoreOwner.set(composeView, object : ViewModelStoreOwner {
+            androidx.lifecycle.ViewTreeViewModelStoreOwner.set(composeView, object : ViewModelStoreOwner {
                 override val viewModelStore: ViewModelStore = ViewModelStore()
             })
 
