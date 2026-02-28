@@ -22,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import com.example.igy.R
 import java.util.TreeMap
 
 class IgyVpnService : VpnService(), Runnable {
