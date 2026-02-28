@@ -35,6 +35,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.lifecycle.*
 import androidx.savedstate.*
+import androidx.lifecycle.ViewTreeLifecycleOwner
+import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.lifecycle.ViewTreeViewModelStoreOwner
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -554,7 +557,7 @@ class IgyVpnService : VpnService(), Runnable {
                     performRestore(null)
                 }.savedStateRegistry
             })
-            composeView.setTag(androidx.lifecycle.runtime.R.id.view_tree_view_model_store_owner, object : ViewModelStoreOwner {
+            ViewTreeViewModelStoreOwner.set(composeView, object : ViewModelStoreOwner {
                 override val viewModelStore: ViewModelStore = ViewModelStore()
             })
 
