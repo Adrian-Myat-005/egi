@@ -5,9 +5,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+enum class ConnectionState {
+    IDLE, CONNECTING, CONNECTED
+}
+
 object TrafficEvent {
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 100)
     val events = _events.asSharedFlow()
+
+    private val _connectionState = MutableStateFlow(ConnectionState.IDLE)
+    val connectionState = _connectionState.asStateFlow()
 
     private val _blockedCount = MutableStateFlow(0)
     val blockedCount = _blockedCount.asStateFlow()
@@ -47,6 +54,10 @@ object TrafficEvent {
 
     fun setVpnActive(active: Boolean) {
         _vpnActive.value = active
+    }
+
+    fun setConnectionState(state: ConnectionState) {
+        _connectionState.value = state
     }
 
     fun setLockdown(lockdown: Boolean) {

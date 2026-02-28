@@ -17,6 +17,31 @@ import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.lifecycle.*
+import androidx.savedstate.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
+import android.view.WindowManager.LayoutParams.*
 import java.util.TreeMap
 
 class IgyVpnService : VpnService(), Runnable {
@@ -31,6 +56,7 @@ class IgyVpnService : VpnService(), Runnable {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var monitorJob: Job? = null
     private var watchdogJob: Job? = null
+    private var animationJob: Job? = null
     private val tunnelMutex = Mutex()
 
     private var isAutoModeActive = false
@@ -39,7 +65,10 @@ class IgyVpnService : VpnService(), Runnable {
     
     private var isScreenOn = true
     private val connectivityManager by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager }
-    
+
+    private var islandView: View? = null
+    private val windowManager by lazy { getSystemService(Context.WINDOW_SERVICE) as WindowManager }
+
     private val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: android.net.Network) {
             TrafficEvent.log("CORE >> NETWORK_RESTORED")
@@ -193,10 +222,13 @@ class IgyVpnService : VpnService(), Runnable {
     private fun handleAppSwitchWithGrace(currentApp: String, prevApp: String, targetApps: Set<String>) {
         serviceScope.launch {
             if (targetApps.contains(currentApp)) {
+                val appName = getAppName(currentApp)
                 if (!isTunnelEstablished) {
-                    val appName = getAppName(currentApp)
                     TrafficEvent.log("WAKING_UP >> $appName")
                     tunnelMutex.withLock { establishTunnel() }
+                } else if (currentApp != prevApp) {
+                    // Already connected, just show new island
+                    showIslandPopup(appName)
                 }
             } else {
                 // Wait 300ms before killing - maybe user just checked notification or switched back
@@ -236,6 +268,9 @@ class IgyVpnService : VpnService(), Runnable {
     private fun establishTunnel() {
         if (isTunnelEstablished) return
         
+        TrafficEvent.setConnectionState(ConnectionState.CONNECTING)
+        startLoadingAnimation("🛡️ [IGY] INITIALIZING HANDSHAKE")
+
         if (vpnThread?.isAlive == true) {
             try { vpnInterface?.close() } catch (e: Exception) {}
             vpnThread = null
@@ -249,6 +284,8 @@ class IgyVpnService : VpnService(), Runnable {
     private suspend fun tearDownTunnelOnly() {
         isTunnelEstablished = false
         TrafficEvent.setVpnActive(false)
+        TrafficEvent.setConnectionState(ConnectionState.IDLE)
+        stopLoadingAnimation()
         try {
             vpnInterface?.close()
             vpnInterface = null
@@ -273,8 +310,12 @@ class IgyVpnService : VpnService(), Runnable {
                 isStealth -> if (appName.isNotEmpty()) "🔒 [VPN] >> $appName" else "🔒 [FOCUS] VPN ACTIVE"
                 else -> if (appName.isNotEmpty()) "🚀 [BOOST] >> $appName" else "🚀 [SPEED] BOOST ACTIVE"
             }
+            
+            stopLoadingAnimation()
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
+            TrafficEvent.setConnectionState(ConnectionState.CONNECTED)
+            if (appName.isNotEmpty()) showIslandPopup(appName)
 
             // LOCAL-FIRST KEY STRATEGY (Instant Connection)
             val (token, _, _) = IgyPreferences.getAuth(this)
@@ -437,7 +478,120 @@ class IgyVpnService : VpnService(), Runnable {
 
     override fun onDestroy() {
         isRunning = false
+        removeIsland()
         stopVpn()
         super.onDestroy()
+    }
+
+    private fun showIslandPopup(appName: String) {
+        if (!android.provider.Settings.canDrawOverlays(this)) return
+
+        serviceScope.launch(Dispatchers.Main) {
+            removeIsland()
+
+            val isStealth = IgyPreferences.isStealthMode(this@IgyVpnService)
+            val islandColor = if (isStealth) Color(0xFF20B2AA) else Color(0xFFB8860B)
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                android.graphics.PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                y = 40
+                windowAnimations = android.R.style.Animation_Toast
+            }
+
+            val composeView = ComposeView(this@IgyVpnService).apply {
+                setContent {
+                    Surface(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .wrapContentWidth()
+                            .height(40.dp)
+                            .border(1.dp, islandColor.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
+                        color = Color.Black.copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(20.dp),
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(islandColor, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "CONNECTED: $appName",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Fake Lifecycle for ComposeView in Service
+            val lifecycleOwner = object : LifecycleOwner {
+                override val lifecycle: Lifecycle = LifecycleRegistry(this)
+            }
+            (lifecycleOwner.lifecycle as LifecycleRegistry).handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+            
+            ViewTreeLifecycleOwner.set(composeView, lifecycleOwner)
+            ViewTreeSavedStateRegistryOwner.set(composeView, object : SavedStateRegistryOwner {
+                override val lifecycle: Lifecycle = lifecycleOwner.lifecycle
+                override val savedStateRegistry: SavedStateRegistry = SavedStateRegistryController.create(this).apply {
+                    performRestore(null)
+                }.savedStateRegistry
+            })
+            composeView.setTag(androidx.lifecycle.runtime.R.id.view_tree_view_model_store_owner, object : ViewModelStoreOwner {
+                override val viewModelStore: ViewModelStore = ViewModelStore()
+            })
+
+            try {
+                windowManager.addView(composeView, params)
+                islandView = composeView
+                
+                delay(2500)
+                removeIsland()
+            } catch (e: Exception) {}
+        }
+    }
+
+    private fun removeIsland() {
+        islandView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {}
+            islandView = null
+        }
+    }
+
+    private fun startLoadingAnimation(baseTitle: String) {
+        animationJob?.cancel()
+        animationJob = serviceScope.launch {
+            val frames = listOf("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+            var i = 0
+            while (isActive) {
+                updateNotification("$baseTitle ${frames[i % frames.size]}")
+                i++
+                delay(100)
+            }
+        }
+    }
+
+    private fun stopLoadingAnimation() {
+        animationJob?.cancel()
+        animationJob = null
     }
 }

@@ -266,6 +266,25 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChang
             }
         }
 
+        // 1.6 Overlay Permission (For Island)
+        val hasOverlayPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else true
+        var isOverlayPermLoading by remember { mutableStateOf(false) }
+        PermissionItem("Island Pop-up Access", hasOverlayPerm, isDarkMode, isOverlayPermLoading) {
+            scope.launch {
+                isOverlayPermLoading = true
+                delay(300)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                }
+                isOverlayPermLoading = false
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- SECTION 2: VPN & NETWORK CONTROL ---
