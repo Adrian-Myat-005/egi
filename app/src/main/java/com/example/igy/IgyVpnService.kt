@@ -119,8 +119,30 @@ class IgyVpnService : VpnService(), Runnable {
         watchdogJob = serviceScope.launch {
             while (isActive && isRunning) {
                 delay(15000) // Check every 15s
-                if (!isAutoModeActive && !isTunnelEstablished) {
-                    TrafficEvent.log("WATCHDOG >> DETECTED_DROP_RECOVERING")
+                
+                if (isTunnelEstablished) {
+                    // SMART HEALTH CHECK: Verify if traffic is actually flowing
+                    val isHealthy = withContext(Dispatchers.IO) {
+                        try {
+                            val statsJson = IgyNetwork.measureNetworkStats("1.1.1.1")
+                            if (!statsJson.isNullOrEmpty()) {
+                                val json = org.json.JSONObject(statsJson)
+                                val ping = json.optInt("ping", -1)
+                                ping != -1 && ping < 3000 // If ping is > 3s or failed, tunnel is "zombie"
+                            } else false
+                        } catch (e: Exception) { false }
+                    }
+
+                    if (!isHealthy) {
+                        TrafficEvent.log("WATCHDOG >> SILENT_DROP_DETECTED_RECOVERING")
+                        tunnelMutex.withLock {
+                            tearDownTunnelOnly()
+                            delay(500)
+                            establishTunnel()
+                        }
+                    }
+                } else if (!isAutoModeActive) {
+                    TrafficEvent.log("WATCHDOG >> TUNNEL_DOWN_RECOVERING")
                     startVpnTunnel()
                 }
             }
@@ -209,10 +231,21 @@ class IgyVpnService : VpnService(), Runnable {
                 // This prevents freezes and ensures a fresh connection every time.
                 TrafficEvent.log("HEALING >> $appName")
                 
-                if (!isTunnelEstablished || vpnThread?.isAlive != true || vpnInterface == null) {
+                val isZombie = if (isTunnelEstablished) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val statsJson = IgyNetwork.measureNetworkStats("1.1.1.1")
+                            val ping = if (!statsJson.isNullOrEmpty()) org.json.JSONObject(statsJson).optInt("ping", -1) else -1
+                            ping == -1
+                        } catch (e: Exception) { true }
+                    }
+                } else false
+
+                if (!isTunnelEstablished || vpnThread?.isAlive != true || vpnInterface == null || isZombie) {
+                    if (isZombie) TrafficEvent.log("HEALING >> ZOMBIE_DETECTED")
                     TrafficEvent.setConnectionState(ConnectionState.CONNECTING)
                     tunnelMutex.withLock { 
-                        if (isTunnelEstablished) tearDownTunnelOnly() // Force fresh start if half-broken
+                        if (isTunnelEstablished) tearDownTunnelOnly() // Force fresh start if half-broken or zombie
                         establishTunnel() 
                     }
                 } else {
