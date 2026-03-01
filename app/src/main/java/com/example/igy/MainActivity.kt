@@ -897,6 +897,7 @@ fun TerminalDashboard(
     val gold = Color(0xFFB8860B)
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
+    val connState by TrafficEvent.connectionState.collectAsState()
     var isBooting by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
@@ -1143,7 +1144,21 @@ fun TerminalDashboard(
         ) {
             StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2D42FF) else Color.Red, isDarkMode)
             StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA), isDarkMode)
-            StatsTile("STATUS", if (isSecure) "CONNECTED" else "STANDBY", 1.4f, if (isSecure) Color(0xFF2D42FF) else Color.Gray, isDarkMode)
+            StatsTile(
+                "STATUS", 
+                when(connState) {
+                    ConnectionState.CONNECTING -> "CONNECTING"
+                    ConnectionState.CONNECTED -> "CONNECTED"
+                    else -> "STANDBY"
+                }, 
+                1.4f, 
+                when(connState) {
+                    ConnectionState.CONNECTING -> Color.Red
+                    ConnectionState.CONNECTED -> Color(0xFF2D42FF)
+                    else -> Color.Gray
+                }, 
+                isDarkMode
+            )
         }
 
         Box(
@@ -1309,12 +1324,17 @@ fun TerminalDashboard(
         // Status Text Below Button
         Text(
             text = when {
+                connState == ConnectionState.CONNECTING -> "CONNECTING..."
                 isBooting -> "Initializing..."
                 isSecure -> "SECURE CONNECTION ESTABLISHED"
                 isStrictBlocking && !isStealthMode -> "LOCKED: CONFIG VPN"
                 else -> "TAP TO CONNECT"
             },
-            color = if (isSecure) Color(0xFF2D42FF) else deepGray,
+            color = when {
+                connState == ConnectionState.CONNECTING -> Color.Red
+                isSecure -> Color(0xFF2D42FF)
+                else -> deepGray
+            },
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

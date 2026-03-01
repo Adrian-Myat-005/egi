@@ -204,12 +204,21 @@ class IgyVpnService : VpnService(), Runnable {
         serviceScope.launch {
             if (targetApps.contains(currentApp)) {
                 val appName = getAppName(currentApp)
-                if (!isTunnelEstablished) {
-                    TrafficEvent.log("WAKING_UP >> $appName")
-                    tunnelMutex.withLock { establishTunnel() }
-                } else if (currentApp != prevApp) {
-                    // Already connected, just show new island
-                    showIslandPopup(appName)
+                
+                // HEALING SYSTEM: Always re-verify health when entering target app
+                // This prevents freezes and ensures a fresh connection every time.
+                TrafficEvent.log("HEALING >> $appName")
+                
+                if (!isTunnelEstablished || vpnThread?.isAlive != true || vpnInterface == null) {
+                    TrafficEvent.setConnectionState(ConnectionState.CONNECTING)
+                    tunnelMutex.withLock { 
+                        if (isTunnelEstablished) tearDownTunnelOnly() // Force fresh start if half-broken
+                        establishTunnel() 
+                    }
+                } else {
+                    // Even if established, we show status
+                    TrafficEvent.setConnectionState(ConnectionState.CONNECTED)
+                    showIslandPopup("Connected to $appName", isConnect = true)
                 }
             } else {
                 // Wait 300ms before killing - maybe user just checked notification or switched back
@@ -221,7 +230,9 @@ class IgyVpnService : VpnService(), Runnable {
                 
                 if (!targetApps.contains(checkApp)) {
                     if (isTunnelEstablished) {
-                        TrafficEvent.log("EXITED >> STANDBY")
+                        val prevAppName = if (prevApp.isNotEmpty()) getAppName(prevApp) else "App"
+                        TrafficEvent.log("EXITED >> $prevAppName")
+                        showIslandPopup("Disconnected from $prevAppName", isConnect = false)
                         updateNotification("🛡️ [IGY] READY: Watching apps")
                         tunnelMutex.withLock { tearDownTunnelOnly() }
                     }
@@ -296,7 +307,7 @@ class IgyVpnService : VpnService(), Runnable {
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
             TrafficEvent.setConnectionState(ConnectionState.CONNECTED)
-            if (appName.isNotEmpty()) showIslandPopup(appName)
+            if (appName.isNotEmpty()) showIslandPopup("Connected to $appName", isConnect = true)
 
             // LOCAL-FIRST KEY STRATEGY (Instant Connection)
             val (token, _, _) = IgyPreferences.getAuth(this)
@@ -410,6 +421,8 @@ class IgyVpnService : VpnService(), Runnable {
         isRunning = false
         isAutoModeActive = false
         
+        showIslandPopup("Shield Deactivated", isConnect = false)
+        
         try { unregisterReceiver(screenReceiver) } catch (e: Exception) {}
         try { connectivityManager.unregisterNetworkCallback(networkCallback) } catch (e: Exception) {}
         
@@ -464,14 +477,18 @@ class IgyVpnService : VpnService(), Runnable {
         super.onDestroy()
     }
 
-    private fun showIslandPopup(appName: String) {
+    private fun showIslandPopup(message: String, isConnect: Boolean) {
         if (!android.provider.Settings.canDrawOverlays(this)) return
 
         serviceScope.launch(Dispatchers.Main) {
             removeIsland()
 
             val isStealth = IgyPreferences.isStealthMode(this@IgyVpnService)
-            val islandColor = if (isStealth) 0xFF20B2AA.toInt() else 0xFFB8860B.toInt()
+            val islandColor = if (isConnect) {
+                if (isStealth) 0xFF20B2AA.toInt() else 0xFF2D42FF.toInt()
+            } else {
+                0xFFFF0000.toInt() // Red for disconnected
+            }
 
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -495,7 +512,7 @@ class IgyVpnService : VpnService(), Runnable {
                 val textView = view.findViewById<TextView>(R.id.island_text)
                 val dotView = view.findViewById<View>(R.id.island_dot)
                 
-                textView.text = "CONNECTED: $appName"
+                textView.text = message
                 dotView.background.setTint(islandColor)
 
                 windowManager.addView(view, params)
