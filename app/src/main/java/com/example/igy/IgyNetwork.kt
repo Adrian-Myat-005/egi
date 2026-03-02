@@ -17,6 +17,7 @@ object IgyNetwork {
     external fun measureNetworkStats(targetIp: String): String?
     external fun runVpnLoop(fd: Int)
     external fun runPassiveShield(fd: Int)
+    external fun stopCore()
     external fun getNativeBlockedCount(): Long
     external fun getCoreHealth(): String?
     external fun getEnergySavings(): String?

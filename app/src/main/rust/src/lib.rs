@@ -140,6 +140,14 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_getCoreHealth(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_example_igy_IgyNetwork_stopCore(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    CORE_STATUS.store(0, Ordering::SeqCst);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_example_igy_IgyNetwork_runVpnLoop(
     _env: JNIEnv,
     _class: JClass,

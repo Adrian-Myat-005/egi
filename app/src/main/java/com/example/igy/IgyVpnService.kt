@@ -48,6 +48,7 @@ class IgyVpnService : VpnService(), Runnable {
     private val connectivityManager by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager }
 
     private var islandView: View? = null
+    private var switchJob: Job? = null
     private val windowManager by lazy { getSystemService(Context.WINDOW_SERVICE) as WindowManager }
 
     private val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
@@ -112,6 +113,12 @@ class IgyVpnService : VpnService(), Runnable {
 
         startVpnProcess()
         return START_STICKY
+    }
+
+    override fun onRevoke() {
+        TrafficEvent.log("CORE >> VPN_REVOKED_BY_SYSTEM")
+        stopVpn()
+        super.onRevoke()
     }
 
     private fun startWatchdog() {
@@ -217,13 +224,14 @@ class IgyVpnService : VpnService(), Runnable {
                         }
                     }
                 } catch (e: Exception) {}
-                delay(1000)
+                delay(500) // Increased responsiveness
             }
         }
     }
 
     private fun handleAppSwitchWithGrace(currentApp: String, prevApp: String, targetApps: Set<String>) {
-        serviceScope.launch {
+        switchJob?.cancel()
+        switchJob = serviceScope.launch {
             if (targetApps.contains(currentApp)) {
                 val appName = getAppName(currentApp)
                 
@@ -262,12 +270,14 @@ class IgyVpnService : VpnService(), Runnable {
                 val checkApp = stats?.maxByOrNull { it.lastTimeUsed }?.packageName ?: ""
                 
                 if (!targetApps.contains(checkApp)) {
-                    if (isTunnelEstablished) {
-                        val prevAppName = if (prevApp.isNotEmpty()) getAppName(prevApp) else "App"
-                        TrafficEvent.log("EXITED >> $prevAppName")
-                        showIslandPopup("Disconnected from $prevAppName", isConnect = false)
-                        updateNotification("🛡️ [IGY] READY: Watching apps")
-                        tunnelMutex.withLock { tearDownTunnelOnly() }
+                    tunnelMutex.withLock {
+                        if (isTunnelEstablished) {
+                            val prevAppName = if (prevApp.isNotEmpty()) getAppName(prevApp) else "App"
+                            TrafficEvent.log("EXITED >> $prevAppName")
+                            showIslandPopup("Disconnected from $prevAppName", isConnect = false)
+                            updateNotification("🛡️ [IGY] READY: Watching apps")
+                            tearDownTunnelOnly()
+                        }
                     }
                 }
             }
@@ -290,34 +300,40 @@ class IgyVpnService : VpnService(), Runnable {
         }
     }
 
-    private fun establishTunnel() {
-        if (isTunnelEstablished) return
+    private suspend fun establishTunnel() = withContext(NonCancellable) {
+        if (isTunnelEstablished) return@withContext
         
         TrafficEvent.setConnectionState(ConnectionState.CONNECTING)
         startLoadingAnimation("🛡️ [IGY] INITIALIZING HANDSHAKE")
 
         if (vpnThread?.isAlive == true) {
             try { vpnInterface?.close() } catch (e: Exception) {}
+            withContext(Dispatchers.IO) { vpnThread?.join(500) }
             vpnThread = null
         }
         
         isTunnelEstablished = true
-        vpnThread = Thread(this, "IgyVpnThread")
+        vpnThread = Thread(this@IgyVpnService, "IgyVpnThread")
         vpnThread?.start()
     }
 
-    private suspend fun tearDownTunnelOnly() {
+    private suspend fun tearDownTunnelOnly() = withContext(NonCancellable) {
         isTunnelEstablished = false
         TrafficEvent.setVpnActive(false)
         TrafficEvent.setConnectionState(ConnectionState.IDLE)
         stopLoadingAnimation()
+        IgyNetwork.stopCore() // Atomic kill signal to native engine
+        
         try {
             vpnInterface?.close()
             vpnInterface = null
         } catch (e: Exception) {}
         
         withContext(Dispatchers.IO) {
-            vpnThread?.join(500)
+            vpnThread?.join(1000)
+            if (vpnThread?.isAlive == true) {
+                TrafficEvent.log("CORE >> ZOMBIE_THREAD_DETECTED")
+            }
         }
     }
 

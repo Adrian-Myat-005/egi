@@ -108,6 +108,8 @@ pub fn start_vpn_loop(fd: i32) {
         PROXY_PORT.store(port, Ordering::Relaxed);
         
         let local_addr_str = format!("127.0.0.1:{}", port);
+        let token = CancellationToken::new();
+
         // Robust trimming and remark removal
         let mut ss_key = secure_key.key.trim().to_string();
         if let Some(pos) = ss_key.find('#') {
@@ -115,6 +117,7 @@ pub fn start_vpn_loop(fd: i32) {
         }
 
         let ss_local_addr = local_addr_str.clone();
+        let ss_token = token.clone();
         tokio::spawn(async move {
             match ServerConfig::from_url(&ss_key) {
                 Ok(server_config) => {
@@ -126,8 +129,16 @@ pub fn start_vpn_loop(fd: i32) {
                         config.local.push(LocalInstanceConfig { config: local_config, acl: None });
                         config.server.push(ServerInstanceConfig::with_server_config(server_config));
                         crate::log_to_java(&format!("VPN >> SOCKS5_READY: {}", ss_local_addr));
-                        if let Err(e) = run_ss_local(config).await {
-                            crate::log_to_java(&format!("VPN >> SS_ERR: {}", e));
+                        
+                        tokio::select! {
+                            res = run_ss_local(config) => {
+                                if let Err(e) = res {
+                                    crate::log_to_java(&format!("VPN >> SS_ERR: {}", e));
+                                }
+                            }
+                            _ = ss_token.cancelled() => {
+                                crate::log_to_java("VPN >> SS_STOPPED_BY_TOKEN");
+                            }
                         }
                     }
                 }
@@ -160,7 +171,6 @@ pub fn start_vpn_loop(fd: i32) {
             Ok(tun_device) => {
                 CORE_STATUS.store(2, Ordering::SeqCst);
                 if let Ok(proxy) = ArgProxy::try_from(format!("socks5://{}", local_addr_str).as_str()) {
-                    let token = CancellationToken::new();
                     let mut args = Args::default();
                     args.proxy = proxy;
                     args.dns = ArgDns::Virtual;
@@ -171,7 +181,7 @@ pub fn start_vpn_loop(fd: i32) {
                     let monitor_token = token.clone();
                     tokio::spawn(async move {
                         while CORE_STATUS.load(Ordering::SeqCst) != 0 {
-                            tokio::time::sleep(Duration::from_secs(2)).await;
+                            tokio::time::sleep(Duration::from_millis(100)).await;
                         }
                         monitor_token.cancel();
                     });
