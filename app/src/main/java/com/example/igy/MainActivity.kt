@@ -39,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -544,6 +546,7 @@ fun VroomDashboard(
     var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
     var isVpnTunnelGlobal by remember { mutableStateOf(IgyPreferences.isVpnTunnelGlobal(context)) }
     var selectedNodeName by remember { mutableStateOf(IgyPreferences.getSelectedNodeName(context)) }
+    var showManual by remember { mutableStateOf(false) }
 
     // Update node name when returning to screen
     LaunchedEffect(Unit) {
@@ -647,10 +650,17 @@ fun VroomDashboard(
 
         // Quick shortcut for Focus Hub
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
-            IconButton(onClick = onOpenHub, modifier = Modifier.padding(top = 40.dp, end = 16.dp)) {
-                Icon(Icons.Default.FilterCenterFocus, contentDescription = "Focus Mode", tint = Color.White.copy(alpha = 0.3f))
+            Row(modifier = Modifier.padding(top = 40.dp, end = 16.dp)) {
+                IconButton(onClick = { showManual = true }) {
+                    Icon(Icons.Default.Help, contentDescription = "Manual", tint = Color.White.copy(alpha = 0.3f))
+                }
+                IconButton(onClick = onOpenHub) {
+                    Icon(Icons.Default.FilterCenterFocus, contentDescription = "Focus Mode", tint = Color.White.copy(alpha = 0.3f))
+                }
             }
         }
+        
+        if (showManual) { TacticalManual(onDismiss = { showManual = false }) }
     }
 }
 
@@ -788,10 +798,6 @@ fun BottomNavItem(label: String, icon: androidx.compose.ui.graphics.vector.Image
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
     }
-}
-
-
-    if (showManual) { TacticalManual(onDismiss = { showManual = false }) }
 }
 
 @Composable
@@ -947,10 +953,10 @@ fun TileInstallerSection(isDarkMode: Boolean) {
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        TactileButton(
+        TactileVroomButton(
             text = "Install Smart Button (One-Tap)",
             isDarkMode = isDarkMode,
-            contentColor = vroomBlack,
+            color = vroomBlack.copy(alpha = 0.1f),
             onClick = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val statusBarManager = context.getSystemService(android.app.StatusBarManager::class.java)
@@ -1076,26 +1082,6 @@ fun ManualSection(title: String, desc: String) {
         Text(desc, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Divider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(top = 4.dp))
     }
-}
-
-@Composable
-fun VroomEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    
-    val colorScheme = if (isDarkMode) {
-        darkColorScheme(primary = Color.White, onPrimary = Color.Black, surface = Color(0xFF1A1A1A), onSurface = Color.White, background = Color(0xFF1A1A1A), onBackground = Color.White, secondary = Color.Gray, outline = Color(0xFF333333))
-    } else {
-        lightColorScheme(primary = Color.White, onPrimary = deepGray, surface = creamColor, onSurface = deepGray, background = creamColor, onBackground = deepGray, secondary = Color.Gray, outline = wheat)
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography(bodyLarge = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Normal, fontSize = 14.sp, color = if (isDarkMode) Color.White else deepGray)),
-        content = content
-    )
 }
 
 @Composable

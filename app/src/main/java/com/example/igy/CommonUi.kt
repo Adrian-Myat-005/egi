@@ -1,22 +1,26 @@
 package com.example.igy
 
 import android.graphics.drawable.Drawable
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -252,36 +256,41 @@ fun MatrixTab(
     }
 }
 
+data class AppInfo(
+    val name: String,
+    val packageName: String,
+    val icon: android.graphics.drawable.Drawable
+)
+
 @Composable
 fun TactileVroomButton(
     text: String,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isDarkMode: Boolean = false,
     color: Color = Color.Black,
-    isActive: Boolean = false
+    isActive: Boolean = false,
+    isLoading: Boolean = false,
+    onClick: () -> Unit
 ) {
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
 
     Surface(
-        onClick = onClick,
+        onClick = { if (!isLoading) onClick() },
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
             .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(4.dp), // Sharper, more mechanical feel
+        shape = RoundedCornerShape(4.dp),
         color = if (isActive) color else cardBg,
         border = BorderStroke(1.dp, if (isActive) color else wheat),
-        shadowElevation = if (isActive) 0.dp else 6.dp, // Solid 3D shadow effect
+        shadowElevation = if (isActive) 0.dp else 6.dp,
         interactionSource = remember { MutableInteractionSource() }
     ) {
         Box(
             modifier = Modifier.fillMaxSize().drawBehind {
                 if (!isActive) {
-                    // Solid 3D bottom shadow
                     drawPath(
                         path = Path().apply {
                             moveTo(0f, size.height)
@@ -296,13 +305,21 @@ fun TactileVroomButton(
             },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = text,
-                color = if (isActive) Color.White else deepGray,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+            if (isLoading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = if (isActive) Color.White else Color(0xFF00BFFF),
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Text(
+                    text = text,
+                    color = if (isActive) Color.White else deepGray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
         }
     }
 }
+

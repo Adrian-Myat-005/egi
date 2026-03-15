@@ -293,11 +293,11 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
                     }
                     if (isMultiSelectMode && selectedApps.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        TactileVroomButton("START PROTECTING (${selectedApps.size} APPS)", color = vroomBlue) {
+                        TactileVroomButton("START PROTECTING (${selectedApps.size} APPS)", color = vroomBlue, onClick = {
                             IgyPreferences.saveCasualWhitelist(context, selectedApps)
                             activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = true, targetApp = null)
                             onAction()
-                        }
+                        })
                     }
                 }
             }
