@@ -1,0 +1,42 @@
+VROOM ENGINE: PROFESSIONAL BACKEND ARCHITECTURE SUGGESTIONS
+===========================================================
+
+To transition from a prototype to a professional-grade VPN service, the backend (Vroom Engine Server) should focus on high-concurrency, security hardening, and automated node management.
+
+1. CORE PROXY TECHNOLOGY (The Engine)
+--------------------------------------
+*   Recommendation: Use 'shadowsocks-rust' or 'Xray-core' as the server-side binary.
+*   Protocol: Stick to Shadowsocks-2022 (AEAD Ciphers like 2022-blake3-aes-128-gcm) to prevent active probing by ISPs.
+*   Performance: Use BBR (Bottleneck Bandwidth and Round-trip propagation time) congestion control on the Linux kernel to significantly improve speed for mobile users on unstable 4G/5G.
+
+2. SCALABILITY & REGIONS (The Track)
+-------------------------------------
+*   Multi-Node Controller: Implement a "Brain" server (Node.js/Go) that manages "Edge" nodes (the actual VPN servers).
+*   Dynamic Sync: The mobile app should fetch a signed JSON/Protobuf list of nodes via a REST API with ETag caching.
+*   Geographic Load Balancing: Use GeoDNS or a simple latency-based picker in the app to suggest the closest "Vroom Pit Stop" (Node).
+
+3. USER MANAGEMENT & BILLING
+-----------------------------
+*   Database: Use PostgreSQL for persistent user data and Redis for real-time session tracking (active connections).
+*   Bandwidth Accounting: Implement 'iptables' or 'nftables' byte counting on edge nodes. Report these stats back to the Brain server every 60 seconds.
+*   Token Security: Use JWT (JSON Web Tokens) with a short expiry (1 hour) and a Refresh Token (30 days) stored in the Android Keystore.
+
+4. SECURITY HARDENING (The Armor)
+----------------------------------
+*   Traffic Obfuscation: For high-censorship environments, wrap Shadowsocks in 'v2ray-plugin' (WebSocket + TLS) to make VPN traffic look like standard HTTPS browsing.
+*   Fail2Ban: Automatically block IPs that attempt to brute-force the Shadowsocks port or the Management API.
+*   Zero-Log Policy: If privacy is a selling point, implement RAM-only logging or use 'Logrotate' to immediately purge connection metadata after 24 hours.
+
+5. MONITORING & OPS
+--------------------
+*   Prometheus + Grafana: Monitor CPU, RAM, and Bandwidth of every node in a single dashboard.
+*   Uptime Kuma: Set up automated pings from multiple global locations to ensure the "Engine" isn't stalling in specific countries.
+*   Automated Deployment: Use Docker + Ansible to spin up a new "Vroom Node" in under 5 minutes.
+
+6. API IMPROVEMENTS
+--------------------
+*   gRPC: Consider switching the App-to-Server communication to gRPC for lower latency and smaller binary payloads compared to JSON.
+*   Certificate Pinning: Hardcode the server's SSL certificate hash in the Android app to prevent Man-in-the-Middle (MITM) attacks.
+
+-----------------------------------------------------------
+Vroom Engine: Speed. Stability. Security.

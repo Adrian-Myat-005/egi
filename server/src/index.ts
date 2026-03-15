@@ -69,8 +69,25 @@ app.get('/api/vpn/regions', authenticateToken, async (req, res) => {
     try {
         const user = await User.findByPk((req as any).user.id);
         if (!user || !user.isPremium) return res.status(403).json({ error: 'PREMIUM_REQUIRED' });
-        const nodes = await Node.findAll({ attributes: ['id', 'regionName'] });
-        res.json(nodes);
+        
+        const nodes = await Node.findAll({ attributes: ['id', 'regionName', 'ssKey'] });
+        const result = nodes.map(node => {
+            let address = "";
+            try {
+                const url = node.ssKey;
+                const atIndex = url.lastIndexOf('@');
+                if (atIndex !== -1) {
+                    const hostPort = url.substring(atIndex + 1).split('#')[0];
+                    address = hostPort.split(':')[0]; // Host only for ping
+                }
+            } catch (e) {}
+            return {
+                id: node.id,
+                regionName: node.regionName,
+                address: address
+            };
+        });
+        res.json(result);
     } catch (e) { res.status(500).json({ error: 'FAILED_TO_LOAD_RIGYONS' }); }
 });
 

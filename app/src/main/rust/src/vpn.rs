@@ -11,10 +11,6 @@ use tokio::io::unix::AsyncFd;
 use std::net::TcpListener;
 use crate::common::*;
 
-// --- PURE KERNEL MODE: RELY ON ANDROID VPN SERVICE ROUTING ---
-// The filtering is now handled by the Android Kernel via VpnService.Builder
-// This Rust engine focuses solely on high-speed packet shuttling.
-
 fn find_free_port() -> Option<u16> {
     TcpListener::bind("127.0.0.1:0")
         .and_then(|listener| listener.local_addr())
@@ -35,8 +31,6 @@ fn set_nonblocking(fd: RawFd) -> std::io::Result<()> {
     Ok(())
 }
 
-// Deprecated: Passive Shield is being phased out for Active Monitor
-// But kept as a simple sink for compatibility if needed.
 pub async fn run_passive_shield_internal(fd: RawFd) {
     CORE_STATUS.store(2, Ordering::SeqCst);
     crate::log_to_java("VPN >> PASSIVE_SHIELD (SINK)");
@@ -59,7 +53,6 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
         if CORE_STATUS.load(Ordering::SeqCst) == 0 { break; }
         match async_fd.readable().await {
             Ok(mut guard) => {
-                // Just drain the buffer. The "Block" happens because we didn't route traffic here.
                 match unsafe { libc::read(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) } {
                     n if n > 0 => {
                         BYTES_PROCESSED.fetch_add(n as u64, Ordering::Relaxed);
@@ -82,7 +75,7 @@ pub async fn run_passive_shield_internal(fd: RawFd) {
 
 pub fn start_vpn_loop(fd: i32) {
     CORE_STATUS.store(1, Ordering::SeqCst);
-    crate::log_to_java("VPN >> STARTING_ENGINE");
+    crate::log_to_java("VPN >> STARTING_ENGINE_V2");
     
     if let Err(e) = set_nonblocking(fd) {
         crate::log_to_java(&format!("VPN >> WARN_NONBLOCK: {}", e));
@@ -108,7 +101,7 @@ pub fn start_vpn_loop(fd: i32) {
         PROXY_PORT.store(port, Ordering::Relaxed);
         
         let local_addr_str = format!("127.0.0.1:{}", port);
-        let token = CancellationToken::new();
+        let master_token = CancellationToken::new();
 
         // Robust trimming and remark removal
         let mut ss_key = secure_key.key.trim().to_string();
@@ -117,7 +110,9 @@ pub fn start_vpn_loop(fd: i32) {
         }
 
         let ss_local_addr = local_addr_str.clone();
-        let ss_token = token.clone();
+        let ss_token = master_token.clone();
+        
+        // --- COMPONENT 1: SHADOWSOCKS LOCAL ---
         tokio::spawn(async move {
             match ServerConfig::from_url(&ss_key) {
                 Ok(server_config) => {
@@ -128,42 +123,60 @@ pub fn start_vpn_loop(fd: i32) {
                         local_config.mode = Mode::TcpAndUdp;
                         config.local.push(LocalInstanceConfig { config: local_config, acl: None });
                         config.server.push(ServerInstanceConfig::with_server_config(server_config));
-                        crate::log_to_java(&format!("VPN >> SOCKS5_READY: {}", ss_local_addr));
                         
                         tokio::select! {
                             res = run_ss_local(config) => {
                                 if let Err(e) = res {
-                                    crate::log_to_java(&format!("VPN >> SS_ERR: {}", e));
+                                    crate::log_to_java(&format!("VPN >> SS_CRASH: {}", e));
                                 }
+                                ss_token.cancel();
                             }
-                            _ = ss_token.cancelled() => {
-                                crate::log_to_java("VPN >> SS_STOPPED_BY_TOKEN");
-                            }
+                            _ = ss_token.cancelled() => {}
                         }
                     }
                 }
                 Err(e) => {
                     crate::log_to_java(&format!("VPN >> INVALID_KEY: {}", e));
+                    ss_token.cancel();
                 }
             }
         });
 
-        // Fast Start: Wait max 3s for SOCKS5 (increased from 1.5s)
+        // Wait for SOCKS5 with unified token check
         let mut proxy_ready = false;
-        for _ in 0..10 {
-            tokio::time::sleep(Duration::from_millis(300)).await;
+        for _ in 0..15 {
+            if master_token.is_cancelled() { break; }
+            tokio::time::sleep(Duration::from_millis(200)).await;
             if tokio::net::TcpStream::connect(local_addr_str.clone()).await.is_ok() {
                 proxy_ready = true;
                 break;
             }
         }
 
-        if !proxy_ready {
-            crate::log_to_java("VPN >> ERR: PROXY_TIMEOUT");
+        if !proxy_ready || master_token.is_cancelled() {
+            crate::log_to_java("VPN >> ERR: PROXY_NOT_RESPONDING");
             CORE_STATUS.store(3, Ordering::SeqCst);
+            master_token.cancel();
             return;
         }
         
+        // --- COMPONENT 2: SOCKS5 HEALTH MONITOR ---
+        let monitor_addr = local_addr_str.clone();
+        let monitor_token = master_token.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                if monitor_token.is_cancelled() { break; }
+                
+                if tokio::net::TcpStream::connect(&monitor_addr).await.is_err() {
+                    crate::log_to_java("VPN >> MONITOR_DETECTED_PROXY_DEAD");
+                    monitor_token.cancel();
+                    break;
+                }
+            }
+        });
+
+        // --- COMPONENT 3: TUN2PROXY ---
         let mut tun_config = tun::Configuration::default();
         tun_config.raw_fd(fd);
         
@@ -176,27 +189,32 @@ pub fn start_vpn_loop(fd: i32) {
                     args.dns = ArgDns::Virtual;
                     args.verbosity = ArgVerbosity::Off;
                     
-                    crate::log_to_java("VPN >> TUNNEL_ESTABLISHED");
+                    crate::log_to_java("VPN >> TUNNEL_LIVE");
 
-                    let monitor_token = token.clone();
+                    let status_monitor_token = master_token.clone();
                     tokio::spawn(async move {
-                        while CORE_STATUS.load(Ordering::SeqCst) != 0 {
-                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        while CORE_STATUS.load(Ordering::SeqCst) != 0 && !status_monitor_token.is_cancelled() {
+                            tokio::time::sleep(Duration::from_millis(200)).await;
                         }
-                        monitor_token.cancel();
+                        status_monitor_token.cancel();
                     });
 
-                    // Direct pipe: No more FilteredTun nonsense.
-                    if let Err(e) = run_tun2proxy(tun_device, 1280, args, token).await {
-                        crate::log_to_java(&format!("VPN >> EXIT: {}", e));
+                    if let Err(e) = run_tun2proxy(tun_device, 1280, args, master_token.clone()).await {
+                        crate::log_to_java(&format!("VPN >> TUN2PROXY_EXIT: {}", e));
                     }
+                    master_token.cancel();
                 }
             }
             Err(e) => {
                 crate::log_to_java(&format!("VPN >> TUN_FAIL: {}", e));
                 CORE_STATUS.store(3, Ordering::SeqCst);
+                master_token.cancel();
             }
         }
-        CORE_STATUS.store(0, Ordering::SeqCst);
+        
+        if CORE_STATUS.load(Ordering::SeqCst) != 3 {
+            CORE_STATUS.store(0, Ordering::SeqCst);
+        }
+        crate::log_to_java("VPN >> ENGINE_SHUTDOWN_COMPLETE");
     });
 }

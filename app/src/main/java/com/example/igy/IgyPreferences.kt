@@ -23,6 +23,7 @@ object IgyPreferences {
     private const val KEY_PREMIUM_EXPIRY = "premium_expiry"
     private const val KEY_DARK_MODE = "dark_mode"
     private const val KEY_SELECTED_NODE_ID = "selected_node_id"
+    private const val KEY_SELECTED_NODE_NAME = "selected_node_name"
     private const val KEY_AUTO_START_TRIGGER = "auto_start_trigger"
     private const val KEY_AUTO_START_APPS = "auto_start_apps"
     private const val KEY_SMART_FILTER_ACTIVE = "smart_filter_active"
@@ -235,5 +236,15 @@ object IgyPreferences {
     fun getSelectedNodeId(context: Context): Int {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getInt(KEY_SELECTED_NODE_ID, -1)
+    }
+
+    fun setSelectedNodeName(context: Context, name: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_SELECTED_NODE_NAME, name).apply()
+    }
+
+    fun getSelectedNodeName(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_SELECTED_NODE_NAME, "Standard Gateway") ?: "Standard Gateway"
     }
 }

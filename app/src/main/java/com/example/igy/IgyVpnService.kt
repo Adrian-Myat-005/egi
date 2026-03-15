@@ -125,27 +125,45 @@ class IgyVpnService : VpnService(), Runnable {
         watchdogJob?.cancel()
         watchdogJob = serviceScope.launch {
             while (isActive && isRunning) {
-                delay(15000) // Check every 15s
+                delay(5000) // Responsive check every 5s
                 
                 if (isTunnelEstablished) {
-                    // SMART HEALTH CHECK: Verify if traffic is actually flowing
-                    val isHealthy = withContext(Dispatchers.IO) {
-                        try {
-                            val statsJson = IgyNetwork.measureNetworkStats("1.1.1.1")
-                            if (!statsJson.isNullOrEmpty()) {
-                                val json = org.json.JSONObject(statsJson)
-                                val ping = json.optInt("ping", -1)
-                                ping != -1 && ping < 3000 // If ping is > 3s or failed, tunnel is "zombie"
-                            } else false
-                        } catch (e: Exception) { false }
-                    }
+                    // 1. FAST CHECK: Native status
+                    val coreStatus = try {
+                        val healthJson = IgyNetwork.getCoreHealth()
+                        if (healthJson != null) org.json.JSONObject(healthJson).optString("status") else "UNKNOWN"
+                    } catch (e: Exception) { "ERROR" }
 
-                    if (!isHealthy) {
-                        TrafficEvent.log("WATCHDOG >> SILENT_DROP_DETECTED_RECOVERING")
+                    if (coreStatus == "ERROR") {
+                        TrafficEvent.log("WATCHDOG >> NATIVE_ERROR_DETECTED_RECOVERING")
                         tunnelMutex.withLock {
                             tearDownTunnelOnly()
                             delay(500)
                             establishTunnel()
+                        }
+                        continue
+                    }
+
+                    // 2. THOROUGH CHECK: Ping test (only if core says it is running)
+                    if (coreStatus == "RUNNING") {
+                        val isHealthy = withContext(Dispatchers.IO) {
+                            try {
+                                val statsJson = IgyNetwork.measureNetworkStats("1.1.1.1")
+                                if (!statsJson.isNullOrEmpty()) {
+                                    val json = org.json.JSONObject(statsJson)
+                                    val ping = json.optInt("ping", -1)
+                                    ping != -1 && ping < 3500 // 3.5s timeout
+                                } else false
+                            } catch (e: Exception) { false }
+                        }
+
+                        if (!isHealthy) {
+                            TrafficEvent.log("WATCHDOG >> CONNECTION_STALLED_RECOVERING")
+                            tunnelMutex.withLock {
+                                tearDownTunnelOnly()
+                                delay(500)
+                                establishTunnel()
+                            }
                         }
                     }
                 } else if (!isAutoModeActive) {
@@ -330,11 +348,17 @@ class IgyVpnService : VpnService(), Runnable {
         } catch (e: Exception) {}
         
         withContext(Dispatchers.IO) {
-            vpnThread?.join(1000)
+            // Deterministic wait for native thread to exit
+            var joinAttempts = 0
+            while (vpnThread?.isAlive == true && joinAttempts < 15) {
+                vpnThread?.join(100)
+                joinAttempts++
+            }
             if (vpnThread?.isAlive == true) {
-                TrafficEvent.log("CORE >> ZOMBIE_THREAD_DETECTED")
+                TrafficEvent.log("CORE >> WARNING: ZOMBIE_THREAD_PERSISTS")
             }
         }
+        vpnThread = null
     }
 
     override fun run() {

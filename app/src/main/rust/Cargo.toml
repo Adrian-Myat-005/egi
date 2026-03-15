@@ -15,8 +15,8 @@ tokio = { version = "1.0", features = ["full"] }
 libc = "0.2"
 shadowsocks = { version = "1.24", default-features = false, features = ["aead-cipher-2022", "aead-cipher"] }
 shadowsocks-service = { version = "1.24", features = ["local"] }
-tun2proxy = "0.6"
-tun = { version = "0.7", features = ["async"] }
+tun2proxy = "0.7.19"
+tun = { version = "0.8", features = ["async"] }
 base64 = "0.21"
 lazy_static = "1.4"
 zeroize = { version = "1.7", features = ["derive"] }

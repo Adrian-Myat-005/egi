@@ -15,6 +15,18 @@ static mut CLASS_REF: Option<GlobalRef> = None;
 
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(vm: JavaVM, _reserved: std::ffi::c_void) -> jint {
+    std::panic::set_hook(Box::new(|info| {
+        let msg = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown Panic".to_string()
+        };
+        let location = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column())).unwrap_or_else(|| "unknown".to_string());
+        crate::log_to_java(&format!("FATAL_PANIC >> {} at {}", msg, location));
+    }));
+
     unsafe {
         if let Ok(mut env) = vm.get_env() {
             if let Ok(class) = env.find_class("com/example/igy/IgyNetwork") {

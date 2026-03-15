@@ -45,7 +45,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class Screen {
-    TERMINAL, ACCOUNT, SETTINGS, AUTO_START_PICKER
+    TERMINAL, ACCOUNT, SETTINGS, AUTO_START_PICKER, SERVERS
 }
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var isDarkMode by remember { mutableStateOf(IgyPreferences.isDarkMode(this)) }
-            IgyTerminalTheme(isDarkMode) {
+            VroomEngineTheme(isDarkMode) {
                 MainContent(isDarkMode, onThemeChange = { 
                     isDarkMode = it
                     IgyPreferences.setDarkMode(this, it)
@@ -119,21 +119,23 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
-                Screen.TERMINAL -> TerminalDashboard(isDarkMode, isPremium,
+                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium,
                     onOpenHub = { 
                         context.startActivity(Intent(context, SelectionHubActivity::class.java))
                     },
                     onOpenAccount = { currentScreen = Screen.ACCOUNT },
                     onOpenSettings = { currentScreen = Screen.SETTINGS },
+                    onOpenServers = { currentScreen = Screen.SERVERS },
                     onShowLogs = { showLogs = true }
                 )
-                Screen.ACCOUNT -> TerminalAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-                Screen.SETTINGS -> TerminalSettingsScreen(isDarkMode, isPremium, onThemeChange, 
+                Screen.ACCOUNT -> VroomAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
+                Screen.SERVERS -> VroomServerSelectionScreen(isDarkMode, isPremium, onBack = { currentScreen = Screen.TERMINAL })
+                Screen.SETTINGS -> VroomSettingsScreen(isDarkMode, isPremium, onThemeChange, 
                     onBack = { currentScreen = Screen.TERMINAL }, 
                     onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER },
                     onOpenAccount = { currentScreen = Screen.ACCOUNT }
                 )
-                Screen.AUTO_START_PICKER -> AutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
+                Screen.AUTO_START_PICKER -> VroomAutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
             }
         }
 
@@ -165,53 +167,37 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
 }
 
 @Composable
-fun TerminalSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit, onOpenAccount: () -> Unit) {
+fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit, onOpenAccount: () -> Unit) {
     val context = LocalContext.current
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     val scope = rememberCoroutineScope()
-    
     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
     val currentVersion = packageInfo.versionName ?: "1.0"
-    
     var updateStatus by remember { mutableStateOf("V$currentVersion (LATEST)") }
     var isChecking by remember { mutableStateOf(false) }
 
-    // Column
-    Column(
-        modifier = Modifier.fillMaxSize().background(creamColor).padding(16.dp).verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("IGY >> SYSTEM_SETTINGS", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
+    VroomBackground(isDarkMode) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+            Text("ENGINE SETTINGS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // --- SECTION 1: PERMISSION & SYSTEM HEALTH ---
-        SettingsHeader("1. PERMISSION & SYSTEM HEALTH")
-        
-        // 1.1 VPN Permission
-        val isVpnPrepared = android.net.VpnService.prepare(context) == null
-        var isVpnPermLoading by remember { mutableStateOf(false) }
-        PermissionItem("VPN Service Access", isVpnPrepared, isDarkMode, isVpnPermLoading) {
-            scope.launch {
-                isVpnPermLoading = true
-                delay(300)
+            // Permissions
+            VroomSettingsHeader("SYSTEM PERMISSIONS")
+            
+            val isVpnPrepared = android.net.VpnService.prepare(context) == null
+            VroomPermissionItem("VPN Service Access", isVpnPrepared) {
                 val intent = android.net.VpnService.prepare(context)
                 if (intent != null) context.startActivity(intent)
-                isVpnPermLoading = false
             }
-        }
 
-        // 1.2 Battery Optimization
-        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            pm.isIgnoringBatteryOptimizations(context.packageName)
-        } else true
-        var isBattPermLoading by remember { mutableStateOf(false) }
-        PermissionItem("Unrestricted Battery", isIgnoringBattery, isDarkMode, isBattPermLoading) {
-            scope.launch {
-                isBattPermLoading = true
-                delay(300)
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                pm.isIgnoringBatteryOptimizations(context.packageName)
+            } else true
+            VroomPermissionItem("Battery Optimization", isIgnoringBattery) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     try {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -222,240 +208,96 @@ fun TerminalSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChang
                         context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     }
                 }
-                isBattPermLoading = false
             }
-        }
 
-        // 1.4 Notifications (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val hasNotifPermission = ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            var isNotifPermLoading by remember { mutableStateOf(false) }
-            PermissionItem("System Notifications", hasNotifPermission, isDarkMode, isNotifPermLoading) {
-                scope.launch {
-                    isNotifPermLoading = true
-                    delay(300)
-                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    }
-                    context.startActivity(intent)
-                    isNotifPermLoading = false
-                }
+            Spacer(modifier = Modifier.height(16.dp))
+            VroomSettingsHeader("NETWORK CONTROL")
+            
+            var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
+            VroomSettingsToggle("Local Network Access", localBypass) {
+                localBypass = it
+                IgyPreferences.setLocalBypass(context, it)
             }
-        }
 
-        // 1.5 App Usage Access (For Auto-Connect)
-        var isUsagePermLoading by remember { mutableStateOf(false) }
-        val hasUsageStats = remember { 
-            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-            } else {
-                @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-            }
-            mode == android.app.AppOpsManager.MODE_ALLOWED
-        }
-        
-        PermissionItem("App Usage Access", hasUsageStats, isDarkMode, isUsagePermLoading) {
-            scope.launch {
-                isUsagePermLoading = true
-                delay(300)
-                val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                context.startActivity(intent)
-                isUsagePermLoading = false
-            }
-        }
-
-        // 1.6 Overlay Permission (For Island)
-        val hasOverlayPerm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else true
-        var isOverlayPermLoading by remember { mutableStateOf(false) }
-        PermissionItem("Island Pop-up Access", hasOverlayPerm, isDarkMode, isOverlayPermLoading) {
-            scope.launch {
-                isOverlayPermLoading = true
-                delay(300)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                        data = android.net.Uri.parse("package:${context.packageName}")
-                    }
-                    context.startActivity(intent)
-                }
-                isOverlayPermLoading = false
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // --- SECTION 2: VPN & NETWORK CONTROL ---
-        SettingsHeader("2. VPN & NETWORK CONTROL")
-        
-        // --- NEW: SMART TILE INSTALLER ---
-        TileInstallerSection(isDarkMode)
-        
-        SettingsToggle("Dark Theme", isDarkMode) {
-            onThemeChange(it)
-        }
-        var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-        SettingsToggle("Local Network Access", localBypass) {
-            localBypass = it
-            IgyPreferences.setLocalBypass(context, it)
-        }
-        
-        // --- TACTICAL TIP: ALWAYS-ON ---
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .background(cardBg.copy(alpha = 0.5f))
-                .border(0.5.dp, Color(0xFFB8860B), RoundedCornerShape(4.dp))
-                .padding(8.dp)
-        ) {
-            Column {
-                Text("TACTICAL_TIP: FULL_SECURITY", color = Color(0xFFB8860B), fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                Text("Enable 'Always-on VPN' and 'Block connections without VPN' in system settings to prevent data leaks.", 
-                    color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-            }
-        }
-
-        var isAlwaysOnLoading by remember { mutableStateOf(false) }
-        TactileButton("Always-On VPN Setup", isDarkMode = isDarkMode, isLoading = isAlwaysOnLoading, onClick = {
-            scope.launch {
-                isAlwaysOnLoading = true
-                delay(300)
-                try {
-                    val intent = Intent("android.net.vpn.SETTINGS")
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-                }
-                isAlwaysOnLoading = false
-            }
-        })
-
-        var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
-
-        val vpnLauncherForAuto = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            if (result.resultCode == android.app.Activity.RESULT_OK) {
-                autoStartTrigger = true
-                IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                if (IgyVpnService.isRunning) {
-                    Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                }
-                TrafficEvent.log("USER >> AUTO_START_READY_WITH_PERM")
-            } else {
-                autoStartTrigger = false
-                IgyPreferences.setAutoStartTriggerEnabled(context, false)
-                Toast.makeText(context, "VPN PERMISSION REQUIRED", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        SettingsToggle("Auto-Connect-VPN", autoStartTrigger) { enabled ->
-            if (enabled && !isPremium) {
-                Toast.makeText(context, "PREMIUM_REQUIRED", Toast.LENGTH_SHORT).show()
-                onOpenAccount()
-                return@SettingsToggle
-            }
-            if (enabled) {
-                // --- PRE-FLIGHT VPN CHECK ---
-                val vpnIntent = android.net.VpnService.prepare(context)
-                if (vpnIntent != null) {
-                    vpnLauncherForAuto.launch(vpnIntent)
+            var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
+            VroomSettingsToggle("Auto-Connect VPN", autoStartTrigger) { enabled ->
+                if (enabled && !isPremium) {
+                    onOpenAccount()
                 } else {
-                    autoStartTrigger = true
-                    IgyPreferences.setAutoStartTriggerEnabled(context, true)
-                    if (IgyVpnService.isRunning) {
-                        Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                autoStartTrigger = false
-                IgyPreferences.setAutoStartTriggerEnabled(context, false)
-                if (IgyVpnService.isRunning) {
-                    Toast.makeText(context, "RESTART SHIELD TO APPLY", Toast.LENGTH_SHORT).show()
+                    autoStartTrigger = enabled
+                    IgyPreferences.setAutoStartTriggerEnabled(context, enabled)
                 }
             }
-        }
+            
+            if (autoStartTrigger) {
+                TactileVroomButton("Configure Auto-Apps", isDarkMode = isDarkMode, onClick = onOpenAutoStartPicker, color = Color.White.copy(alpha = 0.1f))
+            }
 
-        if (autoStartTrigger) {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-            val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                pm.isIgnoringBatteryOptimizations(context.packageName)
-            } else true
-
-            var isBattLoading by remember { mutableStateOf(false) }
-            TactileButton(
-                text = if (isIgnoringBattery) "Battery-Saver: OK" else "Battery-Saver: Restricted",
-                isDarkMode = isDarkMode,
-                isLoading = isBattLoading,
-                onClick = {
-                    scope.launch {
-                        isBattLoading = true
-                        delay(300)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isIgnoringBattery) {
-                            try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = android.net.Uri.parse("package:${context.packageName}")
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                            }
-                        } else {
-                            Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
-                        }
-                        isBattLoading = false
-                    }
-                }
-            )
-
-            var isAutoAppsLoading by remember { mutableStateOf(false) }
-            TactileButton("Auto-Connect-VPN-Apps", isDarkMode = isDarkMode, isLoading = isAutoAppsLoading, onClick = {
-                scope.launch {
-                    isAutoAppsLoading = true
-                    delay(300)
-                    onOpenAutoStartPicker()
-                    isAutoAppsLoading = false
-                }
-            })
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // --- SECTION 3: SOFTWARE UPDATE ---
-        SettingsHeader("3. SOFTWARE UPDATE")
-        Text("BUILD_VERSION: $currentVersion", color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Text("STATUS: $updateStatus", color = if (updateStatus.contains("FOUND")) Color(0xFF2D42FF) else Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        TactileButton(
-            text = if (isChecking) "Scanning..." else "Check for Updates",
-            isDarkMode = isDarkMode,
-            isLoading = isChecking,
-            onClick = {
-                if (isChecking) return@TactileButton
+            Spacer(modifier = Modifier.height(16.dp))
+            VroomSettingsHeader("SOFTWARE")
+            Text("Version: $currentVersion", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Text("Status: $updateStatus", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            TactileVroomButton("CHECK FOR UPDATES", isDarkMode = isDarkMode, isLoading = isChecking, onClick = {
                 scope.launch {
                     isChecking = true
-                    updateStatus = "SCANNING_REPOSITORIES..."
                     val latestVersion = checkForGithubUpdate(currentVersion)
                     isChecking = false
-                    
                     if (latestVersion != null) {
-                        updateStatus = "UPDATE_FOUND: V$latestVersion"
-                        Toast.makeText(context, "NEW_VERSION_AVAILABLE", Toast.LENGTH_LONG).show()
+                        updateStatus = "Update Found: V$latestVersion"
                         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Amyat604/Igy-Shield/releases/latest"))
                         context.startActivity(intent)
                     } else {
-                        updateStatus = "YOU_ARE_ON_LATEST"
+                        updateStatus = "System Up to Date"
                     }
                 }
-            }
-        )
+            })
 
-        Spacer(modifier = Modifier.weight(1f))
-        Text("Back", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(32.dp))
+            TactileVroomButton("BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+fun VroomSettingsHeader(title: String) {
+    Text(title, color = Color(0xFF00BFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+}
+
+@Composable
+fun VroomSettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Color.White, fontSize = 16.sp)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00BFFF)))
+    }
+}
+
+@Composable
+fun VroomPermissionItem(label: String, granted: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, if (granted) Color(0xFF00BFFF).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f))
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (granted) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (granted) Color(0xFF00BFFF) else Color.Red.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(label, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(if (granted) "OK" else "FIX", color = if (granted) Color(0xFF00BFFF) else Color.Red, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        }
     }
 }
 
@@ -482,317 +324,104 @@ private suspend fun checkForGithubUpdate(currentVersion: String): String? = with
 }
 
 @Composable
-fun SettingsHeader(title: String) {
-    Text("> $title", color = Color(0xFFB8860B), fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), fontFamily = FontFamily.Monospace)
-}
-
-@Composable
-fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
-fun PermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, isLoading: Boolean = false, onClick: () -> Unit) {
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    
-    var showLoading by remember { mutableStateOf(false) }
-    LaunchedEffect(isLoading) {
-        if (isLoading) {
-            delay(200)
-            showLoading = true
-        } else {
-            showLoading = false
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(cardBg)
-            .border(0.5.dp, wheat)
-            .clickable(enabled = !isLoading) { onClick() }
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontSize = 14.sp, fontFamily = FontFamily.Monospace, color = deepGray)
-            Text(
-                if (granted) "STATUS: GRANTED" else "STATUS: RESTRICTED",
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                color = if (granted) Color(0xFF2D42FF) else Color.Red
-            )
-        }
-        if (showLoading) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = if (granted) Color(0xFF2D42FF) else Color(0xFFB8860B), strokeWidth = 2.dp)
-        } else {
-            Text(
-                if (granted) "[ OK ]" else "[ CONFIGURE ]",
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                color = if (granted) Color(0xFF2D42FF) else Color(0xFFB8860B)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TactileButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isDarkMode: Boolean = false,
-    contentColor: Color? = null,
-    elevation: Dp = 4.dp,
-    isLoading: Boolean = false
-) {
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    
-    var showLoading by remember { mutableStateOf(false) }
-    LaunchedEffect(isLoading) {
-        if (isLoading) {
-            delay(200)
-            showLoading = true
-        } else {
-            showLoading = false
-        }
-    }
-    
-    Surface(
-        onClick = { if (!isLoading) onClick() },
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .height(50.dp),
-        shape = RoundedCornerShape(12.dp),
-        shadowElevation = elevation,
-        color = cardBg,
-        border = BorderStroke(1.dp, wheat)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (showLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = contentColor ?: deepGray,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-                Text(
-                    text = text,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor ?: deepGray
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun TerminalAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com") }
+    val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
     var authData by remember { mutableStateOf(IgyPreferences.getAuth(context)) }
-    val (savedToken, savedUser, isPremium) = authData
-    var status by remember { mutableStateOf(if (savedToken.isEmpty()) "UNAUTHORIZED" else "LOGGED_IN: $savedUser") }
+    val (token, savedUser, isPremium) = authData
+    var isAuthenticating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Countdown State
-    var countdown by remember { mutableStateOf(0) }
-    var isAuthenticating by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isAuthenticating) {
-        if (isAuthenticating) {
-            countdown = 30
-            while (countdown > 0 && isAuthenticating) {
-                delay(1000)
-                countdown--
-            }
-        }
-    }
-
-    // Region Selector State
-    var regions by remember { mutableStateOf(listOf<JSONObject>()) }
-    var selectedNodeId by remember { mutableStateOf(IgyPreferences.getSelectedNodeId(context)) }
-
-    LaunchedEffect(savedToken) {
-        if (savedToken.isNotEmpty() && isPremium) {
-            val fetchedRegions = fetchRegions(serverUrl, savedToken)
-            regions = fetchedRegions
-        }
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(creamColor).padding(16.dp).verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("IGY >> SYSTEM_AUTHENTICATION", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = if (isAuthenticating) "Waking up server ($countdown s)..." else "STATUS: $status",
-            color = if (isPremium) Color(0xFF2D42FF) else Color.Gray,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace
-        )
-        if (isPremium && !isAuthenticating) Text("PREMIUM_ACCESS: GRANTED", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        
-        Spacer(modifier = Modifier.height(32.dp))
-
-        if (savedToken.isEmpty()) {
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("USERNAME", color = Color.Gray) },
-                modifier = Modifier.fillMaxWidth().background(cardBg),
-                enabled = !isAuthenticating,
-                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
-            )
+    VroomBackground(isDarkMode) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("VROOM ACCOUNT", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("PASSWORD", color = Color.Gray) },
-                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth().background(cardBg),
-                enabled = !isAuthenticating,
-                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace)
+            Text(
+                if (token.isEmpty()) "Sign in to activate Premium" else "Welcome back, $savedUser",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 14.sp
             )
-            Spacer(modifier = Modifier.height(24.dp))
             
-            TactileButton(
-                text = "Login",
-                isDarkMode = isDarkMode,
-                isLoading = isAuthenticating,
-                contentColor = Color(0xFF2D42FF),
-                onClick = {
-                    if (isAuthenticating) return@TactileButton
-                    scope.launch {
-                        try {
-                            isAuthenticating = true
-                            val result = performAuth(serverUrl, username.trim(), password, false)
-                            if (result != null) {
-                                IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
-                                authData = IgyPreferences.getAuth(context)
-                                status = "LOGGED_IN: ${result.username}"
-                                // PRE-SYNC KEY
-                                val currentId = IgyPreferences.getSelectedNodeId(context)
-                                val key = fetchVpnConfig(serverUrl, result.token, currentId)
-                                if (key != null) IgyPreferences.saveOutlineKey(context, key)
-                            } else {
-                                status = "LOGIN_FAILED: RECHECK_DATA"
-                                Toast.makeText(context, "LOGIN_FAILED", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            status = "ERROR: SERVER_TIMEOUT"
-                            Toast.makeText(context, "ERROR: ${e.message}", Toast.LENGTH_SHORT).show()
-                        } finally {
-                            isAuthenticating = false
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
-            if (isPremium && regions.isNotEmpty()) {
-                Text("Server Locations", color = deepGray, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            if (isPremium) {
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                regions.forEach { region ->
-                    val id = region.getInt("id")
-                    val name = region.getString("regionName")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .background(if (selectedNodeId == id) Color.White else Color.Transparent)
-                            .border(0.5.dp, if (selectedNodeId == id) deepGray else wheat)
-                            .clickable {
-                                if (isAuthenticating) return@clickable
-                                selectedNodeId = id
-                                IgyPreferences.setSelectedNodeId(context, id)
-                            }
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(name, color = if (selectedNodeId == id) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                        if (selectedNodeId == id) Text("Active", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                    }
+                Surface(color = Color(0xFF00BFFF).copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFF00BFFF))) {
+                    Text("PREMIUM ACTIVE", color = Color(0xFF00BFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
                 }
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .background(if (selectedNodeId == -1) Color.White else Color.Transparent)
-                        .border(0.5.dp, if (selectedNodeId == -1) deepGray else wheat)
-                        .clickable {
-                            if (isAuthenticating) return@clickable
-                            selectedNodeId = -1
-                            IgyPreferences.setSelectedNodeId(context, -1)
-                        }
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Default Server", color = if (selectedNodeId == -1) deepGray else Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                    if (selectedNodeId == -1) Text("Selected", color = Color(0xFF2D42FF), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                }
-                Spacer(modifier = Modifier.height(24.dp))
             }
 
-            TactileButton(
-                text = "Logout",
-                isDarkMode = isDarkMode,
-                contentColor = Color.Red,
-                onClick = {
-                    if (isAuthenticating) return@TactileButton
+            Spacer(modifier = Modifier.height(40.dp))
+
+            if (token.isEmpty()) {
+                VroomTextField(value = username, onValueChange = { username = it }, label = "Username")
+                Spacer(modifier = Modifier.height(12.dp))
+                VroomTextField(value = password, onValueChange = { password = it }, label = "Password", isPassword = true)
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                TactileVroomButton("SIGN IN", isLoading = isAuthenticating, onClick = {
+                    scope.launch {
+                        isAuthenticating = true
+                        val result = performAuth(serverUrl, username.trim(), password, false)
+                        if (result != null) {
+                            IgyPreferences.saveAuth(context, result.token, result.username, result.isPremium, result.expiry)
+                            authData = IgyPreferences.getAuth(context)
+                            // Pre-sync key
+                            val currentId = IgyPreferences.getSelectedNodeId(context)
+                            val key = fetchVpnConfig(serverUrl, result.token, currentId)
+                            if (key != null) IgyPreferences.saveOutlineKey(context, key)
+                        } else {
+                            Toast.makeText(context, "Authentication Failed", Toast.LENGTH_SHORT).show()
+                        }
+                        isAuthenticating = false
+                    }
+                })
+            } else {
+                TactileVroomButton("LOGOUT", color = Color.Red.copy(alpha = 0.6f), onClick = {
                     IgyPreferences.clearAuth(context)
                     authData = IgyPreferences.getAuth(context)
-                    status = "UNAUTHORIZED"
-                }
-            )
-        }
+                })
+            }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        TactileButton(
-            text = "Premium",
-            isDarkMode = isDarkMode,
-            contentColor = Color(0xFFB8860B),
-            elevation = 4.dp,
-            onClick = {
+            Spacer(modifier = Modifier.height(16.dp))
+            TactileVroomButton("GET PREMIUM", color = Color(0xFF00BFFF), onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/Amyat604"))
                 context.startActivity(intent)
-            }
-        )
+            })
 
-        Spacer(modifier = Modifier.height(32.dp))
-        Text("Back", color = deepGray, modifier = Modifier.clickable { onBack() }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(32.dp))
+            Text("Back", color = Color.White, modifier = Modifier.clickable { onBack() }, fontWeight = FontWeight.Bold)
+        }
     }
+}
+
+@Composable
+fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = Color.White.copy(alpha = 0.4f)) },
+        modifier = Modifier.fillMaxWidth(),
+        visualTransformation = if (isPassword) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedBorderColor = Color(0xFF00BFFF),
+            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+            cursorColor = Color(0xFF00BFFF)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    )
+}
+
+@Composable
+fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+    // This will be implemented in AutoStartPicker.kt but we reference it here
+    AutoStartPickerScreen(isDarkMode, onBack)
 }
 
 private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObject> = withContext(Dispatchers.IO) {
@@ -810,6 +439,24 @@ private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObj
         }
     } catch (e: Exception) {}
     emptyList()
+}
+
+private suspend fun measurePing(address: String): String {
+    if (address.isEmpty()) return "--"
+    return withContext(Dispatchers.IO) {
+        try {
+            val startTime = System.currentTimeMillis()
+            val host = java.net.InetAddress.getByName(address)
+            if (host.isReachable(3000)) {
+                val endTime = System.currentTimeMillis()
+                "${endTime - startTime}ms"
+            } else {
+                "Timed Out"
+            }
+        } catch (e: Exception) {
+            "Error"
+        }
+    }
 }
 
 data class AuthResult(val token: String, val username: String, val isPremium: Boolean, val expiry: Long)
@@ -879,111 +526,30 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
     null
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TerminalDashboard(
+fun VroomDashboard(
     isDarkMode: Boolean,
     isPremium: Boolean,
     onOpenHub: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenServers: () -> Unit,
     onShowLogs: () -> Unit
 ) {
     val context = LocalContext.current
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    val gold = Color(0xFFB8860B)
     val scope = rememberCoroutineScope()
     val isSecure by TrafficEvent.vpnActive.collectAsState()
     val connState by TrafficEvent.connectionState.collectAsState()
     var isBooting by remember { mutableStateOf(false) }
-    var isRefreshing by remember { mutableStateOf(false) }
     var isStealthMode by remember { mutableStateOf(IgyPreferences.isStealthMode(context)) }
     var isVpnTunnelGlobal by remember { mutableStateOf(IgyPreferences.isVpnTunnelGlobal(context)) }
+    var selectedNodeName by remember { mutableStateOf(IgyPreferences.getSelectedNodeName(context)) }
 
-    // Connecting Pulse Animation
-    val connectingTransition = rememberInfiniteTransition(label = "ConnectingPulse")
-    val connectingPulseScale by connectingTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ConnectingPulseScale"
-    )
-
-    var showManual by remember { mutableStateOf(false) }
-    var currentSsid by remember { mutableStateOf<String?>(null) }
-    var isBatteryOptimized by remember { mutableStateOf(false) }
-    var isStrictBlocking by remember { mutableStateOf(false) }
-    var showLockdownDialog by remember { mutableStateOf(false) }
-
-    // Reset booting state when VPN becomes active
-    LaunchedEffect(isSecure) {
-        if (isSecure) {
-            isBooting = false
-        }
-    }
-
-    // Detect if 'Block connections without VPN' is active
-    LaunchedEffect(isSecure) {
-        while (true) {
-            if (!isSecure) {
-                val isBlocked = withContext(Dispatchers.IO) {
-                    try {
-                        val socket = java.net.Socket()
-                        socket.connect(java.net.InetSocketAddress("1.1.1.1", 53), 1500)
-                        socket.close()
-                        false
-                    } catch (e: Exception) {
-                        true
-                    }
-                }
-                isStrictBlocking = isBlocked
-            } else {
-                isStrictBlocking = false
-            }
-            delay(5000)
-        }
-    }
-
-    // Check battery optimization status
+    // Update node name when returning to screen
     LaunchedEffect(Unit) {
-        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        while (true) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                isBatteryOptimized = pm.isIgnoringBatteryOptimizations(context.packageName)
-            }
-            delay(10000)
-        }
-    }
-
-    // Simplified HUD Loop (Pings 1.1.1.1 for Internet Quality)
-    var currentPing by remember { mutableStateOf(0) }
-    val animatedPing by animateIntAsState(targetValue = currentPing, animationSpec = tween(300), label = "PingAnim")
-    var currentJitter by remember { mutableStateOf(0) }
-    val blockedCount by TrafficEvent.blockedCount.collectAsState()
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            if (IgyNetwork.isAvailable()) {
-                try {
-                    val statsJson = withContext(Dispatchers.IO) {
-                        IgyNetwork.measureNetworkStats("1.1.1.1")
-                    }
-                    if (!statsJson.isNullOrEmpty()) {
-                        val json = JSONObject(statsJson)
-                        currentPing = json.optInt("ping", -1)
-                        currentJitter = json.optInt("jitter", 0)
-                    }
-                } catch (e: Exception) {
-                    currentPing = -1
-                }
-            }
+        while(true) {
+            selectedNodeName = IgyPreferences.getSelectedNodeName(context)
+            delay(2000)
         }
     }
 
@@ -1001,346 +567,229 @@ fun TerminalDashboard(
         }
     }
 
-    // Permission request for Notifications (Android 13+)
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (!isGranted) {
-            TrafficEvent.log("USER >> NOTIF_PERMISSION_DECLINED")
+    // Reset booting state when VPN becomes active
+    LaunchedEffect(isSecure) {
+        if (isSecure) {
+            isBooting = false
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
-    // WiFi Info Polling
-    LaunchedEffect(Unit) {
-        val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-        while (true) {
-            @Suppress("DEPRECATION")
-            val ssid = wifiManager.connectionInfo.ssid.replace("\"", "")
-            if (ssid != "<unknown ssid>" && ssid.isNotEmpty()) {
-                currentSsid = ssid
-            } else {
-                currentSsid = null
+    VroomBackground(isDarkMode) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(60.dp))
+            
+            // 1. TOP LOGO
+            Image(
+                painter = rememberDrawablePainter(context.packageManager.getApplicationIcon(context.packageName)),
+                contentDescription = "Logo",
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(20.dp))
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 2. DASHBOARD TEXT
+            Text(
+                text = "vroom VPN DASHBOARD",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.SansSerif
+            )
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            // 3. MAIN CONNECT BUTTON
+            VroomCircularButton(
+                isActive = isSecure,
+                isBooting = isBooting,
+                onClick = {
+                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenHub, vpnLauncher) { isBooting = it }
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // 4. STATUS TEXT
+            Text(
+                text = when {
+                    connState == ConnectionState.CONNECTING -> "Status: IGNITING..."
+                    isBooting -> "Status: WARMING UP..."
+                    isSecure -> "Status: VROOMING AT FULL SPEED."
+                    else -> "Status: READY TO CONNECT."
+                },
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 16.sp,
+                fontFamily = FontFamily.SansSerif
+            )
+            
+            Spacer(modifier = Modifier.weight(1.2f))
+            
+            // 6. BOTTOM NAVIGATION
+            Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .background(Color.Black.copy(alpha = 0.2f)),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BottomNavItem("Settings", Icons.Default.Settings, onOpenSettings)
+                BottomNavItem("Servers", Icons.Default.Language, onOpenServers)
+                BottomNavItem("Account", Icons.Default.Person, onOpenAccount)
             }
-            delay(5000)
+        }
+
+        // Quick shortcut for Focus Hub
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
+            IconButton(onClick = onOpenHub, modifier = Modifier.padding(top = 40.dp, end = 16.dp)) {
+                Icon(Icons.Default.FilterCenterFocus, contentDescription = "Focus Mode", tint = Color.White.copy(alpha = 0.3f))
+            }
+        }
+    }
+}
+
+@Composable
+fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
+    val authData = remember { IgyPreferences.getAuth(context) }
+    val (token, _, _) = authData
+    
+    var regions by remember { mutableStateOf(listOf<JSONObject>()) }
+    var selectedNodeId by remember { mutableStateOf(IgyPreferences.getSelectedNodeId(context)) }
+    var isLoading by remember { mutableStateOf(false) }
+    var pings by remember { mutableStateOf(mapOf<Int, String>()) }
+
+    LaunchedEffect(Unit) {
+        if (token.isNotEmpty() && isPremium) {
+            isLoading = true
+            regions = fetchRegions(serverUrl, token)
+            isLoading = false
         }
     }
 
-    // Heartbeat Pulse Animation for Active State
-    val activeTransition = rememberInfiniteTransition(label = "ActivePulse")
-    val activePulseScale by activeTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isSecure) 1.1f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ActivePulseScale"
-    )
+    LaunchedEffect(regions, serverUrl) {
+        // Ping regions
+        regions.forEach { region ->
+            val id = region.getInt("id")
+            val address = region.optString("address", "")
+            if (address.isNotEmpty()) {
+                scope.launch {
+                    val result = measurePing(address)
+                    pings = pings + (id to result)
+                }
+            }
+        }
+        // Ping standard gateway
+        scope.launch {
+            val host = try { java.net.URL(serverUrl).host } catch (e: Exception) { "" }
+            if (host.isNotEmpty()) {
+                val result = measurePing(host)
+                pings = pings + (-1 to result)
+            }
+        }
+    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(creamColor)
-            .padding(16.dp)
+    VroomBackground(isDarkMode) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
+            Text("SELECT VROOM NODE", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (token.isEmpty()) {
+                Text("Login to access global nodes", color = Color.White.copy(alpha = 0.6f))
+                Spacer(modifier = Modifier.height(16.dp))
+            } else if (!isPremium) {
+                Text("Premium Required for Region Selection", color = Color.Red.copy(alpha = 0.8f))
+                Spacer(modifier = Modifier.height(16.dp))
+            } else if (isLoading) {
+                CircularProgressIndicator(color = Color.White)
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    item {
+                        ServerItem("Standard Gateway", -1, selectedNodeId == -1, pings[-1]) {
+                            IgyPreferences.setSelectedNodeId(context, -1)
+                            IgyPreferences.setSelectedNodeName(context, "Standard Gateway")
+                            selectedNodeId = -1
+                        }
+                    }
+                    items(regions) { region ->
+                        val id = region.getInt("id")
+                        val name = region.getString("regionName")
+                        ServerItem(name, id, selectedNodeId == id, pings[id]) {
+                            IgyPreferences.setSelectedNodeId(context, id)
+                            IgyPreferences.setSelectedNodeName(context, name)
+                            selectedNodeId = id
+                            
+                            // Pre-sync key for the selected node
+                            scope.launch {
+                                val key = fetchVpnConfig(serverUrl, token, id)
+                                if (key != null) IgyPreferences.saveOutlineKey(context, key)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            TactileVroomButton(text = "BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+fun ServerItem(name: String, id: Int, isSelected: Boolean, ping: String? = null, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, if (isSelected) Color(0xFF00BFFF) else Color.White.copy(alpha = 0.1f))
     ) {
-        // --- TOP SECTION: MODERN HEADER ---
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // WiFi Status Chip
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = cardBg,
-                border = BorderStroke(1.dp, wheat),
-                modifier = Modifier.height(32.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sync, // Placeholder for Wifi icon
-                        contentDescription = "Wifi",
-                        tint = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (currentSsid != null) currentSsid!! else "No WiFi",
-                        color = if (currentSsid != null) Color(0xFF20B2AA) else Color(0xFFB8860B),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            Column {
+                Text(name, color = Color.White, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                if (ping != null) {
+                    Text(ping, color = if (ping.contains("ms")) Color(0xFF00FF00) else Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
                 }
             }
-
-            // Action Icons Row
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                var isSettingsLoading by remember { mutableStateOf(false) }
-                IconButton(onClick = {
-                    scope.launch {
-                        isSettingsLoading = true
-                        delay(300)
-                        onOpenSettings()
-                        isSettingsLoading = false
-                    }
-                }) {
-                    if (isSettingsLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF4682B4), strokeWidth = 2.dp)
-                    } else {
-                        Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF4682B4))
-                    }
-                }
-
-                var isAccountLoading by remember { mutableStateOf(false) }
-                IconButton(onClick = {
-                    scope.launch {
-                        isAccountLoading = true
-                        delay(300)
-                        onOpenAccount()
-                        isAccountLoading = false
-                    }
-                }) {
-                    if (isAccountLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFFDAA520), strokeWidth = 2.dp)
-                    } else {
-                        Icon(imageVector = Icons.Default.Person, contentDescription = "Account", tint = Color(0xFFDAA520))
-                    }
-                }
-
-                var isManualLoading by remember { mutableStateOf(false) }
-                IconButton(onClick = {
-                    scope.launch {
-                        isManualLoading = true
-                        delay(300)
-                        showManual = true
-                        isManualLoading = false
-                    }
-                }) {
-                    if (isManualLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = deepGray, strokeWidth = 2.dp)
-                    } else {
-                        Icon(imageVector = Icons.Default.Info, contentDescription = "Help", tint = deepGray)
-                    }
-                }
+            if (isSelected) {
+                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color(0xFF00BFFF))
             }
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            StatsTile("PING", if (currentPing == -1) "--" else "$animatedPing ms", 1f, if (currentPing < 80) Color(0xFF2D42FF) else Color.Red, isDarkMode)
-            StatsTile("JITTER", "$currentJitter ms", 1f, Color(0xFF20B2AA), isDarkMode)
-            StatsTile(
-                "STATUS", 
-                when(connState) {
-                    ConnectionState.CONNECTING -> "CONNECTING"
-                    ConnectionState.CONNECTED -> "CONNECTED"
-                    else -> "STANDBY"
-                }, 
-                1.4f, 
-                when(connState) {
-                    ConnectionState.CONNECTING -> Color.Red
-                    ConnectionState.CONNECTED -> Color(0xFF2D42FF)
-                    else -> Color.Gray
-                }, 
-                isDarkMode
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(cardBg)
-                .border(0.5.dp, wheat),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer(scaleX = activePulseScale, scaleY = activePulseScale)) {
-                Text(
-                    text = "Blocked Tracking",
-                    color = deepGray.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = String.format("%,d", blockedCount),
-                    color = if (isSecure) Color(0xFF2D42FF) else deepGray.copy(alpha = 0.3f),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 64.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                if (isStrictBlocking) {
-                    Text(
-                        "STRICT_LOCKDOWN_DETECTED",
-                        color = Color.Red,
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.clickable { showLockdownDialog = true }
-                    )
-                }
-            }
-        }
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth().height(65.dp)) {
-                var isHubLoading by remember { mutableStateOf(false) }
-                GridButton(
-                    text = "IGY >> COMMAND_CENTER",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    color = gold,
-                    isLoading = isHubLoading
-                ) {
-                    scope.launch {
-                        isHubLoading = true
-                        delay(300)
-                        onOpenHub()
-                        isHubLoading = false
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                var isLogLoading by remember { mutableStateOf(false) }
-                GridButton(
-                    text = "Activity Log",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    isLoading = isLogLoading
-                ) {
-                    scope.launch {
-                        isLogLoading = true
-                        delay(300)
-                        onShowLogs()
-                        isLogLoading = false
-                    }
-                }
-                GridButton(
-                    text = if (isBatteryOptimized) "Battery: OK" else "Battery: FIX",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    color = if (isBatteryOptimized) Color(0xFF2D42FF) else Color.Red
-                ) {
-                    val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
-                        try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = android.net.Uri.parse("package:${context.packageName}")
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-                        }
-                    } else {
-                        Toast.makeText(context, "BATTERY_MANAGEMENT: UNRESTRICTED", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().height(55.dp)) {
-                GridButton(
-                    text = "System Refresh",
-                    isDarkMode = isDarkMode,
-                    modifier = Modifier.weight(1f),
-                    isLoading = isRefreshing
-                ) { 
-                    TrafficEvent.log("CORE >> REFRESHING_STACK...")
-                    TrafficEvent.updateCount(0)
-                    scope.launch {
-                        isRefreshing = true
-                        IgyPreferences.setSelectedNodeId(context, -1)
-                        delay(1000)
-                        isRefreshing = false
-                        TrafficEvent.log("CORE >> REFRESH_SUCCESS")
-                        Toast.makeText(context, "SYSTEM_REFRESHED", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
-
-        // --- MAIN CONNECT BUTTON ---
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp) 
-                .padding(top = 16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Pulse Effect Layer
-            Box(
-                modifier = Modifier
-                    .size(if (isBooting) 90.dp else 80.dp)
-                    .graphicsLayer(scaleX = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f, scaleY = if (isBooting) connectingPulseScale else if (isSecure) activePulseScale else 1f)
-                    .background(
-                        color = if (isSecure) Color(0xFF2D42FF).copy(alpha = 0.2f) else Color.Transparent,
-                        shape = CircleShape
-                    )
-            )
-
-            // Main Button Surface
-            Surface(
-                onClick = {
-                    handleExecuteToggle(context, isBooting, isStealthMode, isVpnTunnelGlobal, onOpenHub, vpnLauncher) { isBooting = it }
-                },
-                modifier = Modifier
-                    .size(80.dp)
-                    .graphicsLayer(scaleX = activePulseScale, scaleY = activePulseScale),
-                shape = CircleShape,
-                color = if (isSecure) Color(0xFF2D42FF) else Color.White,
-                border = BorderStroke(2.dp, if (isSecure) Color.Transparent else wheat),
-                shadowElevation = 8.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isBooting) {
-                        CircularProgressIndicator(color = if (isSecure) Color.White else Color(0xFF2D42FF), modifier = Modifier.size(40.dp))
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = "Shield",
-                            tint = if (isSecure) Color.White else Color(0xFF2D42FF),
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Status Text Below Button
-        Text(
-            text = when {
-                connState == ConnectionState.CONNECTING -> "CONNECTING..."
-                isBooting -> "Initializing..."
-                isSecure -> "SECURE CONNECTION ESTABLISHED"
-                isStrictBlocking && !isStealthMode -> "LOCKED: CONFIG VPN"
-                else -> "TAP TO CONNECT"
-            },
-            color = when {
-                connState == ConnectionState.CONNECTING -> Color.Red
-                isSecure -> Color(0xFF2D42FF)
-                else -> deepGray
-            },
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
+}
+
+@Composable
+fun BottomNavItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(8.dp)
+    ) {
+        Icon(imageVector = icon, contentDescription = label, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+    }
+}
+
 
     if (showManual) { TacticalManual(onDismiss = { showManual = false }) }
 }
@@ -1494,13 +943,14 @@ fun TileInstallerSection(isDarkMode: Boolean) {
     val context = LocalContext.current
     var showAnimation by remember { mutableStateOf(false) }
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val vroomBlack = if (isDarkMode) Color.White else Color.Black
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
 
     Column(modifier = Modifier.fillMaxWidth()) {
         TactileButton(
             text = "Install Smart Button (One-Tap)",
             isDarkMode = isDarkMode,
-            contentColor = Color(0xFF2D42FF),
+            contentColor = vroomBlack,
             onClick = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val statusBarManager = context.getSystemService(android.app.StatusBarManager::class.java)
@@ -1508,7 +958,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
                     val icon = android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_shield_status)
                     statusBarManager.requestAddTileService(
                         componentName,
-                        "Igy Shield",
+                        "Vroom Engine",
                         icon,
                         { it.run() },
                         { _ -> }
@@ -1524,14 +974,14 @@ fun TileInstallerSection(isDarkMode: Boolean) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                border = BorderStroke(1.dp, Color(0xFFB8860B).copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, vroomBlack.copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("MANUAL INSTALLATION GUIDE", color = Color(0xFFB8860B), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Text("MANUAL INSTALLATION GUIDE", color = vroomBlack, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(16.dp))
                     TileInstallationAnimation(isDarkMode)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("1. Swipe down twice from top status bar.\n2. Click the Pencil (Edit) icon.\n3. Find 'Igy Shield' and drag it up to your active buttons.", 
+                    Text("1. Swipe down twice from top status bar.\n2. Click the Pencil (Edit) icon.\n3. Find 'Vroom Engine' and drag it up to your active buttons.", 
                         color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
@@ -1542,6 +992,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
 @Composable
 fun TileInstallationAnimation(isDarkMode: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "TileAnim")
+    val vroomBlack = if (isDarkMode) Color.White else Color.Black
     
     val fingerY by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -1577,17 +1028,17 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
         // Notification Panel
         Box(modifier = Modifier.size(160.dp, fingerY.dp).background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)))
         
-        // Igy Icon dragging
+        // Vroom Icon dragging
         Icon(
-            imageVector = Icons.Default.Sync,
+            imageVector = Icons.Default.Speed,
             contentDescription = null,
-            tint = Color(0xFF2D42FF).copy(alpha = iconAlpha),
+            tint = vroomBlack.copy(alpha = iconAlpha),
             modifier = Modifier.size(24.dp).offset(y = (fingerY + 10).dp)
         )
 
         // Hand/Finger
         Icon(
-            imageVector = Icons.Default.Person, // Using person as proxy for finger icon
+            imageVector = Icons.Default.TouchApp,
             contentDescription = null,
             tint = if (isDarkMode) Color.White else Color.Black,
             modifier = Modifier.size(32.dp).offset(y = fingerY.dp)
@@ -1597,22 +1048,23 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
 
 @Composable
 fun TacticalManual(onDismiss: () -> Unit) {
+    val vroomBlack = if (MaterialTheme.colorScheme.surface == Color(0xFF1A1A1A)) Color.White else Color.Black
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.Black,
-        title = { Text("IGY >> QUICK_START_GUIDE", color = Color.Cyan, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
+        title = { Text("VROOM >> QUICK_START_GUIDE", color = Color.White, fontFamily = FontFamily.Monospace, fontSize = 16.sp) },
         text = {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item {
-                    ManualSection("1. HOW TO CONNECT", "EN: Simply click Connect to start. If it's your first time, click Account to sign in.\nMM: Connect ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် Account ထဲမှာ အကောင့်ဝင်ပါ။")
+                    ManualSection("1. HOW TO IGNITE", "EN: Simply click Ignite to start. If it's your first time, click Account to sign in.\nMM: Ignite ကိုနှိပ်ပြီး စသုံးနိုင်ပါပြီ။ အကောင့်မရှိသေးရင် Account ထဲမှာ အကောင့်ဝင်ပါ။")
                     ManualSection("2. THREE MODES EXPLAINED", "• [VPN]: Encrypts ALL device traffic. Best for full privacy.\n• [VPN Focus]: ONLY encrypts traffic of apps you pick. Best for speed & target apps.\n• [Normal Focus]: ACCELERATE your VIP apps by blocking all background data thieves for maximum speed.\nMM: ဖုန်းတစ်ခုလုံးသုံးမလား (VPN)၊ app တစ်ခုချင်းသုံးမလား (VPN Focus) (သို့မဟုတ်) အင်တာနက်မြန်အောင် လုပ်မလား (Normal Focus) စိတ်ကြိုက်ရွေးပါ။")
                     ManualSection("3. FOR BEST PERFORMANCE", "EN: Go to Settings -> Enable 'Always-on VPN' in Android settings to prevent disconnects.\nMM: ဖုန်း Settings ထဲမှာ Always-on VPN ကို ဖွင့်ထားပေးရင် ပိုမြန်ပြီး ပိုတည်ငြိမ်ပါတယ်။")
-                    ManualSection("4. NEED HELP?", "EN: If the internet stops working, click the refresh button on the main screen.\nMM: အင်တာနက်မရတော့ရင် refresh ခလုတ်ကို နှိပ်ပေးပါ။")
+                    ManualSection("4. NEED HELP?", "EN: If the engine stops working, click the refresh button on the main screen.\nMM: အင်ဂျင်မရတော့ရင် refresh ခလုတ်ကို နှိပ်ပေးပါ။")
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK", color = Color(0xFF2D42FF), fontFamily = FontFamily.Monospace) }
+            TextButton(onClick = onDismiss) { Text("OK", color = Color.White, fontFamily = FontFamily.Monospace) }
         }
     )
 }
@@ -1620,14 +1072,14 @@ fun TacticalManual(onDismiss: () -> Unit) {
 @Composable
 fun ManualSection(title: String, desc: String) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text("> $title", color = Color(0xFF2D42FF), fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        Text("> $title", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
         Text(desc, color = Color.Gray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Divider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
 @Composable
-fun IgyTerminalTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
+fun VroomEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
@@ -1653,6 +1105,7 @@ fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
     val listState = rememberLazyListState()
     val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
     val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
+    val vroomBlack = if (isDarkMode) Color.White else Color.Black
     
     LaunchedEffect(events.value) {
         if (events.value == "CONSOLE_CLEARED") { logHistory.clear() } 
@@ -1664,9 +1117,9 @@ fun TerminalLog(isDarkMode: Boolean, onClose: () -> Unit) {
     }
     Column(modifier = Modifier.fillMaxSize().background(creamColor).padding(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Activity Log", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("Engine Log", color = deepGray, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Row {
-                Text("Clear", color = Color(0xFFB8860B), fontSize = 12.sp, modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp), fontFamily = FontFamily.Monospace)
+                Text("Clear", color = vroomBlack, fontSize = 12.sp, modifier = Modifier.clickable { TrafficEvent.clearLogs() }.padding(horizontal = 16.dp), fontFamily = FontFamily.Monospace)
                 Text("X", color = Color.Red, fontSize = 12.sp, modifier = Modifier.clickable { onClose() }, fontFamily = FontFamily.Monospace)
             }
         }

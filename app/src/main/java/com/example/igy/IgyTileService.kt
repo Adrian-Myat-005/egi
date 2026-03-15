@@ -45,7 +45,7 @@ class IgyTileService : TileService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivityAndCollapse(intent)
-            Toast.makeText(this, "PLEASE SETUP IGY SHIELD FIRST", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "PLEASE SETUP VROOM ENGINE FIRST", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -53,7 +53,7 @@ class IgyTileService : TileService() {
             // STOP EVERYTHING
             val stopIntent = Intent(this, IgyVpnService::class.java).apply { action = IgyVpnService.ACTION_STOP }
             startService(stopIntent)
-            TrafficEvent.log("USER >> SHIELD_OFF")
+            TrafficEvent.log("USER >> ENGINE_OFF")
         } else {
             // One-Tap Intelligence Switch
             val isAutoModeSettingEnabled = IgyPreferences.isAutoStartTriggerEnabled(this)
@@ -132,15 +132,15 @@ class IgyTileService : TileService() {
         
         if (isRunning) {
             tile.state = Tile.STATE_ACTIVE
-            tile.label = "Igy Shield"
+            tile.label = "Vroom Engine"
             if (isAuto) {
-                tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: STANDBY"
+                tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: IDLE"
             } else {
-                tile.subtitle = if (IgyPreferences.isVpnTunnelGlobal(this)) "GLOBAL VPN" else "FOCUS VPN"
+                tile.subtitle = if (IgyPreferences.isVpnTunnelGlobal(this)) "GLOBAL ENGINE" else "FOCUS ENGINE"
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
-            tile.label = "Igy Shield"
+            tile.label = "Vroom Engine"
             tile.subtitle = "OFF"
         }
         tile.updateTile()

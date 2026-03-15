@@ -1,0 +1,78 @@
+PROFESSIONAL VPN BACKEND ARCHITECTURE: THE "IGY CORE" BLUEPRINT
+============================================================
+
+To transition from a centralized Node.js prototype to a professional-grade, 
+globally distributed VPN service, the backend architecture should evolve 
+into a decoupled "Brain and Edge" model.
+
+1. ARCHITECTURAL DECOUPLING (THE "BRAIN" VS. THE "EDGES")
+--------------------------------------------------------
+Current: Single Node.js server managing both users and VPN configuration.
+Professional:
+*   The Brain (Management API): Centralized Node.js/Go/Rust API for:
+    - User Authentication (OIDC/JWT).
+    - Subscription & Billing (Stripe/Apple/Google Pay integration).
+    - Node Monitoring & Health Checks.
+*   The Edge Nodes (VPN Gateways): Globally distributed "dumb" nodes that:
+    - Handle actual VPN traffic (WireGuard or Shadowsocks-Rust).
+    - Report real-time bandwidth usage back to the Brain via gRPC or MQTT.
+    - Pull the latest "Allowed Keys" list from the Brain every 60 seconds.
+
+2. CORE VPN PROTOCOLS (SPEED & STEALTH)
+---------------------------------------
+A professional service must offer a choice of protocols:
+*   WireGuard (UDP): The gold standard for speed and battery efficiency on 
+    mobile. Use 'wg-dynamic' or custom Go implementations for dynamic key 
+    management.
+*   Shadowsocks-Rust (TCP/UDP): Best for bypassing restrictive firewalls (GFW). 
+    Use AEAD ciphers (AES-256-GCM) and obfuscation plugins (v2ray-plugin/TLS).
+*   Automatic Protocol Switching: The Android app should try WireGuard first, 
+    and fall back to Shadowsocks if UDP is blocked.
+
+3. DATA & STORAGE (SCALABILITY)
+--------------------------------
+*   Primary Database: PostgreSQL (Managed) with read-replicas in major regions 
+    (US, EU, ASIA) to reduce latency for the mobile app.
+*   Real-time Cache: Redis for:
+    - Session tracking (limiting concurrent connections per user).
+    - Global "Node Status" (Online/Offline/Load).
+    - Rate-limiting API requests from the app.
+
+4. USER MANAGEMENT & SECURITY (TRUST)
+-------------------------------------
+*   Zero-Logs Policy: Implement "Diskless Boot" for edge nodes. All logs 
+    should be written to RAM and purged every hour.
+*   Encrypted Metadata: Store sensitive user data (subscription status, IDs) 
+    using Field-Level Encryption in PostgreSQL.
+*   Anti-Abuse: Implement 'iptables' or 'nftables' rules on edge nodes to 
+    block common torrenting ports or malicious traffic patterns to protect 
+    the node's IP reputation.
+
+5. GLOBAL LOAD BALANCING (THE "ANYCAST" APPROACH)
+--------------------------------------------------
+*   Smart DNS: Use a service like Cloudflare or Route53 with Geo-proximity 
+    routing so 'api.igy-vpn.com' always hits the closest Brain replica.
+*   Dynamic Latency Picker: The app should ping all available nodes and 
+    automatically select the "Igy Fast Lane" (lowest latency).
+
+6. OPS & AUTOMATED SCALING (GROWTH)
+------------------------------------
+*   Infrastructure as Code: Use Terraform to spin up new nodes in 
+    DigitalOcean, Vultr, or AWS in seconds.
+*   Observability:
+    - Prometheus + Grafana: For technical metrics (CPU, Bandwidth, Packets/sec).
+    - ELK/Loki: For anonymized access logs (to debug connection issues without 
+      compromising privacy).
+*   Automated Health Check: If an edge node's latency spikes or the process 
+    crashes, the Brain should automatically remove it from the "Available 
+    Regions" list in the mobile app.
+
+7. REVENUE & RETENTION (MONETIZATION)
+--------------------------------------
+*   Tiered Access:
+    - Free Tier: Limited bandwidth (e.g., 500MB/day), restricted to 1 region.
+    - Premium Tier: Unlimited bandwidth, all regions, 5 simultaneous devices.
+*   Promo Engine: Ability to generate "Vroom Codes" for marketing and support.
+
+------------------------------------------------------------
+IGY DEVELOPMENT: SECURITY WITHOUT COMPROMISE.

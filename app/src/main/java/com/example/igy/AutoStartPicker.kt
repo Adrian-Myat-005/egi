@@ -11,10 +11,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -26,10 +30,6 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 @Composable
 fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
-    val creamColor = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFFDF5E6)
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
     var selectedApps by remember { mutableStateOf(IgyPreferences.getAutoStartApps(context)) }
     var searchQuery by remember { mutableStateOf("") }
     
@@ -52,84 +52,42 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(creamColor)
-            .padding(8.dp)
-    ) {
-        // --- MATRIX HEADER ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .background(cardBg)
-                .border(0.5.dp, wheat)
+    VroomBackground(isDarkMode) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = 8.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(
-                    text = "IGY >> AUTO_START_TARGETS",
-                    color = Color(0xFF2D42FF),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .width(80.dp)
-                    .fillMaxHeight()
-                    .border(0.5.dp, wheat)
-                    .clickable { onBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("[ BACK ]", color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-            }
-        }
+            Spacer(modifier = Modifier.height(40.dp))
+            Text("AUTO-START TARGETS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Select apps to trigger Vroom automatically", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // Search Tile
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .background(cardBg)
-                .border(0.5.dp, wheat)
-                .padding(4.dp)
-        ) {
+            // Search Field
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxSize(),
-                textStyle = androidx.compose.ui.text.TextStyle(color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                placeholder = { Text("SEARCH_AUTO_TRIGGER_APP...", color = deepGray.copy(alpha = 0.3f), fontSize = 12.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search apps...", color = Color.White.copy(alpha = 0.3f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f)) },
                 singleLine = true,
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = Color.Cyan
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF00BFFF),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
                 )
             )
-        }
 
-        // List Grid
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(cardBg)
-                .border(0.5.dp, wheat)
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // App List
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(filteredApps) { app ->
-                    MatrixAutoStartRow(
+                    VroomAutoStartRow(
                         app = app,
-                        isDarkMode = isDarkMode,
                         isSelected = selectedApps.contains(app.packageName),
                         onToggle = {
                             val newList = selectedApps.toMutableSet()
@@ -139,59 +97,50 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     )
                 }
             }
-        }
 
-        // Confirm Button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(70.dp)
-                .background(cardBg)
-                .border(1.dp, Color(0xFF2D42FF))
-                .clickable {
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TactileVroomButton("BACK", modifier = Modifier.weight(1f), onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+                TactileVroomButton("SAVE", modifier = Modifier.weight(1f), onClick = {
                     IgyPreferences.setAutoStartApps(context, selectedApps)
-                    Toast.makeText(context, "AUTO_START_APPS_SAVED", Toast.LENGTH_SHORT).show()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "[ SAVE AUTO_TRIGGER_LIST ]",
-                color = Color(0xFF2D42FF),
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
+                    Toast.makeText(context, "Settings Saved", Toast.LENGTH_SHORT).show()
+                    onBack()
+                }, isDarkMode = isDarkMode, color = Color(0xFF00BFFF))
+            }
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-fun MatrixAutoStartRow(app: AppInfo, isDarkMode: Boolean, isSelected: Boolean, onToggle: () -> Unit) {
-    val deepGray = if (isDarkMode) Color.White else Color(0xFF2F4F4F)
-    val wheat = if (isDarkMode) Color(0xFF333333) else Color(0xFFF5DEB3)
-    val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(65.dp)
-            .background(cardBg)
-            .border(0.2.dp, wheat)
-            .clickable { onToggle() }
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+fun VroomAutoStartRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
+    Surface(
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) Color.White.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, if (isSelected) Color(0xFF00BFFF) else Color.White.copy(alpha = 0.05f))
     ) {
-        Image(painter = rememberDrawablePainter(drawable = app.icon), contentDescription = null, modifier = Modifier.size(32.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = app.name, color = deepGray, fontFamily = FontFamily.Monospace, fontSize = 13.sp, maxLines = 1)
-            Text(text = app.packageName, color = Color.Gray, fontFamily = FontFamily.Monospace, fontSize = 9.sp, maxLines = 1)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = rememberDrawablePainter(drawable = app.icon), 
+                contentDescription = null, 
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = app.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(text = app.packageName, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1)
+            }
+            Checkbox(
+                checked = isSelected, 
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFFF))
+            )
         }
-        Text(
-            text = if (isSelected) "[ TRIGGER ]" else "[ IGNORE ]",
-            color = if (isSelected) Color(0xFF2D42FF) else Color.Gray,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
