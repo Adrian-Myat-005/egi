@@ -121,7 +121,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
-                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium,
+                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium, currentScreen,
                     onOpenHub = { 
                         context.startActivity(Intent(context, SelectionHubActivity::class.java))
                     },
@@ -520,6 +520,7 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 fun VroomDashboard(
     isDarkMode: Boolean,
     isPremium: Boolean,
+    currentScreen: Screen,
     onOpenHub: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,

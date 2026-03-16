@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 
 @Composable
-fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     var selectedApps by remember { mutableStateOf(IgyPreferences.getAutoStartApps(context)) }
     var searchQuery by remember { mutableStateOf("") }

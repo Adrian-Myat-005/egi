@@ -1,6 +1,13 @@
 package com.example.igy
 
+import android.graphics.drawable.Drawable
 import kotlin.collections.ArrayDeque
+
+data class AppInfo(
+    val name: String,
+    val packageName: String,
+    val icon: Drawable
+)
 
 object PackageUtils {
     private val PACKAGE_GROUPS = mapOf(
