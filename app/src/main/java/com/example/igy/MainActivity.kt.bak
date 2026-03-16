@@ -121,7 +121,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
-                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium, currentScreen,
+                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium,
                     onOpenHub = { 
                         context.startActivity(Intent(context, SelectionHubActivity::class.java))
                     },
@@ -532,7 +532,6 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 fun VroomDashboard(
     isDarkMode: Boolean,
     isPremium: Boolean,
-    currentScreen: Screen,
     onOpenHub: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -598,7 +597,7 @@ fun VroomDashboard(
             
             // 2. DASHBOARD TEXT
             Text(
-                text = "IGY SHIELD",
+                text = "vroom VPN DASHBOARD",
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
@@ -621,10 +620,10 @@ fun VroomDashboard(
             // 4. STATUS TEXT
             Text(
                 text = when {
-                    connState == ConnectionState.CONNECTING -> "Status: CONNECTING..."
-                    isBooting -> "Status: INITIALIZING..."
-                    isSecure -> "Status: SHIELD ACTIVE"
-                    else -> "Status: READY"
+                    connState == ConnectionState.CONNECTING -> "Status: IGNITING..."
+                    isBooting -> "Status: WARMING UP..."
+                    isSecure -> "Status: VROOMING AT FULL SPEED."
+                    else -> "Status: READY TO CONNECT."
                 },
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 16.sp,
@@ -643,9 +642,9 @@ fun VroomDashboard(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BottomNavItem("Settings", Icons.Default.Settings, currentScreen == Screen.SETTINGS) { onOpenSettings() }
-                BottomNavItem("Servers", Icons.Default.Language, currentScreen == Screen.SERVERS) { onOpenServers() }
-                BottomNavItem("Account", Icons.Default.Person, currentScreen == Screen.ACCOUNT) { onOpenAccount() }
+                BottomNavItem("Settings", Icons.Default.Settings, onOpenSettings)
+                BottomNavItem("Servers", Icons.Default.Language, onOpenServers)
+                BottomNavItem("Account", Icons.Default.Person, onOpenAccount)
             }
         }
 
