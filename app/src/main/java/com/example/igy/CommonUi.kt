@@ -35,12 +35,6 @@ val AppDeepGray = Color(0xFF2F4F4F)
 val AppAccent = Color(0xFF1E90FF)
 val AppBlack = Color(0xFF121212)
 
-data class AppInfo(
-    val name: String,
-    val packageName: String,
-    val icon: Drawable
-)
-
 @Composable
 fun IgyEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     val colorScheme = if (isDarkMode) {

@@ -420,12 +420,6 @@ fun IgyTextField(value: String, onValueChange: (String) -> Unit, label: String, 
     )
 }
 
-@Composable
-fun IgyAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
-    // This will be implemented in AutoStartPicker.kt but we reference it here
-    AutoStartPickerScreen(isDarkMode, onBack)
-}
-
 private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObject> = withContext(Dispatchers.IO) {
     try {
         val url = java.net.URL("$serverUrl/api/vpn/regions")
