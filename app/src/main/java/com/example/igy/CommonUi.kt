@@ -42,7 +42,7 @@ data class AppInfo(
 )
 
 @Composable
-fun VroomEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
+fun IgyEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
     val colorScheme = if (isDarkMode) {
         androidx.compose.material3.darkColorScheme(
             primary = Color(0xFF00BFFF), 
@@ -82,7 +82,7 @@ fun VroomEngineTheme(isDarkMode: Boolean, content: @Composable () -> Unit) {
 }
 
 @Composable
-fun VroomBackground(isDarkMode: Boolean, content: @Composable BoxScope.() -> Unit) {
+fun IgyBackground(isDarkMode: Boolean, content: @Composable BoxScope.() -> Unit) {
     val bgColor = if (isDarkMode) Color(0xFF020C1F) else Color(0xFFE6F3FF)
     val secondaryColor = if (isDarkMode) Color(0xFF051937) else Color(0xFFCCE5FF)
     
@@ -123,7 +123,7 @@ fun VroomBackground(isDarkMode: Boolean, content: @Composable BoxScope.() -> Uni
 }
 
 @Composable
-fun VroomCircularButton(
+fun IgyCircularButton(
     isActive: Boolean,
     isBooting: Boolean,
     onClick: () -> Unit,
@@ -221,7 +221,7 @@ fun VroomCircularButton(
 }
 
 @Composable
-fun TactileVroomButton(
+fun TactileIgyButton(
     text: String,
     modifier: Modifier = Modifier,
     isDarkMode: Boolean = false,
@@ -307,7 +307,7 @@ fun BottomNavItem(label: String, icon: ImageVector, isSelected: Boolean = false,
 }
 
 @Composable
-fun VroomTactileSwitch(
+fun IgyTactileSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     label: String

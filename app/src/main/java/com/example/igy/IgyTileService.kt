@@ -132,7 +132,7 @@ class IgyTileService : TileService() {
         
         if (isRunning) {
             tile.state = Tile.STATE_ACTIVE
-            tile.label = "Vroom Engine"
+            tile.label = "Igy Engine"
             if (isAuto) {
                 tile.subtitle = if (TrafficEvent.vpnActive.value) "AUTO: PROTECTING" else "AUTO: IDLE"
             } else {
@@ -140,7 +140,7 @@ class IgyTileService : TileService() {
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
-            tile.label = "Vroom Engine"
+            tile.label = "Igy Engine"
             tile.subtitle = "OFF"
         }
         tile.updateTile()

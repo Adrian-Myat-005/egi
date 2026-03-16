@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var isDarkMode by remember { mutableStateOf(IgyPreferences.isDarkMode(this)) }
-            VroomEngineTheme(isDarkMode) {
+            IgyEngineTheme(isDarkMode) {
                 MainContent(isDarkMode, onThemeChange = { 
                     isDarkMode = it
                     IgyPreferences.setDarkMode(this, it)
@@ -121,7 +121,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             label = "ScreenTransition"
         ) { screen ->
             when (screen) {
-                Screen.TERMINAL -> VroomDashboard(isDarkMode, isPremium, currentScreen,
+                Screen.TERMINAL -> IgyDashboard(isDarkMode, isPremium, currentScreen,
                     onOpenHub = { 
                         context.startActivity(Intent(context, SelectionHubActivity::class.java))
                     },
@@ -130,14 +130,14 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                     onOpenServers = { currentScreen = Screen.SERVERS },
                     onShowLogs = { showLogs = true }
                 )
-                Screen.ACCOUNT -> VroomAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
-                Screen.SERVERS -> VroomServerSelectionScreen(isDarkMode, isPremium, onBack = { currentScreen = Screen.TERMINAL })
-                Screen.SETTINGS -> VroomSettingsScreen(isDarkMode, isPremium, onThemeChange, 
+                Screen.ACCOUNT -> IgyAccountScreen(isDarkMode, onBack = { currentScreen = Screen.TERMINAL })
+                Screen.SERVERS -> IgyServerSelectionScreen(isDarkMode, isPremium, onBack = { currentScreen = Screen.TERMINAL })
+                Screen.SETTINGS -> IgySettingsScreen(isDarkMode, isPremium, onThemeChange, 
                     onBack = { currentScreen = Screen.TERMINAL }, 
                     onOpenAutoStartPicker = { currentScreen = Screen.AUTO_START_PICKER },
                     onOpenAccount = { currentScreen = Screen.ACCOUNT }
                 )
-                Screen.AUTO_START_PICKER -> VroomAutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
+                Screen.AUTO_START_PICKER -> IgyAutoStartPickerScreen(isDarkMode, onBack = { currentScreen = Screen.SETTINGS })
             }
         }
 
@@ -169,7 +169,7 @@ fun MainContent(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
 }
 
 @Composable
-fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit, onOpenAccount: () -> Unit) {
+fun IgySettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: (Boolean) -> Unit, onBack: () -> Unit, onOpenAutoStartPicker: () -> Unit, onOpenAccount: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -177,7 +177,7 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
     var updateStatus by remember { mutableStateOf("V$currentVersion (LATEST)") }
     var isChecking by remember { mutableStateOf(false) }
 
-    VroomBackground(isDarkMode) {
+    IgyBackground(isDarkMode) {
         Column(
             modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -187,10 +187,10 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             Spacer(modifier = Modifier.height(24.dp))
 
             // Permissions
-            VroomSettingsHeader("SYSTEM PERMISSIONS")
+            IgySettingsHeader("SYSTEM PERMISSIONS")
             
             val isVpnPrepared = android.net.VpnService.prepare(context) == null
-            VroomPermissionItem("VPN Service Access", isVpnPrepared) {
+            IgyPermissionItem("VPN Service Access", isVpnPrepared) {
                 val intent = android.net.VpnService.prepare(context)
                 if (intent != null) context.startActivity(intent)
             }
@@ -199,7 +199,7 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 pm.isIgnoringBatteryOptimizations(context.packageName)
             } else true
-            VroomPermissionItem("Battery Optimization", isIgnoringBattery) {
+            IgyPermissionItem("Battery Optimization", isIgnoringBattery) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     try {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -213,16 +213,16 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            VroomSettingsHeader("NETWORK CONTROL")
+            IgySettingsHeader("NETWORK CONTROL")
             
             var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-            VroomSettingsToggle("Local Network Access", localBypass) {
+            IgySettingsToggle("Local Network Access", localBypass) {
                 localBypass = it
                 IgyPreferences.setLocalBypass(context, it)
             }
 
             var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
-            VroomSettingsToggle("Auto-Connect VPN", autoStartTrigger) { enabled ->
+            IgySettingsToggle("Auto-Connect VPN", autoStartTrigger) { enabled ->
                 if (enabled && !isPremium) {
                     onOpenAccount()
                 } else {
@@ -232,16 +232,16 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             }
             
             if (autoStartTrigger) {
-                TactileVroomButton("Configure Auto-Apps", isDarkMode = isDarkMode, onClick = onOpenAutoStartPicker, color = Color.White.copy(alpha = 0.1f))
+                TactileIgyButton("Configure Auto-Apps", isDarkMode = isDarkMode, onClick = onOpenAutoStartPicker, color = Color.White.copy(alpha = 0.1f))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            VroomSettingsHeader("SOFTWARE")
+            IgySettingsHeader("SOFTWARE")
             Text("Version: $currentVersion", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
             Text("Status: $updateStatus", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
             
             Spacer(modifier = Modifier.height(12.dp))
-            TactileVroomButton("CHECK FOR UPDATES", isDarkMode = isDarkMode, isLoading = isChecking, onClick = {
+            TactileIgyButton("CHECK FOR UPDATES", isDarkMode = isDarkMode, isLoading = isChecking, onClick = {
                 scope.launch {
                     isChecking = true
                     val latestVersion = checkForGithubUpdate(currentVersion)
@@ -257,19 +257,19 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             })
 
             Spacer(modifier = Modifier.height(32.dp))
-            TactileVroomButton("BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            TactileIgyButton("BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-fun VroomSettingsHeader(title: String) {
+fun IgySettingsHeader(title: String) {
     Text(title, color = Color(0xFF00BFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
 }
 
 @Composable
-fun VroomSettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun IgySettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -281,7 +281,7 @@ fun VroomSettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boole
 }
 
 @Composable
-fun VroomPermissionItem(label: String, granted: Boolean, onClick: () -> Unit) {
+fun IgyPermissionItem(label: String, granted: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -326,7 +326,7 @@ private suspend fun checkForGithubUpdate(currentVersion: String): String? = with
 }
 
 @Composable
-fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+fun IgyAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -336,7 +336,7 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     var isAuthenticating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    VroomBackground(isDarkMode) {
+    IgyBackground(isDarkMode) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -360,12 +360,12 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(40.dp))
 
             if (token.isEmpty()) {
-                VroomTextField(value = username, onValueChange = { username = it }, label = "Username")
+                IgyTextField(value = username, onValueChange = { username = it }, label = "Username")
                 Spacer(modifier = Modifier.height(12.dp))
-                VroomTextField(value = password, onValueChange = { password = it }, label = "Password", isPassword = true)
+                IgyTextField(value = password, onValueChange = { password = it }, label = "Password", isPassword = true)
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                TactileVroomButton("SIGN IN", isLoading = isAuthenticating, onClick = {
+                TactileIgyButton("SIGN IN", isLoading = isAuthenticating, onClick = {
                     scope.launch {
                         isAuthenticating = true
                         val result = performAuth(serverUrl, username.trim(), password, false)
@@ -383,14 +383,14 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     }
                 })
             } else {
-                TactileVroomButton("LOGOUT", color = Color.Red.copy(alpha = 0.6f), onClick = {
+                TactileIgyButton("LOGOUT", color = Color.Red.copy(alpha = 0.6f), onClick = {
                     IgyPreferences.clearAuth(context)
                     authData = IgyPreferences.getAuth(context)
                 })
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            TactileVroomButton("GET PREMIUM", color = Color(0xFF00BFFF), onClick = {
+            TactileIgyButton("GET PREMIUM", color = Color(0xFF00BFFF), onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/Amyat604"))
                 context.startActivity(intent)
             })
@@ -402,7 +402,7 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false) {
+fun IgyTextField(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -421,7 +421,7 @@ fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String
 }
 
 @Composable
-fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+fun IgyAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     // This will be implemented in AutoStartPicker.kt but we reference it here
     AutoStartPickerScreen(isDarkMode, onBack)
 }
@@ -529,7 +529,7 @@ private suspend fun fetchVpnConfig(serverUrl: String, token: String, nodeId: Int
 }
 
 @Composable
-fun VroomDashboard(
+fun IgyDashboard(
     isDarkMode: Boolean,
     isPremium: Boolean,
     currentScreen: Screen,
@@ -578,7 +578,7 @@ fun VroomDashboard(
         }
     }
 
-    VroomBackground(isDarkMode) {
+    IgyBackground(isDarkMode) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -608,7 +608,7 @@ fun VroomDashboard(
             Spacer(modifier = Modifier.weight(1f))
             
             // 3. MAIN CONNECT BUTTON
-            VroomCircularButton(
+            IgyCircularButton(
                 isActive = isSecure,
                 isBooting = isBooting,
                 onClick = {
@@ -666,7 +666,7 @@ fun VroomDashboard(
 }
 
 @Composable
-fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: () -> Unit) {
+fun IgyServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val serverUrl = remember { IgyPreferences.getSyncEndpoint(context) ?: "https://egi-67tg.onrender.com" }
@@ -708,7 +708,7 @@ fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: 
         }
     }
 
-    VroomBackground(isDarkMode) {
+    IgyBackground(isDarkMode) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -754,7 +754,7 @@ fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: 
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            TactileVroomButton(text = "BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            TactileIgyButton(text = "BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
@@ -954,7 +954,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
     val cardBg = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        TactileVroomButton(
+        TactileIgyButton(
             text = "Install Smart Button (One-Tap)",
             isDarkMode = isDarkMode,
             color = vroomBlack.copy(alpha = 0.1f),
@@ -965,7 +965,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
                     val icon = android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_shield_status)
                     statusBarManager.requestAddTileService(
                         componentName,
-                        "Vroom Engine",
+                        "Igy Engine",
                         icon,
                         { it.run() },
                         { _ -> }
@@ -988,7 +988,7 @@ fun TileInstallerSection(isDarkMode: Boolean) {
                     Spacer(modifier = Modifier.height(16.dp))
                     TileInstallationAnimation(isDarkMode)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("1. Swipe down twice from top status bar.\n2. Click the Pencil (Edit) icon.\n3. Find 'Vroom Engine' and drag it up to your active buttons.", 
+                    Text("1. Swipe down twice from top status bar.\n2. Click the Pencil (Edit) icon.\n3. Find 'Igy Engine' and drag it up to your active buttons.", 
                         color = Color.Gray, fontSize = 9.sp, fontFamily = FontFamily.Monospace, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
@@ -1035,7 +1035,7 @@ fun TileInstallationAnimation(isDarkMode: Boolean) {
         // Notification Panel
         Box(modifier = Modifier.size(160.dp, fingerY.dp).background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)))
         
-        // Vroom Icon dragging
+        // Igy Icon dragging
         Icon(
             imageVector = Icons.Default.Speed,
             contentDescription = null,

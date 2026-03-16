@@ -371,16 +371,16 @@ class IgyVpnService : VpnService(), Runnable {
             val appName = if (currentApp.isNotEmpty()) getAppName(currentApp) else ""
             
             val activeLabel = when {
-                isStealth && isGlobal -> "🔒 [GLOBAL] SHIELD ACTIVE"
-                isStealth -> if (appName.isNotEmpty()) "🔒 [VPN] >> $appName" else "🔒 [FOCUS] SHIELD ACTIVE"
-                else -> if (appName.isNotEmpty()) "🛡️ [BOOST] >> $appName" else "🛡️ [SPEED] SHIELD ACTIVE"
+                isStealth && isGlobal -> "🔒 [GLOBAL] VPN ACTIVE"
+                isStealth -> if (appName.isNotEmpty()) "🔒 [VPN] >> $appName" else "🔒 [FOCUS] VPN ACTIVE"
+                else -> if (appName.isNotEmpty()) "🚀 [BOOST] >> $appName" else "🚀 [SPEED] BOOST ACTIVE"
             }
             
             stopLoadingAnimation()
             updateNotification(activeLabel)
             TrafficEvent.setVpnActive(true)
             TrafficEvent.setConnectionState(ConnectionState.CONNECTED)
-            if (appName.isNotEmpty()) showIslandPopup("Shield Protected: $appName", isConnect = true)
+            if (appName.isNotEmpty()) showIslandPopup("Connected to $appName", isConnect = true)
 
             // LOCAL-FIRST KEY STRATEGY (Instant Connection)
             val (token, _, _) = IgyPreferences.getAuth(this)

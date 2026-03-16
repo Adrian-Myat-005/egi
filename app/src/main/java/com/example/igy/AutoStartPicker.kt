@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 
 @Composable
-fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
+fun IgyAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
     var selectedApps by remember { mutableStateOf(IgyPreferences.getAutoStartApps(context)) }
     var searchQuery by remember { mutableStateOf("") }
@@ -55,7 +55,7 @@ fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
         else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
-    VroomBackground(isDarkMode) {
+    IgyBackground(isDarkMode) {
         Column(
             modifier = Modifier.fillMaxSize().padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -63,7 +63,7 @@ fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(40.dp))
             Text("AUTO-START TARGETS", color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Select apps to trigger Vroom automatically", color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            Text("Select apps to trigger Igy automatically", color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -89,7 +89,7 @@ fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             // App List
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(filteredApps) { app ->
-                    VroomAutoStartRow(
+                    IgyAutoStartRow(
                         app = app,
                         isSelected = selectedApps.contains(app.packageName),
                         isDarkMode = isDarkMode,
@@ -105,8 +105,8 @@ fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TactileVroomButton("BACK", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = onBack)
-                TactileVroomButton("SAVE", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = {
+                TactileIgyButton("BACK", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = onBack)
+                TactileIgyButton("SAVE", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = {
                     IgyPreferences.setAutoStartApps(context, selectedApps)
                     Toast.makeText(context, "Config Saved", Toast.LENGTH_SHORT).show()
                     onBack()
@@ -118,7 +118,7 @@ fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-fun VroomAutoStartRow(app: AppInfo, isSelected: Boolean, isDarkMode: Boolean, onToggle: () -> Unit) {
+fun IgyAutoStartRow(app: AppInfo, isSelected: Boolean, isDarkMode: Boolean, onToggle: () -> Unit) {
     Surface(
         onClick = onToggle,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

@@ -72,7 +72,7 @@ A professional service must offer a choice of protocols:
 *   Tiered Access:
     - Free Tier: Limited bandwidth (e.g., 500MB/day), restricted to 1 region.
     - Premium Tier: Unlimited bandwidth, all regions, 5 simultaneous devices.
-*   Promo Engine: Ability to generate "Vroom Codes" for marketing and support.
+*   Promo Engine: Ability to generate "Igy Codes" for marketing and support.
 
 ------------------------------------------------------------
 IGY DEVELOPMENT: SECURITY WITHOUT COMPROMISE.

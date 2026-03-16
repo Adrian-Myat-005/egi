@@ -1,7 +1,7 @@
 VROOM ENGINE: PROFESSIONAL BACKEND ARCHITECTURE SUGGESTIONS
 ===========================================================
 
-To transition from a prototype to a professional-grade VPN service, the backend (Vroom Engine Server) should focus on high-concurrency, security hardening, and automated node management.
+To transition from a prototype to a professional-grade VPN service, the backend (Igy Engine Server) should focus on high-concurrency, security hardening, and automated node management.
 
 1. CORE PROXY TECHNOLOGY (The Engine)
 --------------------------------------
@@ -13,7 +13,7 @@ To transition from a prototype to a professional-grade VPN service, the backend 
 -------------------------------------
 *   Multi-Node Controller: Implement a "Brain" server (Node.js/Go) that manages "Edge" nodes (the actual VPN servers).
 *   Dynamic Sync: The mobile app should fetch a signed JSON/Protobuf list of nodes via a REST API with ETag caching.
-*   Geographic Load Balancing: Use GeoDNS or a simple latency-based picker in the app to suggest the closest "Vroom Pit Stop" (Node).
+*   Geographic Load Balancing: Use GeoDNS or a simple latency-based picker in the app to suggest the closest "Igy Pit Stop" (Node).
 
 3. USER MANAGEMENT & BILLING
 -----------------------------
@@ -31,7 +31,7 @@ To transition from a prototype to a professional-grade VPN service, the backend 
 --------------------
 *   Prometheus + Grafana: Monitor CPU, RAM, and Bandwidth of every node in a single dashboard.
 *   Uptime Kuma: Set up automated pings from multiple global locations to ensure the "Engine" isn't stalling in specific countries.
-*   Automated Deployment: Use Docker + Ansible to spin up a new "Vroom Node" in under 5 minutes.
+*   Automated Deployment: Use Docker + Ansible to spin up a new "Igy Node" in under 5 minutes.
 
 6. API IMPROVEMENTS
 --------------------
@@ -39,4 +39,4 @@ To transition from a prototype to a professional-grade VPN service, the backend 
 *   Certificate Pinning: Hardcode the server's SSL certificate hash in the Android app to prevent Man-in-the-Middle (MITM) attacks.
 
 -----------------------------------------------------------
-Vroom Engine: Speed. Stability. Security.
+Igy Engine: Speed. Stability. Security.

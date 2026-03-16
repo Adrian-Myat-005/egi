@@ -68,7 +68,7 @@ class SelectionHubActivity : ComponentActivity() {
                 showContent = true
             }
 
-            VroomEngineTheme(isDarkMode) {
+            IgyEngineTheme(isDarkMode) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Background Dim & Dismiss
                     Surface(
@@ -89,7 +89,7 @@ class SelectionHubActivity : ComponentActivity() {
                         modifier = Modifier.align(Alignment.TopCenter)
                     ) {
                         Box(modifier = Modifier.padding(top = 40.dp)) {
-                            VroomFocusHub(isDarkMode, onAction = { 
+                            IgyFocusHub(isDarkMode, onAction = { 
                                 showContent = false
                                 finish() 
                             })
@@ -103,7 +103,7 @@ class SelectionHubActivity : ComponentActivity() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
+fun IgyFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
     val context = LocalContext.current
     val vroomNavy = Color(0xFF020C1F)
     val vroomBlue = Color(0xFF00BFFF)
@@ -164,13 +164,13 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
         Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             
             // 1. HUB HEADER
-            VroomHubHeader(isVpnActive, vroomBlue)
+            IgyHubHeader(isVpnActive, vroomBlue)
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // 2. MASTER TILES
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                VroomHubTile(
+                IgyHubTile(
                     label = "BOOST",
                     icon = Icons.Default.Speed,
                     isActive = isVpnActive && !isStealth,
@@ -180,7 +180,7 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
                     isLibraryExpanded = true
                 }
 
-                VroomHubTile(
+                IgyHubTile(
                     label = "GLOBAL",
                     icon = Icons.Default.Language,
                     isActive = isVpnActive && isStealth && isGlobal,
@@ -192,7 +192,7 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
                     onAction()
                 }
 
-                VroomHubTile(
+                IgyHubTile(
                     label = "FOCUS",
                     icon = Icons.Default.FilterCenterFocus,
                     isActive = isVpnActive && isStealth && !isGlobal,
@@ -273,7 +273,7 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
                 Column {
                     LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                         itemsIndexed(installedApps) { _, app ->
-                            VroomHubAppItem(
+                            IgyHubAppItem(
                                 app = app,
                                 isPremium = isPremium,
                                 isSelected = selectedApps.contains(app.packageName),
@@ -293,7 +293,7 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
                     }
                     if (isMultiSelectMode && selectedApps.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        TactileVroomButton("START PROTECTING (${selectedApps.size} APPS)", color = vroomBlue, onClick = {
+                        TactileIgyButton("START PROTECTING (${selectedApps.size} APPS)", color = vroomBlue, onClick = {
                             IgyPreferences.saveCasualWhitelist(context, selectedApps)
                             activateMode(context, AppMode.CASUAL, isGlobal = false, isStealth = true, targetApp = null)
                             onAction()
@@ -312,7 +312,7 @@ fun VroomFocusHub(isDarkMode: Boolean, onAction: () -> Unit) {
 }
 
 @Composable
-fun VroomHubHeader(isActive: Boolean, activeColor: Color) {
+fun IgyHubHeader(isActive: Boolean, activeColor: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Surface(
             shape = CircleShape,
@@ -330,7 +330,7 @@ fun VroomHubHeader(isActive: Boolean, activeColor: Color) {
 }
 
 @Composable
-fun VroomHubTile(
+fun IgyHubTile(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     isActive: Boolean,
@@ -356,7 +356,7 @@ fun VroomHubTile(
 }
 
 @Composable
-fun VroomHubAppItem(
+fun IgyHubAppItem(
     app: AppInfo, 
     isPremium: Boolean,
     isSelected: Boolean,
