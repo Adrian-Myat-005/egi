@@ -210,7 +210,7 @@
         </header>
 
         <div class="section">
-            <div class="section-title">COMMAND >> RIGYSTER_NEW_USER</div>
+            <div class="section-title">COMMAND >> REGISTER_NEW_USER</div>
             <div class="register-form">
                 <div>
                     <label><small>USERNAME</small></label>
@@ -220,15 +220,15 @@
                     <label><small>PASSWORD</small></label>
                     <input type="password" id="reg-pass" autocomplete="new-password">
                 </div>
-                <button class="btn-primary" onclick="registerUser()">RIGYSTER</button>
+                <button class="btn-primary" onclick="registerUser()">REGISTER</button>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-title">COMMAND >> MANAGE_VPN_RIGYONS</div>
+            <div class="section-title">COMMAND >> MANAGE_VPN_REGIONS</div>
             <div class="register-form">
                 <div>
-                    <label><small>RIGYON_NAME</small></label>
+                    <label><small>REGION_NAME</small></label>
                     <input type="text" id="node-name" placeholder="e.g. Singapore_Node_1">
                 </div>
                 <div>
@@ -377,7 +377,7 @@
             const password = document.getElementById('reg-pass').value;
             if (!username || !password) return alert("MISSING_DATA");
 
-            log(`RIGYSTERING ${username}...`);
+            log(`REGISTERING ${username}...`);
             const res = await fetch(`/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -496,7 +496,7 @@
         }
 
         async function deleteNode(id) {
-            if (!confirm(`DELETE THIS RIGYON?`)) return;
+            if (!confirm(`DELETE THIS REGION?`)) return;
             await fetch(`/api/admin/nodes/delete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-admin-auth': adminSecret },

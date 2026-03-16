@@ -183,14 +183,14 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(40.dp))
-            Text("ENGINE SETTINGS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("SYSTEM CONFIG", color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(24.dp))
 
             // Permissions
-            VroomSettingsHeader("SYSTEM PERMISSIONS")
+            VroomSettingsHeader("PERMISSIONS", isDarkMode)
             
             val isVpnPrepared = android.net.VpnService.prepare(context) == null
-            VroomPermissionItem("VPN Service Access", isVpnPrepared) {
+            VroomPermissionItem("VPN Service Access", isVpnPrepared, isDarkMode) {
                 val intent = android.net.VpnService.prepare(context)
                 if (intent != null) context.startActivity(intent)
             }
@@ -199,7 +199,7 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             val isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 pm.isIgnoringBatteryOptimizations(context.packageName)
             } else true
-            VroomPermissionItem("Battery Optimization", isIgnoringBattery) {
+            VroomPermissionItem("Battery Optimization", isIgnoringBattery, isDarkMode) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     try {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -213,32 +213,31 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            VroomSettingsHeader("NETWORK CONTROL")
+            VroomSettingsHeader("NETWORK", isDarkMode)
             
             var localBypass by remember { mutableStateOf(IgyPreferences.getLocalBypass(context)) }
-            VroomSettingsToggle("Local Network Access", localBypass) {
+            VroomTactileSwitch(checked = localBypass, onCheckedChange = {
                 localBypass = it
                 IgyPreferences.setLocalBypass(context, it)
-            }
+            }, label = "Local Network Access")
 
             var autoStartTrigger by remember { mutableStateOf(IgyPreferences.isAutoStartTriggerEnabled(context)) }
-            VroomSettingsToggle("Auto-Connect VPN", autoStartTrigger) { enabled ->
+            VroomTactileSwitch(checked = autoStartTrigger, onCheckedChange = { enabled ->
                 if (enabled && !isPremium) {
                     onOpenAccount()
                 } else {
                     autoStartTrigger = enabled
                     IgyPreferences.setAutoStartTriggerEnabled(context, enabled)
                 }
-            }
+            }, label = "Auto-Connect VPN")
             
             if (autoStartTrigger) {
-                TactileVroomButton("Configure Auto-Apps", isDarkMode = isDarkMode, onClick = onOpenAutoStartPicker, color = Color.White.copy(alpha = 0.1f))
+                TactileVroomButton("CONFIGURE APPS", isDarkMode = isDarkMode, onClick = onOpenAutoStartPicker)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            VroomSettingsHeader("SOFTWARE")
-            Text("Version: $currentVersion", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
-            Text("Status: $updateStatus", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+            VroomSettingsHeader("SOFTWARE", isDarkMode)
+            Text("Version: $currentVersion", color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.6f), fontSize = 14.sp, fontFamily = FontFamily.Monospace)
             
             Spacer(modifier = Modifier.height(12.dp))
             TactileVroomButton("CHECK FOR UPDATES", isDarkMode = isDarkMode, isLoading = isChecking, onClick = {
@@ -257,48 +256,36 @@ fun VroomSettingsScreen(isDarkMode: Boolean, isPremium: Boolean, onThemeChange: 
             })
 
             Spacer(modifier = Modifier.height(32.dp))
-            TactileVroomButton("BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            TactileVroomButton("BACK", onClick = onBack, isDarkMode = isDarkMode)
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-fun VroomSettingsHeader(title: String) {
-    Text(title, color = Color(0xFF00BFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+fun VroomSettingsHeader(title: String, isDarkMode: Boolean) {
+    Text(title, color = AppAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
 }
 
 @Composable
-fun VroomSettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = Color.White, fontSize = 16.sp)
-        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00BFFF)))
-    }
-}
-
-@Composable
-fun VroomPermissionItem(label: String, granted: Boolean, onClick: () -> Unit) {
+fun VroomPermissionItem(label: String, granted: Boolean, isDarkMode: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, if (granted) Color(0xFF00BFFF).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(8.dp),
+        color = if (isDarkMode) Color(0xFF2A2A2A) else AppWhite,
+        border = BorderStroke(1.dp, if (granted) AppAccent.copy(alpha = 0.3f) else AppShadow)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = if (granted) Icons.Default.CheckCircle else Icons.Default.Warning,
                 contentDescription = null,
-                tint = if (granted) Color(0xFF00BFFF) else Color.Red.copy(alpha = 0.7f),
+                tint = if (granted) AppAccent else Color.Red.copy(alpha = 0.7f),
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(label, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            Text(if (granted) "OK" else "FIX", color = if (granted) Color(0xFF00BFFF) else Color.Red, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            Text(label, color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 15.sp, modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
+            Text(if (granted) "OK" else "FIX", color = if (granted) AppAccent else Color.Red, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -342,30 +329,31 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("VROOM ACCOUNT", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("ENGINE ACCESS", color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                if (token.isEmpty()) "Sign in to activate Premium" else "Welcome back, $savedUser",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp
+                if (token.isEmpty()) "Sign in to activate Premium" else "Operator: $savedUser",
+                color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.6f),
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace
             )
             
             if (isPremium) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Surface(color = Color(0xFF00BFFF).copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color(0xFF00BFFF))) {
-                    Text("PREMIUM ACTIVE", color = Color(0xFF00BFFF), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                Surface(color = AppAccent.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, AppAccent)) {
+                    Text("PREMIUM ACTIVE", color = AppAccent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontFamily = FontFamily.Monospace)
                 }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
             if (token.isEmpty()) {
-                VroomTextField(value = username, onValueChange = { username = it }, label = "Username")
+                VroomTextField(value = username, onValueChange = { username = it }, label = "Username", isDarkMode)
                 Spacer(modifier = Modifier.height(12.dp))
-                VroomTextField(value = password, onValueChange = { password = it }, label = "Password", isPassword = true)
+                VroomTextField(value = password, onValueChange = { password = it }, label = "Password", isDarkMode, isPassword = true)
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                TactileVroomButton("SIGN IN", isLoading = isAuthenticating, onClick = {
+                TactileVroomButton("SIGN IN", isLoading = isAuthenticating, isDarkMode = isDarkMode, onClick = {
                     scope.launch {
                         isAuthenticating = true
                         val result = performAuth(serverUrl, username.trim(), password, false)
@@ -383,40 +371,40 @@ fun VroomAccountScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     }
                 })
             } else {
-                TactileVroomButton("LOGOUT", color = Color.Red.copy(alpha = 0.6f), onClick = {
+                TactileVroomButton("LOGOUT", color = Color.Red.copy(alpha = 0.6f), isDarkMode = isDarkMode, onClick = {
                     IgyPreferences.clearAuth(context)
                     authData = IgyPreferences.getAuth(context)
                 })
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            TactileVroomButton("GET PREMIUM", color = Color(0xFF00BFFF), onClick = {
+            TactileVroomButton("GET PREMIUM", isDarkMode = isDarkMode, onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/Amyat604"))
                 context.startActivity(intent)
             })
 
             Spacer(modifier = Modifier.height(32.dp))
-            Text("Back", color = Color.White, modifier = Modifier.clickable { onBack() }, fontWeight = FontWeight.Bold)
+            Text("BACK", color = if (isDarkMode) Color.White else AppDeepGray, modifier = Modifier.clickable { onBack() }, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
         }
     }
 }
 
 @Composable
-fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false) {
+fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String, isDarkMode: Boolean, isPassword: Boolean = false) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, color = Color.White.copy(alpha = 0.4f)) },
-        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label, color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.4f), fontFamily = FontFamily.Monospace) },
+        modifier = Modifier.fillMaxWidth().background(if (isDarkMode) Color(0xFF1A1A1A) else AppWhite, RoundedCornerShape(8.dp)),
         visualTransformation = if (isPassword) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = Color(0xFF00BFFF),
-            unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-            cursorColor = Color(0xFF00BFFF)
+            focusedTextColor = if (isDarkMode) Color.White else AppDeepGray,
+            unfocusedTextColor = if (isDarkMode) Color.White else AppDeepGray,
+            focusedBorderColor = AppAccent,
+            unfocusedBorderColor = AppShadow,
+            cursorColor = AppAccent
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(8.dp)
     )
 }
 
@@ -597,11 +585,11 @@ fun VroomDashboard(
             
             // 2. DASHBOARD TEXT
             Text(
-                text = "vroom VPN DASHBOARD",
-                color = Color.White,
+                text = "VROOM CONNECT",
+                color = if (isDarkMode) Color.White else AppDeepGray,
                 fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.SansSerif
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = FontFamily.Monospace
             )
             
             Spacer(modifier = Modifier.weight(1f))
@@ -620,31 +608,34 @@ fun VroomDashboard(
             // 4. STATUS TEXT
             Text(
                 text = when {
-                    connState == ConnectionState.CONNECTING -> "Status: IGNITING..."
-                    isBooting -> "Status: WARMING UP..."
-                    isSecure -> "Status: VROOMING AT FULL SPEED."
-                    else -> "Status: READY TO CONNECT."
+                    connState == ConnectionState.CONNECTING -> "ENGINE: IGNITING..."
+                    isBooting -> "SYSTEM: WARMING UP..."
+                    isSecure -> "SHIELD: ACTIVE"
+                    else -> "SYSTEM: READY"
                 },
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 16.sp,
-                fontFamily = FontFamily.SansSerif
+                color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.6f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
             )
             
             Spacer(modifier = Modifier.weight(1.2f))
             
             // 6. BOTTOM NAVIGATION
-            Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .background(Color.Black.copy(alpha = 0.2f)),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier.fillMaxWidth().height(80.dp),
+                color = if (isDarkMode) Color.Black else AppWhite,
+                border = BorderStroke(1.dp, AppShadow)
             ) {
-                BottomNavItem("Settings", Icons.Default.Settings, onOpenSettings)
-                BottomNavItem("Servers", Icons.Default.Language, onOpenServers)
-                BottomNavItem("Account", Icons.Default.Person, onOpenAccount)
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BottomNavItem("SETTINGS", Icons.Default.Settings, currentScreen == Screen.SETTINGS) { onOpenSettings() }
+                    BottomNavItem("SERVERS", Icons.Default.Language, currentScreen == Screen.SERVERS) { onOpenServers() }
+                    BottomNavItem("ACCOUNT", Icons.Default.Person, currentScreen == Screen.ACCOUNT) { onOpenAccount() }
+                }
             }
         }
 
@@ -713,22 +704,22 @@ fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: 
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(40.dp))
-            Text("SELECT VROOM NODE", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("VROOM NODES", color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(24.dp))
 
             if (token.isEmpty()) {
-                Text("Login to access global nodes", color = Color.White.copy(alpha = 0.6f))
+                Text("Login to access global nodes", color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.6f), fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(16.dp))
             } else if (!isPremium) {
-                Text("Premium Required for Region Selection", color = Color.Red.copy(alpha = 0.8f))
+                Text("Premium Required for Region Selection", color = Color.Red.copy(alpha = 0.8f), fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(16.dp))
             } else if (isLoading) {
-                CircularProgressIndicator(color = Color.White)
+                CircularProgressIndicator(color = AppDeepGray)
                 Spacer(modifier = Modifier.height(16.dp))
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     item {
-                        ServerItem("Standard Gateway", -1, selectedNodeId == -1, pings[-1]) {
+                        ServerItem("Standard Gateway", -1, selectedNodeId == -1, isDarkMode, pings[-1]) {
                             IgyPreferences.setSelectedNodeId(context, -1)
                             IgyPreferences.setSelectedNodeName(context, "Standard Gateway")
                             selectedNodeId = -1
@@ -737,7 +728,7 @@ fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: 
                     items(regions) { region ->
                         val id = region.getInt("id")
                         val name = region.getString("regionName")
-                        ServerItem(name, id, selectedNodeId == id, pings[id]) {
+                        ServerItem(name, id, selectedNodeId == id, isDarkMode, pings[id]) {
                             IgyPreferences.setSelectedNodeId(context, id)
                             IgyPreferences.setSelectedNodeName(context, name)
                             selectedNodeId = id
@@ -753,20 +744,20 @@ fun VroomServerSelectionScreen(isDarkMode: Boolean, isPremium: Boolean, onBack: 
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            TactileVroomButton(text = "BACK", onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
+            TactileVroomButton(text = "BACK", onClick = onBack, isDarkMode = isDarkMode)
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-fun ServerItem(name: String, id: Int, isSelected: Boolean, ping: String? = null, onClick: () -> Unit) {
+fun ServerItem(name: String, id: Int, isSelected: Boolean, isDarkMode: Boolean, ping: String? = null, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, if (isSelected) Color(0xFF00BFFF) else Color.White.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(8.dp),
+        color = if (isDarkMode) (if (isSelected) Color(0xFF2A2A2A) else Color(0xFF1A1A1A)) else AppWhite,
+        border = BorderStroke(1.dp, if (isSelected) AppAccent else AppShadow)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -774,13 +765,13 @@ fun ServerItem(name: String, id: Int, isSelected: Boolean, ping: String? = null,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(name, color = Color.White, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                Text(name, color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 if (ping != null) {
-                    Text(ping, color = if (ping.contains("ms")) Color(0xFF00FF00) else Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                    Text(ping, color = if (ping.contains("ms")) Color(0xFF00AA00) else (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.4f), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
             if (isSelected) {
-                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color(0xFF00BFFF))
+                Icon(Icons.Default.Check, contentDescription = "Selected", tint = AppAccent)
             }
         }
     }

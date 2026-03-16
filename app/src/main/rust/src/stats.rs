@@ -13,7 +13,7 @@ pub fn measure_stats(target_ip_str: String) -> String {
     let addr_str = if target_ip_str.contains(':') {
         target_ip_str.clone()
     } else {
-        format!("{}:80", target_ip_str)
+        format!("{}:443", target_ip_str)
     };
 
     let addr: SocketAddr = addr_str.parse().unwrap_or_else(|_| "1.1.1.1:443".parse().unwrap());

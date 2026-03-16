@@ -88,7 +88,7 @@ app.get('/api/vpn/regions', authenticateToken, async (req, res) => {
             };
         });
         res.json(result);
-    } catch (e) { res.status(500).json({ error: 'FAILED_TO_LOAD_RIGYONS' }); }
+    } catch (e) { res.status(500).json({ error: 'FAILED_TO_LOAD_REGIONS' }); }
 });
 
 // Admin: Manage Regions (Nodes)

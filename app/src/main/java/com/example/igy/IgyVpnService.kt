@@ -54,8 +54,19 @@ class IgyVpnService : VpnService(), Runnable {
     private val networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: android.net.Network) {
             TrafficEvent.log("CORE >> NETWORK_RESTORED")
-            if (isRunning && !isTunnelEstablished && !isAutoModeActive) {
-                startVpnTunnel()
+            if (isRunning) {
+                if (!isTunnelEstablished && !isAutoModeActive) {
+                    startVpnTunnel()
+                } else if (isTunnelEstablished) {
+                    TrafficEvent.log("CORE >> NETWORK_ROTATION_DETECTED")
+                    serviceScope.launch {
+                        tunnelMutex.withLock {
+                            tearDownTunnelOnly()
+                            delay(1000)
+                            establishTunnel()
+                        }
+                    }
+                }
             }
         }
         override fun onLost(network: android.net.Network) {
@@ -128,23 +139,23 @@ class IgyVpnService : VpnService(), Runnable {
                 delay(5000) // Responsive check every 5s
                 
                 if (isTunnelEstablished) {
-                    // 1. FAST CHECK: Native status
-                    val coreStatus = try {
-                        val healthJson = IgyNetwork.getCoreHealth()
-                        if (healthJson != null) org.json.JSONObject(healthJson).optString("status") else "UNKNOWN"
-                    } catch (e: Exception) { "ERROR" }
+                    // 1. FAST CHECK: Native status & VPN Health
+                    val healthJson = try { IgyNetwork.getCoreHealth() } catch (e: Exception) { null }
+                    val json = if (healthJson != null) org.json.JSONObject(healthJson) else null
+                    val coreStatus = json?.optString("status") ?: "UNKNOWN"
+                    val vpnHealth = json?.optInt("vpn_health", 0) ?: 0 // 1=Healthy, 2=Stalled
 
-                    if (coreStatus == "ERROR") {
-                        TrafficEvent.log("WATCHDOG >> NATIVE_ERROR_DETECTED_RECOVERING")
+                    if (coreStatus == "ERROR" || vpnHealth == 2) {
+                        TrafficEvent.log("WATCHDOG >> ${if (vpnHealth == 2) "VPN_STALLED" else "CORE_ERROR"}_RECOVERING")
                         tunnelMutex.withLock {
                             tearDownTunnelOnly()
-                            delay(500)
+                            delay(1000)
                             establishTunnel()
                         }
                         continue
                     }
 
-                    // 2. THOROUGH CHECK: Ping test (only if core says it is running)
+                    // 2. THOROUGH CHECK: Ping test
                     if (coreStatus == "RUNNING") {
                         val isHealthy = withContext(Dispatchers.IO) {
                             try {
@@ -252,47 +263,42 @@ class IgyVpnService : VpnService(), Runnable {
         switchJob = serviceScope.launch {
             if (targetApps.contains(currentApp)) {
                 val appName = getAppName(currentApp)
+                TrafficEvent.log("AUTO_START >> IGNITING_FOR: $appName")
                 
-                // HEALING SYSTEM: Always re-verify health when entering target app
-                // This prevents freezes and ensures a fresh connection every time.
-                TrafficEvent.log("HEALING >> $appName")
-                
-                val isZombie = if (isTunnelEstablished) {
-                    withContext(Dispatchers.IO) {
+                // SPEED BOOT: Parallel health check and tunnel preparation
+                val healthCheck = async(Dispatchers.IO) {
+                    if (isTunnelEstablished) {
                         try {
                             val statsJson = IgyNetwork.measureNetworkStats("1.1.1.1")
                             val ping = if (!statsJson.isNullOrEmpty()) org.json.JSONObject(statsJson).optInt("ping", -1) else -1
-                            ping == -1
-                        } catch (e: Exception) { true }
-                    }
-                } else false
+                            ping != -1
+                        } catch (e: Exception) { false }
+                    } else false
+                }
 
-                if (!isTunnelEstablished || vpnThread?.isAlive != true || vpnInterface == null || isZombie) {
-                    if (isZombie) TrafficEvent.log("HEALING >> ZOMBIE_DETECTED")
+                if (!isTunnelEstablished || vpnThread?.isAlive != true || vpnInterface == null || !healthCheck.await()) {
                     TrafficEvent.setConnectionState(ConnectionState.CONNECTING)
                     tunnelMutex.withLock { 
-                        if (isTunnelEstablished) tearDownTunnelOnly() // Force fresh start if half-broken or zombie
+                        if (isTunnelEstablished) tearDownTunnelOnly()
                         establishTunnel() 
                     }
                 } else {
-                    // Even if established, we show status
                     TrafficEvent.setConnectionState(ConnectionState.CONNECTED)
-                    showIslandPopup("Connected to $appName", isConnect = true)
+                    showIslandPopup("Vroom Connected: $appName", isConnect = true)
                 }
             } else {
-                // Wait 300ms before killing - maybe user just checked notification or switched back
-                delay(300)
+                // Polished Exit: 500ms grace period to allow app switching (e.g., checking notifications)
+                delay(500)
                 val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
                 val time = System.currentTimeMillis()
-                val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 500, time)
-                val checkApp = stats?.maxByOrNull { it.lastTimeUsed }?.packageName ?: ""
+                val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000, time)
+                val activePackage = stats?.maxByOrNull { it.lastTimeUsed }?.packageName ?: ""
                 
-                if (!targetApps.contains(checkApp)) {
+                if (!targetApps.contains(activePackage)) {
                     tunnelMutex.withLock {
                         if (isTunnelEstablished) {
-                            val prevAppName = if (prevApp.isNotEmpty()) getAppName(prevApp) else "App"
-                            TrafficEvent.log("EXITED >> $prevAppName")
-                            showIslandPopup("Disconnected from $prevAppName", isConnect = false)
+                            TrafficEvent.log("AUTO_START >> IDLE_MODE")
+                            showIslandPopup("Vroom: Idle", isConnect = false)
                             updateNotification("🛡️ [IGY] READY: Watching apps")
                             tearDownTunnelOnly()
                         }
@@ -394,17 +400,12 @@ class IgyVpnService : VpnService(), Runnable {
                         val latestKey = fetchVpnConfigSync(serverUrl, token, IgyPreferences.getSelectedNodeId(this@IgyVpnService))
                         if (latestKey != null && latestKey.startsWith("ss://")) {
                             IgyPreferences.saveOutlineKey(this@IgyVpnService, latestKey)
-                            TrafficEvent.log("VPN >> KEY_REFRESHED_BACKGROUND")
+                            TrafficEvent.log("VPN >> KEY_REFRESHED")
                         }
                     } catch (e: Exception) {
                         TrafficEvent.log("VPN >> KEY_REFRESH_SILENT_FAIL")
                     }
                 }
-            }
-
-            if (activeKey.isEmpty()) {
-                TrafficEvent.log("VPN >> ABORT: NO_LOCAL_KEY_FOUND_LOGIN_REQUIRED")
-                return
             }
 
             val builder = Builder()
@@ -413,10 +414,16 @@ class IgyVpnService : VpnService(), Runnable {
                 .setConfigureIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
 
             if (isStealth) {
+                if (activeKey.isEmpty()) {
+                    TrafficEvent.log("VPN >> ABORT: NO_KEY_FOUND")
+                    return
+                }
+
                 // Use a more common non-conflicting range
                 builder.addAddress("172.19.0.1", 24).addRoute("0.0.0.0", 0)
                 builder.addAddress("fd00:1::1", 128).addRoute("::", 0)
                 builder.addDnsServer("1.1.1.1")
+                builder.addDnsServer("8.8.8.8")
                 
                 if (isGlobal) {
                     try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
@@ -431,6 +438,8 @@ class IgyVpnService : VpnService(), Runnable {
                     }
                     // STRICT SPLIT TUNNEL: Only selected apps get VPN
                     targetApps.filterNotNull().forEach { try { builder.addAllowedApplication(it) } catch (e: Exception) {} }
+                    // Also allow the app itself to bypass for key refreshes
+                    try { builder.addDisallowedApplication(packageName) } catch (e: Exception) {}
                 }
             } else {
                 builder.addAddress("172.19.0.1", 24).addRoute("0.0.0.0", 0)
@@ -449,29 +458,28 @@ class IgyVpnService : VpnService(), Runnable {
 
             vpnInterface = builder.establish()
             if (vpnInterface == null) {
-                isTunnelEstablished = false
+                TrafficEvent.log("CORE >> ERR: INTERFACE_ESTABLISH_FAILED")
                 return
             }
 
             val fd = vpnInterface!!.fd
             if (IgyNetwork.isAvailable()) {
                 if (isStealth) {
-                    if (activeKey.isNotEmpty()) {
-                        IgyNetwork.setOutlineKey(activeKey)
-                        IgyNetwork.runVpnLoop(fd)
-                    } else {
-                        IgyNetwork.runPassiveShield(fd)
-                    }
+                    IgyNetwork.setOutlineKey(activeKey)
+                    IgyNetwork.runVpnLoop(fd)
                 } else {
                     IgyNetwork.runPassiveShield(fd)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "VPN Panic", e)
+            TrafficEvent.log("CORE >> PANIC: ${e.message}")
         } finally {
             isTunnelEstablished = false
             TrafficEvent.setVpnActive(false)
+            TrafficEvent.setConnectionState(ConnectionState.IDLE)
             try { vpnInterface?.close() } catch (e: Exception) {}
+            vpnInterface = null
         }
     }
 

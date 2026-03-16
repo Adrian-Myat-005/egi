@@ -139,8 +139,9 @@ pub extern "system" fn Java_com_example_igy_IgyNetwork_getCoreHealth(
     };
     
     let stats = format!(
-        r#"{{"status":"{}","tcp":{},"udp":{},"other":{},"bytes":{},"port":{}}}"#,
+        r#"{{"status":"{}","vpn_health":{},"tcp":{},"udp":{},"other":{},"bytes":{},"port":{}}}"#,
         status_str,
+        VPN_HEALTH_STATUS.load(Ordering::SeqCst),
         TCP_COUNT.load(Ordering::Relaxed),
         UDP_COUNT.load(Ordering::Relaxed),
         OTHER_COUNT.load(Ordering::Relaxed),

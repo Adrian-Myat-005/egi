@@ -12,6 +12,8 @@ pub static PROXY_PORT: AtomicU16 = AtomicU16::new(10808);
 
 // Health Status: 0=STOPPED, 1=STARTING, 2=RUNNING, 3=ERROR
 pub static CORE_STATUS: AtomicU8 = AtomicU8::new(0);
+// VPN Health: 0=PENDING, 1=HEALTHY, 2=STALLED
+pub static VPN_HEALTH_STATUS: AtomicU8 = AtomicU8::new(0);
 
 #[derive(Zeroize, ZeroizeOnDrop, Default, Clone)]
 pub struct SecureKey {
@@ -23,7 +25,7 @@ lazy_static::lazy_static! {
     pub static ref ALLOWED_DOMAINS: RwLock<Vec<String>> = RwLock::new(Vec::new());
     pub static ref ALLOWED_UIDS: RwLock<Vec<u32>> = RwLock::new(Vec::new());
     pub static ref TOKIO_RT: Runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
+        .worker_threads(4)
         .enable_all()
         .build()
         .expect("Failed to create Tokio runtime");

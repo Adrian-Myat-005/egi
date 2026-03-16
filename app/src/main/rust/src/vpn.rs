@@ -163,15 +163,45 @@ pub fn start_vpn_loop(fd: i32) {
         // --- COMPONENT 2: SOCKS5 HEALTH MONITOR ---
         let monitor_addr = local_addr_str.clone();
         let monitor_token = master_token.clone();
+        VPN_HEALTH_STATUS.store(1, Ordering::SeqCst); // Start as healthy
+        
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(15)).await;
                 if monitor_token.is_cancelled() { break; }
                 
-                if tokio::net::TcpStream::connect(&monitor_addr).await.is_err() {
-                    crate::log_to_java("VPN >> MONITOR_DETECTED_PROXY_DEAD");
-                    monitor_token.cancel();
-                    break;
+                // End-to-End Handshake Check
+                let mut is_healthy = false;
+                match tokio::time::timeout(Duration::from_secs(5), tokio::net::TcpStream::connect(&monitor_addr)).await {
+                    Ok(Ok(mut stream)) => {
+                        use tokio::io::{AsyncWriteExt, AsyncReadExt};
+                        // 1. SOCKS5 Greeting
+                        if stream.write_all(&[0x05, 0x01, 0x00]).await.is_ok() {
+                            let mut res = [0u8; 2];
+                            if stream.read_exact(&mut res).await.is_ok() && res == [0x05, 0x00] {
+                                // 2. SOCKS5 Connect to 1.1.1.1:53 (DNS) - Lightweight test
+                                let cmd = [0x05, 0x01, 0x00, 0x01, 1, 1, 1, 1, 0, 53];
+                                if stream.write_all(&cmd).await.is_ok() {
+                                    let mut res = [0u8; 10];
+                                    if stream.read_exact(&mut res).await.is_ok() && res[1] == 0x00 {
+                                        is_healthy = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                if is_healthy {
+                    VPN_HEALTH_STATUS.store(1, Ordering::SeqCst);
+                } else {
+                    VPN_HEALTH_STATUS.store(2, Ordering::SeqCst);
+                    crate::log_to_java("VPN >> MONITOR_DETECTED_STALLED_CONNECTION");
+                    // We don't necessarily kill it here yet, we let the Java watchdog decide 
+                    // or we can be aggressive and kill it now.
+                    // The user says "kill silently", so let's be aggressive if it's dead.
+                    // monitor_token.cancel(); 
                 }
             }
         });

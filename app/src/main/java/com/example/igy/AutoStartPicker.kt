@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,26 +61,26 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(40.dp))
-            Text("AUTO-START TARGETS", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Select apps to trigger Vroom automatically", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Text("AUTO-START TARGETS", color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Select apps to trigger Vroom automatically", color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Search Field
+            // Search Field - Tactile Style
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search apps...", color = Color.White.copy(alpha = 0.3f)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f)) },
+                modifier = Modifier.fillMaxWidth().background(if (isDarkMode) Color(0xFF1A1A1A) else AppWhite, RoundedCornerShape(8.dp)),
+                placeholder = { Text("Search apps...", color = AppDeepGray.copy(alpha = 0.3f), fontSize = 14.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AppDeepGray.copy(alpha = 0.5f)) },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF00BFFF),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                    focusedTextColor = if (isDarkMode) Color.White else AppDeepGray,
+                    unfocusedTextColor = if (isDarkMode) Color.White else AppDeepGray,
+                    focusedBorderColor = AppAccent,
+                    unfocusedBorderColor = AppShadow
                 )
             )
 
@@ -90,6 +92,7 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
                     VroomAutoStartRow(
                         app = app,
                         isSelected = selectedApps.contains(app.packageName),
+                        isDarkMode = isDarkMode,
                         onToggle = {
                             val newList = selectedApps.toMutableSet()
                             if (newList.contains(app.packageName)) newList.remove(app.packageName) else newList.add(app.packageName)
@@ -102,12 +105,12 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TactileVroomButton("BACK", modifier = Modifier.weight(1f), onClick = onBack, isDarkMode = isDarkMode, color = Color.White.copy(alpha = 0.2f))
-                TactileVroomButton("SAVE", modifier = Modifier.weight(1f), onClick = {
+                TactileVroomButton("BACK", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = onBack)
+                TactileVroomButton("SAVE", modifier = Modifier.weight(1f), isDarkMode = isDarkMode, onClick = {
                     IgyPreferences.setAutoStartApps(context, selectedApps)
-                    Toast.makeText(context, "Settings Saved", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Config Saved", Toast.LENGTH_SHORT).show()
                     onBack()
-                }, isDarkMode = isDarkMode, color = Color(0xFF00BFFF))
+                })
             }
             Spacer(modifier = Modifier.height(20.dp))
         }
@@ -115,13 +118,13 @@ fun AutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-fun VroomAutoStartRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
+fun VroomAutoStartRow(app: AppInfo, isSelected: Boolean, isDarkMode: Boolean, onToggle: () -> Unit) {
     Surface(
         onClick = onToggle,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) Color.White.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, if (isSelected) Color(0xFF00BFFF) else Color.White.copy(alpha = 0.05f))
+        shape = RoundedCornerShape(8.dp),
+        color = if (isDarkMode) (if (isSelected) Color(0xFF2A2A2A) else Color(0xFF1A1A1A)) else AppWhite,
+        border = BorderStroke(1.dp, if (isSelected) AppAccent else AppShadow)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -130,17 +133,18 @@ fun VroomAutoStartRow(app: AppInfo, isSelected: Boolean, onToggle: () -> Unit) {
             Image(
                 painter = rememberDrawablePainter(drawable = app.icon), 
                 contentDescription = null, 
-                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, AppShadow, RoundedCornerShape(8.dp))
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = app.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(text = app.packageName, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1)
+                Text(text = app.name, color = if (isDarkMode) Color.White else AppDeepGray, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, fontFamily = FontFamily.SansSerif)
+                Text(text = app.packageName, color = (if (isDarkMode) Color.White else AppDeepGray).copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1, fontFamily = FontFamily.Monospace)
             }
-            Checkbox(
-                checked = isSelected, 
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00BFFF))
+            Icon(
+                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (isSelected) AppAccent else AppDeepGray.copy(0.2f),
+                modifier = Modifier.size(24.dp)
             )
         }
     }
