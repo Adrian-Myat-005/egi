@@ -408,12 +408,6 @@ fun VroomTextField(value: String, onValueChange: (String) -> Unit, label: String
     )
 }
 
-@Composable
-fun VroomAutoStartPickerScreen(isDarkMode: Boolean, onBack: () -> Unit) {
-    // This will be implemented in AutoStartPicker.kt but we reference it here
-    AutoStartPickerScreen(isDarkMode, onBack)
-}
-
 private suspend fun fetchRegions(serverUrl: String, token: String): List<JSONObject> = withContext(Dispatchers.IO) {
     try {
         val url = java.net.URL("$serverUrl/api/vpn/regions")
@@ -775,20 +769,6 @@ fun ServerItem(name: String, id: Int, isSelected: Boolean, isDarkMode: Boolean, 
                 Icon(Icons.Default.Check, contentDescription = "Selected", tint = AppAccent)
             }
         }
-    }
-}
-
-@Composable
-fun BottomNavItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(8.dp)
-    ) {
-        Icon(imageVector = icon, contentDescription = label, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
     }
 }
 
